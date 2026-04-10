@@ -1,0 +1,15 @@
+{
+  "plot_1": {
+    "id": "plot_1",
+    "name": "Missing Ledger",
+    "stage": "hook",
+    "active": true,
+    "triggers": [
+      "NPC mentions the ledger",
+      "Player visits the dock"
+    ],
+    "consequences": [
+      "A hidden broker becomes interested"
+    ]
+  }
+}

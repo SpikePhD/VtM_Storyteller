@@ -1,0 +1,9 @@
+.env
+.env.local
+.env.*
+!.env.example
+config/app_config.local.json
+__pycache__/
+*.pyc
+data/saves/*.json
+adventures/ADV1/saves/*.json

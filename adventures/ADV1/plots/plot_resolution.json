@@ -1,0 +1,19 @@
+{
+  "plot_id": "plot_1",
+  "plot_name": "Missing Ledger",
+  "investigate": {
+    "location_id": "loc_dock",
+    "required_stage": "lead_confirmed",
+    "requires_roll": true,
+    "roll_pool": 3,
+    "difficulty": 4,
+    "success": {
+      "to_stage": "resolved",
+      "active": false,
+      "message": "Plot 'Missing Ledger' resolved at North Dockside."
+    },
+    "failure": {
+      "message": "Investigation at North Dockside failed to resolve 'Missing Ledger'."
+    }
+  }
+}

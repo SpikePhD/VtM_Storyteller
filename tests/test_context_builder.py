@@ -1,0 +1,72 @@
+from __future__ import annotations
+
+import unittest
+
+from vampire_storyteller.context_builder import build_scene_snapshot, snapshot_to_prompt_text
+from vampire_storyteller.exceptions import ContextBuildError
+from vampire_storyteller.models import EventLogEntry
+from vampire_storyteller.sample_world import build_sample_world
+
+
+class ContextBuilderTests(unittest.TestCase):
+    def test_snapshot_uses_players_current_location(self) -> None:
+        world = build_sample_world()
+        snapshot = build_scene_snapshot(world)
+
+        self.assertEqual(snapshot.location_id, "loc_cafe")
+        self.assertEqual(snapshot.location_name, "Blackthorn Cafe")
+
+    def test_only_npcs_at_player_location_are_included(self) -> None:
+        world = build_sample_world()
+        snapshot = build_scene_snapshot(world)
+
+        self.assertEqual([npc.id for npc in snapshot.npcs_present], ["npc_1"])
+
+    def test_only_active_plots_are_included(self) -> None:
+        world = build_sample_world()
+        world.plots["plot_2"] = world.plots["plot_1"].__class__(
+            id="plot_2",
+            name="Dormant Thread",
+            stage="paused",
+            active=False,
+            triggers=["ignored"],
+            consequences=["ignored"],
+        )
+
+        snapshot = build_scene_snapshot(world)
+        self.assertEqual(snapshot.active_plots, ["Missing Ledger [hook]"])
+
+    def test_recent_events_are_limited_in_chronological_order(self) -> None:
+        world = build_sample_world()
+        world.append_event(EventLogEntry(timestamp="t1", description="First", involved_entities=[]))
+        world.append_event(EventLogEntry(timestamp="t2", description="Second", involved_entities=[]))
+        world.append_event(EventLogEntry(timestamp="t3", description="Third", involved_entities=[]))
+        world.append_event(EventLogEntry(timestamp="t4", description="Fourth", involved_entities=[]))
+
+        snapshot = build_scene_snapshot(world, recent_event_limit=2)
+        self.assertEqual(snapshot.recent_events, ["Third", "Fourth"])
+
+    def test_prompt_text_is_stable_and_labeled(self) -> None:
+        world = build_sample_world()
+        snapshot = build_scene_snapshot(world)
+        prompt_text = snapshot_to_prompt_text(snapshot)
+
+        self.assertIn("Time: ", prompt_text)
+        self.assertIn("Player: ", prompt_text)
+        self.assertIn("Location: ", prompt_text)
+        self.assertIn("Exits: ", prompt_text)
+        self.assertIn("NPCs Present: ", prompt_text)
+        self.assertIn("Active Plots: ", prompt_text)
+        self.assertIn("Missing Ledger [hook]", prompt_text)
+        self.assertIn("Recent Events: ", prompt_text)
+
+    def test_building_without_valid_location_raises(self) -> None:
+        world = build_sample_world()
+        world.player.location_id = None
+
+        with self.assertRaises(ContextBuildError):
+            build_scene_snapshot(world)
+
+
+if __name__ == "__main__":
+    unittest.main()

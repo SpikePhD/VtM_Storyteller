@@ -1,0 +1,34 @@
+{
+  "npcs": [
+    {
+      "id": "npc_1",
+      "name": "Jonas Reed",
+      "role": "Informant",
+      "starting_location_id": "loc_cafe",
+      "attitude_to_player": "wary",
+      "traits": {
+        "voice": "quiet",
+        "behavior": "observant"
+      },
+      "schedule": {
+        "night": "loc_cafe",
+        "late": "loc_dock"
+      }
+    },
+    {
+      "id": "npc_2",
+      "name": "Sister Eliza",
+      "role": "Haven Keeper",
+      "starting_location_id": "loc_church",
+      "attitude_to_player": "guarded",
+      "traits": {
+        "voice": "measured",
+        "behavior": "watchful"
+      },
+      "schedule": {
+        "evening": "loc_church",
+        "midnight": "loc_dock"
+      }
+    }
+  ]
+}

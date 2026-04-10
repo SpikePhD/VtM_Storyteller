@@ -1,0 +1,20 @@
+{
+  "id": "player_1",
+  "name": "Mara Vale",
+  "clan": "Ventrue",
+  "profession": "Fixer",
+  "hunger": 2,
+  "health": 7,
+  "willpower": 5,
+  "humanity": 6,
+  "inventory": [
+    "phone",
+    "lighter"
+  ],
+  "location_id": "loc_cafe",
+  "stats": {
+    "strength": 2,
+    "dexterity": 3,
+    "intelligence": 4
+  }
+}

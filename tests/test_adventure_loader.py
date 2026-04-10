@@ -1,0 +1,196 @@
+from __future__ import annotations
+
+from pathlib import Path
+import shutil
+import tempfile
+import unittest
+
+from vampire_storyteller.adventure_loader import (
+    AdventureContentError,
+    load_adv1_location_definitions,
+    load_adv1_npc_definitions,
+    load_adv1_player_seed_data,
+    load_adv1_plot_thread_definitions,
+    load_adv1_world_state,
+)
+from vampire_storyteller.data_paths import ADVENTURE_ROOT
+from vampire_storyteller.sample_world import build_sample_world
+
+
+class AdventureLoaderTests(unittest.TestCase):
+    def test_seed_world_is_loaded_from_adv1_files(self) -> None:
+        world = build_sample_world()
+
+        self.assertEqual(world.player.name, "Mara Vale")
+        self.assertEqual(world.player.location_id, "loc_cafe")
+        self.assertEqual(world.player.stats["strength"], 2)
+        self.assertEqual(world.current_time, "2026-04-09T22:00:00+02:00")
+        self.assertEqual(world.locations["loc_cafe"].name, "Blackthorn Cafe")
+        self.assertEqual(world.npcs["npc_1"].name, "Jonas Reed")
+        self.assertEqual(world.plots["plot_1"].stage, "hook")
+
+    def test_direct_loader_matches_expected_seed_values(self) -> None:
+        world = load_adv1_world_state()
+
+        self.assertEqual(world.player.clan, "Ventrue")
+        self.assertEqual(world.locations["loc_dock"].danger_level, 4)
+        self.assertEqual(world.locations["loc_cafe"].connected_locations, ["loc_church", "loc_dock"])
+        self.assertEqual(world.locations["loc_church"].travel_time["loc_dock"], 15)
+        self.assertEqual(world.npcs["npc_2"].location_id, "loc_church")
+        self.assertEqual(world.npcs["npc_1"].schedule["late"], "loc_dock")
+        self.assertEqual(world.npcs["npc_1"].traits["voice"], "quiet")
+        self.assertEqual(world.plots["plot_1"].triggers, ["NPC mentions the ledger", "Player visits the dock"])
+
+    def test_player_seed_loader_reads_adv1_file(self) -> None:
+        player_seed = load_adv1_player_seed_data()
+
+        self.assertEqual(player_seed.player.id, "player_1")
+        self.assertEqual(player_seed.player.name, "Mara Vale")
+        self.assertEqual(player_seed.player.clan, "Ventrue")
+        self.assertEqual(player_seed.player.profession, "Fixer")
+        self.assertEqual(player_seed.player.hunger, 2)
+        self.assertEqual(player_seed.player.health, 7)
+        self.assertEqual(player_seed.player.willpower, 5)
+        self.assertEqual(player_seed.player.humanity, 6)
+        self.assertEqual(player_seed.player.inventory, ["phone", "lighter"])
+        self.assertEqual(player_seed.player.location_id, "loc_cafe")
+        self.assertEqual(player_seed.player.stats["dexterity"], 3)
+
+    def test_location_definition_loader_reads_adv1_file(self) -> None:
+        location_definitions = load_adv1_location_definitions()
+
+        self.assertEqual([definition.id for definition in location_definitions], ["loc_cafe", "loc_church", "loc_dock"])
+        self.assertEqual(location_definitions[0].danger_level, 2)
+        self.assertEqual(location_definitions[1].connected_locations, ["loc_cafe", "loc_dock"])
+        self.assertEqual(location_definitions[2].travel_time["loc_church"], 15)
+
+    def test_npc_definition_loader_reads_adv1_file(self) -> None:
+        npc_definitions = load_adv1_npc_definitions()
+
+        self.assertEqual([definition.id for definition in npc_definitions], ["npc_1", "npc_2"])
+        self.assertEqual(npc_definitions[0].starting_location_id, "loc_cafe")
+        self.assertEqual(npc_definitions[1].attitude_to_player, "guarded")
+
+    def test_plot_thread_definition_loader_reads_adv1_file(self) -> None:
+        plot_definitions = load_adv1_plot_thread_definitions()
+
+        self.assertEqual([definition.id for definition in plot_definitions], ["plot_1"])
+        self.assertEqual(plot_definitions[0].stage, "hook")
+        self.assertEqual(plot_definitions[0].consequences, ["A hidden broker becomes interested"])
+
+    def test_missing_location_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "locations" / "locations.json").unlink()
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_location_definitions(temp_root)
+
+        self.assertIn("Required adventure file missing", str(ctx.exception))
+
+    def test_malformed_location_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "locations" / "locations.json").write_text("{not valid json", encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_location_definitions(temp_root)
+
+        self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def test_missing_seed_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "npcs" / "npcs.json").unlink()
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_world_state(temp_root)
+
+        self.assertIn("Required adventure file missing", str(ctx.exception))
+
+    def test_missing_player_seed_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "world" / "player.json").unlink()
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_player_seed_data(temp_root)
+
+        self.assertIn("Required adventure file missing", str(ctx.exception))
+
+    def test_missing_npc_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "npcs" / "npcs.json").unlink()
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_npc_definitions(temp_root)
+
+        self.assertIn("Required adventure file missing", str(ctx.exception))
+
+    def test_missing_plot_thread_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "plots" / "plot_threads.json").unlink()
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_plot_thread_definitions(temp_root)
+
+        self.assertIn("Required adventure file missing", str(ctx.exception))
+
+    def test_malformed_seed_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "world" / "time.json").write_text("{not valid json", encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_world_state(temp_root)
+
+        self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def test_malformed_player_seed_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "world" / "player.json").write_text("{not valid json", encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_player_seed_data(temp_root)
+
+        self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def test_malformed_npc_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "npcs" / "npcs.json").write_text("{not valid json", encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_npc_definitions(temp_root)
+
+        self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def test_malformed_plot_thread_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "plots" / "plot_threads.json").write_text("{not valid json", encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_plot_thread_definitions(temp_root)
+
+        self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def _copy_adv1_files(self, target_root: Path) -> None:
+        shutil.copytree(ADVENTURE_ROOT, target_root)
+
+
+if __name__ == "__main__":
+    unittest.main()

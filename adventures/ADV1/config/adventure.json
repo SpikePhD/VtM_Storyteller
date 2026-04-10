@@ -1,0 +1,6 @@
+{
+  "id": "ADV1",
+  "name": "ADV1",
+  "description": "Current sample adventure for the text prototype.",
+  "starting_world_state_source": "adventures/ADV1 files"
+}

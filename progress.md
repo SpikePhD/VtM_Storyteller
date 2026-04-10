@@ -1,0 +1,952 @@
+# Progress
+
+## Task 031 - Make Blocked Investigate Attempts Return Explicit Deterministic Feedback
+
+- Status: implemented
+- Goal: make unsupported or premature `investigate` attempts return clear deterministic feedback instead of silently re-rendering the current scene
+- Files changed:
+  - `vampire_storyteller/adjudication_engine.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_game_session.py`
+  - `tests/test_adjudication_engine.py`
+  - `progress.md`
+- What was implemented:
+  - Added a blocked-feedback field to the adjudication decision for `investigate`
+  - Added a small deterministic blocked-state message path for premature or unsupported `investigate` attempts
+  - Updated `GameSession` so blocked `investigate` attempts return explicit feedback directly instead of re-rendering the scene
+  - Preserved the successful investigate flow, plot progression, adjudication, dice, and consequence behavior
+  - Added regression coverage for blocked startup investigate, blocked dock-side investigate before `lead_confirmed`, and the unchanged successful path
+- Acceptance criteria checklist:
+  - [x] Premature `investigate` attempts no longer feel like silent no-ops
+  - [x] Successful `investigate` behavior remains unchanged
+  - [x] Current Missing Ledger progression path remains unchanged
+  - [x] Tests cover blocked and successful investigate outcomes
+  - [x] Full test suite passes
+- Assumptions:
+  - A small explicit blocked-feedback string is the least invasive way to improve clarity without changing mechanics
+  - `investigate` should continue to use the existing authored prerequisites rather than introducing a separate status command
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more commands later need explicit blocked feedback, this pattern can be reused without broadening the engine design
+
+## Task 029 - Externalize ADV1 Initial Player Seed Data
+
+- Status: implemented
+- Goal: move the starting ADV1 player character out of Python and into a visible file under `adventures/ADV1/` while keeping player-state logic deterministic in Python
+- Files changed:
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_game_session.py`
+  - `tests/test_adventure_paths.py`
+  - `progress.md`
+- What was implemented:
+  - Added a typed ADV1 player seed loader for the visible `adventures/ADV1/world/player.json` file
+  - Updated sample-world construction so the initial `Player` instance is sourced from authored content instead of embedded Python literals
+  - Preserved current startup, movement, hunger, and save/load behavior
+  - Added regression coverage for the player seed file, missing/malformed player file failures, and startup player state
+- Acceptance criteria checklist:
+  - [x] ADV1 initial player seed data is no longer primarily hardcoded in Python
+  - [x] Startup player state is file-backed
+  - [x] Current startup and gameplay behavior remains the same
+  - [x] Save/load still works
+  - [x] Tests pass
+- Assumptions:
+  - The existing `adventures/ADV1/world/player.json` file is the canonical authored source for the current sample character
+  - A small typed loader is enough; no broader character-creation system is needed
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more ADV1 authored content is externalized later, keep it in similarly small visible files without introducing a generic content framework
+
+## Task 028 - Externalize ADV1 Initial Plot Thread Seed Data
+
+- Status: implemented
+- Goal: move the initial ADV1 plot thread content out of Python and into a visible file under `adventures/ADV1/` while keeping plot progression, adjudication, and consequence logic deterministic in Python
+- Files added:
+  - `adventures/ADV1/plots/plot_threads.json`
+- Files changed:
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/data_paths.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_plot_engine.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_adventure_paths.py`
+  - `progress.md`
+- What was implemented:
+  - Added a visible ADV1 plot thread data file with explicit fields for id, name, stage, active, triggers, and consequences
+  - Added a typed ADV1 plot-thread definition loader with clear errors for missing or malformed content
+  - Split sample-world construction so `PlotThread` instances are created from the authored file rather than embedded Python literals
+  - Kept plot progression, adjudication, and consequence logic unchanged in Python
+  - Preserved the current Missing Ledger behavior, including startup visibility and the hook to resolved progression path
+  - Added regression coverage for the authored plot-thread file, file-missing failure paths, and file-backed startup state loading
+- Acceptance criteria checklist:
+  - [x] ADV1 initial plot thread definitions are no longer primarily hardcoded in Python
+  - [x] ADV1 startup plot state is file-backed
+  - [x] Current plot progression behavior remains the same
+  - [x] Investigate gating and resolution still work
+  - [x] Save/load still works
+  - [x] Tests pass
+- Assumptions:
+  - A compact ADV1-only plot thread schema is sufficient for this task
+  - Keeping triggers and consequences in the same file as the plot seed is the smallest useful authored slice
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more ADV1 authored content is externalized later, it should stay in similarly small visible files without introducing a generic content framework
+
+## Task 027 - Externalize ADV1 Location Definitions and Travel Graph Data
+
+- Status: implemented
+- Goal: move authored ADV1 location content out of Python and into visible files under `adventures/ADV1/` while keeping movement and travel logic deterministic in Python
+- Files added:
+  - `adventures/ADV1/locations/locations.json`
+- Files changed:
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/data_paths.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_movement_and_wait.py`
+  - `tests/test_adventure_paths.py`
+  - `tests/test_adventure_loader.py`
+  - `progress.md`
+- What was implemented:
+  - Added a visible ADV1 location data file with explicit fields for id, name, type, connected locations, travel time, and danger level
+  - Added a typed ADV1 location definition loader with clear errors for missing or malformed content
+  - Split ADV1 world assembly so sample-world construction now creates `Location` instances from authored data rather than embedded Python literals
+  - Kept movement, travel-time advancement, and hunger progression logic unchanged in Python
+  - Preserved current player-visible map behavior for valid and invalid movement and post-move scene output
+  - Added regression coverage for the authored location file, file-missing failure paths, and file-backed map graph loading
+- Acceptance criteria checklist:
+  - [x] ADV1 location definitions are no longer primarily hardcoded in Python
+  - [x] ADV1 travel graph data is file-backed
+  - [x] Current movement behavior remains the same
+  - [x] Travel-time and hunger progression still work
+  - [x] Save/load still works
+  - [x] Tests pass
+- Assumptions:
+  - A compact ADV1-only location schema is sufficient for this task
+  - Keeping connectivity and travel-time data together in the same file is the smallest useful authored slice
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more ADV1 authored content is externalized later, it should stay in similarly small visible files without introducing a generic content framework
+
+## Task 026 - Externalize ADV1 NPC Definitions and Schedule Data
+
+- Status: implemented
+- Goal: move authored ADV1 NPC content out of Python and into visible files under `adventures/ADV1/` while keeping NPC update logic deterministic in Python
+- Files added:
+  - `adventures/ADV1/npcs/npcs.json`
+- Files changed:
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/data_paths.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_npc_engine.py`
+  - `tests/test_adventure_paths.py`
+  - `tests/test_adventure_loader.py`
+  - `progress.md`
+- What was implemented:
+  - Added a small visible ADV1 NPC data file with explicit fields for id, name, role, starting location, attitude, traits, and schedule
+  - Added a typed ADV1 NPC definition loader with clear errors for missing or malformed content
+  - Split ADV1 world seed loading so sample-world assembly now creates NPC instances from authored data rather than embedded Python literals
+  - Kept NPC movement logic in `npc_engine.py` unchanged
+  - Preserved the current Jonas Reed movement and scene-visibility behavior
+  - Added regression coverage for the authored NPC file, file-missing failure paths, and file-backed NPC traits/schedule loading
+- Acceptance criteria checklist:
+  - [x] ADV1 NPC definitions are no longer primarily hardcoded in Python
+  - [x] ADV1 NPC schedules are file-backed
+  - [x] Current NPC movement behavior remains the same
+  - [x] Scene output still reflects NPC presence correctly
+  - [x] Save/load still works
+  - [x] Tests pass
+- Assumptions:
+  - A compact ADV1-only NPC schema is sufficient for this task
+  - Attitude-to-player remains authored alongside the other visible NPC fields so current scene output stays intact
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more ADV1 authored content is externalized later, it should stay in similarly small, visible files without introducing a generic content framework
+
+## Task 017 - Minimal Adjudication and Dice Engine for v0 Phase 1
+
+- Status: implemented
+- Goal: add the first lightweight uncertainty layer so selected actions can succeed or fail deterministically from a recorded dice result, without moving truth into the narrative/provider layer
+- Files added:
+  - `vampire_storyteller/dice_engine.py`
+  - `vampire_storyteller/adjudication_engine.py`
+  - `tests/test_dice_engine.py`
+  - `tests/test_adjudication_engine.py`
+- Files changed:
+  - `vampire_storyteller/consequence_engine.py`
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_consequence_engine.py`
+  - `progress.md`
+- What was implemented:
+  - Added a minimal deterministic `roll_dice(pool, difficulty, seed)` engine that records individual rolls and success counts
+  - Added a thin `adjudicate_command(world_state, command)` layer that only requires a roll for `investigate` at `loc_dock` with `plot_1.stage == "lead_confirmed"`
+  - Added a deterministic seed strategy derived from current timestamp, command name, and player id
+  - Updated `GameSession` orchestration so adjudication happens before execution, roll logging happens explicitly in the backend, and consequences consume the recorded roll result
+  - Updated the sample investigation consequence so success resolves the hook, while failure logs the failed lead and leaves the plot active
+  - Added regression tests for deterministic dice, validation, adjudication rules, successful and failed investigation outcomes, roll logging, and session flow
+- Acceptance criteria checklist:
+  - [x] Project has a minimal deterministic dice engine
+  - [x] Project has a minimal adjudication layer
+  - [x] investigate resolution is roll-gated
+  - [x] success/failure is backend-determined and event-logged
+  - [x] plot resolves only on successful investigation
+  - [x] tests cover dice, adjudication, and updated consequence flow
+  - [x] CLI still works
+- Assumptions:
+  - A single d10 pool with a one-success threshold is sufficient for the current sample-world uncertainty layer
+  - Session-level event logging is the simplest explicit place to surface roll results without adding a separate UI
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - Future work can expand the adjudication layer with additional deterministic checks before any broader ruleset is introduced
+
+## Task 018 - Basic PySide6 GUI Shell Connected to GameSession
+
+- Status: implemented
+- Goal: build the first basic PySide6 GUI shell on top of the existing backend so the prototype is no longer CLI-only
+- Files added:
+  - `vampire_storyteller/gui_app.py`
+  - `tests/test_gui_app.py`
+- Files changed:
+  - `vampire_storyteller/text_renderers.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Added a minimal GUI module with a startup scene output area, command input row, status panel, and footer help text
+  - Kept the backend session as the sole source of parsing, adjudication, consequence resolution, NPC updates, plot progression, and provider rendering
+  - Added a small `GuiSessionController` so command submission and status refresh logic can be tested without launching a Qt event loop
+  - Added an explicit `refresh_status_panel()` path that reads from `session.get_world_state()` after startup and after each processed command
+  - Wired normal player mistakes into user-facing GUI output with `Input error: ...` and `Action failed: ...`
+  - Added `run_gui()` as the public GUI entrypoint and exported it from the package root
+  - Updated help text so the command list includes `investigate`
+  - Added focused tests for the exported GUI entrypoint, status-panel formatting, controller submission flow, and GUI-facing error handling
+- Acceptance criteria checklist:
+  - [x] Project has a basic PySide6 GUI window
+  - [x] Startup scene is shown in the GUI
+  - [x] Command input flows through `GameSession`
+  - [x] Output panel updates after commands
+  - [x] Status panel refreshes from current world state
+  - [x] Normal parse/action errors are shown in the GUI without crashing
+  - [x] `quit` closes the app cleanly
+  - [x] Help text includes `investigate`
+  - [x] CLI still works
+- Assumptions:
+  - PySide6 may not be installed in every local environment, so the GUI module should fail closed with a clear runtime error if the dependency is missing
+  - A small controller layer is acceptable for testability as long as all gameplay logic remains in backend session code
+- Deviations/issues:
+  - The local environment did not have PySide6 installed, so the GUI was implemented behind an import guard rather than exercised interactively here
+- Notes for next task:
+  - A future step can add packaging metadata for PySide6 and, later, lightweight GUI affordances such as save/load or a map panel
+
+## Task 018a - GUI/Provider Cleanup Before First LLM Test Run
+
+- Status: implemented
+- Goal: fix the integration issues identified after Task 018 so the project is clean and consistent before the first real OpenAI-backed test run
+- Files changed:
+  - `vampire_storyteller/cli.py`
+  - `vampire_storyteller/gui_app.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_gui_app.py`
+  - `progress.md`
+- What was implemented:
+  - Kept the package export surface aligned with real callable names and added the shared provider helper to the package root
+  - Reused the CLI provider bootstrap helper from the GUI so both entry points select deterministic or OpenAI-backed scene providers through the same path
+  - Updated the GUI bootstrap so an optional fallback notice is surfaced through startup text when provider selection falls back
+  - Kept `GameSession` ownership intact and continued to pass the selected scene provider into the session orchestrator
+  - Added focused tests for shared provider selection, missing-key fallback, GUI bootstrap propagation, and package exports
+- Acceptance criteria checklist:
+  - [x] Stale exports are fixed
+  - [x] CLI still works
+  - [x] GUI and CLI use the same provider selection logic
+  - [x] Missing key never breaks GUI startup
+  - [x] Deterministic fallback still works
+  - [x] Tests pass
+- Assumptions:
+  - The shared provider bootstrap can remain in `cli.py` as long as the GUI consumes the same helper rather than duplicating logic
+  - The fallback notice is acceptable when prepended to GUI startup text, which keeps the implementation minimal
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - The next OpenAI test run can focus on the provider itself without needing another cleanup pass around entry-point selection
+
+## Task 019 - Proper .env Secret Loading and JSON Runtime Config Split
+
+- Status: implemented
+- Goal: refactor configuration so `.env` is used for secrets only, runtime settings live in JSON config, and CLI plus GUI both use the same config source
+- Files added:
+  - `config/app_config.json`
+  - `config/app_config.example.json`
+  - `requirements.txt`
+- Files changed:
+  - `vampire_storyteller/config.py`
+  - `vampire_storyteller/cli.py`
+  - `tests/test_config.py`
+  - `tests/test_openai_narrative_provider.py`
+  - `.env.example`
+  - `.gitignore`
+  - `progress.md`
+- What was implemented:
+  - Split configuration into JSON runtime settings and `.env` secret loading
+  - Added committed runtime config files with `openai_model` and `use_openai_scene_provider`
+  - Kept `.env.example` focused on `OPENAI_API_KEY` only
+  - Added a standard-library `.env` reader for secret loading
+  - Added optional local JSON override support for uncommitted runtime customization
+  - Updated the shared provider bootstrap to read `use_openai_scene_provider` from config instead of environment flags
+  - Kept CLI and GUI on the same provider-selection path through the shared helper
+  - Added focused tests for JSON config loading, `.env` secret loading, environment precedence for secrets, and provider selection with the new runtime config shape
+  - Added a minimal `requirements.txt` for the external runtime dependencies used by the project
+- Acceptance criteria checklist:
+  - [x] `.env` is used for secrets only
+  - [x] runtime settings live in JSON config
+  - [x] CLI and GUI use the same config source
+  - [x] `.env.example` only contains `OPENAI_API_KEY=`
+  - [x] deterministic fallback still works when the API key is missing
+  - [x] tests pass
+- Assumptions:
+  - A small standard-library `.env` parser is sufficient for the current secret-loading needs
+  - Committed default JSON config is acceptable for non-secret runtime behavior, with an optional local override file for uncommitted customization
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A later step can add a lightweight config validation or migration helper if the JSON runtime schema grows further
+
+## Task 020 - Tighten OpenAI Scene Grounding and Reduce Invented Detail
+
+- Status: implemented
+- Goal: improve the OpenAI-backed scene provider so it stays much more tightly grounded in deterministic state
+- Files changed:
+  - `vampire_storyteller/openai_narrative_provider.py`
+  - `vampire_storyteller/context_builder.py`
+  - `vampire_storyteller/scene_models.py`
+  - `tests/test_openai_narrative_provider.py`
+  - `progress.md`
+- What was implemented:
+  - Reworked the OpenAI prompt to use a structured JSON narration payload instead of loose rendered scene text
+  - Added stronger non-invention constraints covering weather, sounds, architecture, room details, crowd details, lighting, smells, motion, emotional beats, exits, entities, plot stages, and recent events
+  - Kept the provider grounded in deterministic snapshot data while reducing the chance of unsupported embellishment
+  - Preserved the existing simulation, CLI/GUI flow, and provider-selection/bootstrap behavior
+  - Updated tests to assert the stricter prompt contract and the absence of unsupported scene-detail fields in the payload
+- Acceptance criteria checklist:
+  - [x] OpenAI provider remains functional
+  - [x] prompt is materially stricter about non-invention
+  - [x] provider is better aligned with deterministic truth
+  - [x] tests pass
+- Assumptions:
+  - A smaller structured narration payload is enough to reduce invented details without changing backend truth or session flow
+  - The OpenAI model can produce restrained atmospheric prose from the JSON payload plus the stricter instructions
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If grounding still needs improvement later, the next step should trim the narration payload further rather than widening the prompt again
+
+## Task 021 - Entrypoint Hygiene Fix and Hybrid OpenAI Scene Output
+
+- Status: implemented
+- Goal: fix the module startup warning and improve OpenAI scene usability with a grounded prose plus deterministic footer hybrid output
+- Files changed:
+  - `vampire_storyteller/__init__.py`
+  - `vampire_storyteller/openai_narrative_provider.py`
+  - `vampire_storyteller/context_builder.py`
+  - `tests/test_openai_narrative_provider.py`
+  - `tests/test_gui_app.py`
+  - `tests/test_entrypoint_hygiene.py`
+  - `progress.md`
+- What was implemented:
+  - Removed eager package-root imports of the CLI and GUI entrypoint modules
+  - Replaced package-root entrypoint exports with lazy wrapper functions so the package remains useful without importing entrypoint modules at import time
+  - Kept `python -m vampire_storyteller.cli` and `python -m vampire_storyteller.gui_app` free of the previous `sys.modules` startup warning
+  - Added a deterministic footer helper that renders Location, Exits, NPCs Present, Active Plots, and Recent Events from snapshot state only
+  - Updated the OpenAI scene provider to append the deterministic footer after the model-generated prose
+  - Kept deterministic provider behavior unchanged
+  - Added subprocess-based hygiene tests for the CLI and GUI module invocations and updated provider tests for the hybrid output contract
+- Acceptance criteria checklist:
+  - [x] `python -m vampire_storyteller.cli` no longer emits the current startup warning
+  - [x] CLI still works
+  - [x] GUI still works
+  - [x] OpenAI provider output includes a deterministic verification footer
+  - [x] deterministic provider remains unchanged
+  - [x] fallback behavior remains intact
+  - [x] tests pass
+- Assumptions:
+  - Leaving `python -m vampire_storyteller.gui_app` as a clean module import is sufficient for this cleanup task even without adding a new launch path
+  - A compact text footer is enough for verification without changing simulation truth or provider selection
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If the hybrid footer still feels too verbose later, the next step can trim it further without changing the backend state model
+
+## Task 022 - Text Adventure Launcher, Save/Load, and Adventure Data Folder Layout
+
+- Status: implemented
+- Goal: improve the text-based prototype with a single launcher, real save/load support, and a tidy project-local data folder layout
+- Files added:
+  - `run_text_adventure.py`
+  - `run_text_adventure.bat`
+  - `vampire_storyteller/data_paths.py`
+  - `data/.gitkeep`
+  - `data/saves/.gitkeep`
+  - `tests/test_save_load.py`
+  - `tests/test_text_launcher.py`
+- Files changed:
+  - `vampire_storyteller/command_models.py`
+  - `vampire_storyteller/command_parser.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/serialization.py`
+  - `vampire_storyteller/text_renderers.py`
+  - `vampire_storyteller/__init__.py`
+  - `.gitignore`
+  - `tests/test_command_parser.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Added a root-level `run_text_adventure.py` launcher, plus a Windows batch wrapper, so the text adventure can be started directly without a module path
+  - Added structured `save` and `load` commands to the parser, command models, dispatcher, and session flow
+  - Added a small `data_paths.py` helper that centralizes `data/`, `data/saves/`, and the default save path
+  - Wired `GameSession` to save and restore full world state through the existing serialization layer
+  - Ensured save data is written under `data/saves/current_save.json` by default and that missing saves fail gracefully
+  - Updated help text to include `save` and `load`
+  - Added regression tests for command parsing, save file creation, state restoration, missing-save handling, session continuation after load, and launcher execution
+- Acceptance criteria checklist:
+  - [x] user has one simple launcher for the text adventure
+  - [x] `save` and `load` exist as structured commands
+  - [x] save/load work through normal session flow
+  - [x] save data is stored neatly under `data/saves/`
+  - [x] loading restores the session correctly
+  - [x] missing save file is handled cleanly
+  - [x] CLI remains usable
+  - [x] tests pass
+- Assumptions:
+  - A single default save slot is sufficient for the current prototype
+  - Using a project-local `data/saves/` folder is preferable to scattering runtime files in the repo root
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A later step can add multiple save slots or user-chosen save names without changing the current session save/load contract
+
+## Task 023 - Adventure Root Folder Layout and ADV1 Content Scaffold
+
+- Status: implemented
+- Goal: refactor the runtime/content layout so adventures live under a clear per-adventure root instead of a flat global data folder
+- Files added:
+  - `adventures/ADV1/config/adventure.json`
+  - `adventures/ADV1/notes/README.md`
+  - `adventures/ADV1/world/.gitkeep`
+  - `adventures/ADV1/plots/.gitkeep`
+  - `adventures/ADV1/npcs/.gitkeep`
+  - `adventures/ADV1/locations/.gitkeep`
+  - `adventures/ADV1/saves/.gitkeep`
+  - `tests/test_adventure_paths.py`
+- Files changed:
+  - `vampire_storyteller/data_paths.py`
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/__init__.py`
+  - `.gitignore`
+  - `tests/test_save_load.py`
+  - `progress.md`
+- What was implemented:
+  - Introduced a clear `adventures/ADV1/` root with visible `config/` and `notes/` files plus scaffold directories for `world/`, `plots/`, `npcs/`, `locations/`, and `saves/`
+  - Migrated the default save path from `data/saves/current_save.json` to `adventures/ADV1/saves/current_save.json`
+  - Centralized adventure path helpers for the adventure root, config file, notes file, and save path
+  - Kept runtime behavior stable while ensuring save/load uses the new ADV1 path contract
+  - Updated package exports to expose the new adventure path helpers
+  - Added regression tests for ADV1 path resolution, scaffold file presence, and the new save path
+  - Verified the text launcher and save/load flow still work after the path migration
+- Acceptance criteria checklist:
+  - [x] project has a clear `adventures/ADV1/` root
+  - [x] saves now live under `adventures/ADV1/saves/`
+  - [x] adventure metadata/config exists visibly in JSON
+  - [x] adventure notes/readme exists visibly in Markdown
+  - [x] current text adventure still works
+  - [x] save/load still works
+  - [x] tests pass
+- Assumptions:
+  - A single `ADV1` adventure root is sufficient for the current phase, with multi-adventure selection deferred
+  - The sample world can continue to be built in Python while the path contract is moved under `adventures/ADV1/`
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - The next step can begin moving small authored content slices into the adventure folders without changing the current session contract
+
+## Task 022a - Harden Text Launcher to Use Local .venv Interpreter
+
+- Status: implemented
+- Goal: make the text launcher prefer the project-local virtualenv interpreter when available so runtime behavior is consistent and suitable for normal Windows use
+- Files changed:
+  - `run_text_adventure.bat`
+  - `run_text_adventure.py`
+  - `tests/test_text_launcher.py`
+  - `progress.md`
+- What was implemented:
+  - Updated the Windows batch launcher to prefer `%~dp0.venv\Scripts\python.exe` when present and fall back to plain `python` otherwise
+  - Added a small no-crash fallback error message when no interpreter can be found on PATH
+  - Simplified the Python launcher to import `run_cli` directly from `vampire_storyteller.cli`
+  - Added focused launcher tests for the batch file content, Python import path, and launcher file existence
+- Acceptance criteria checklist:
+  - [x] launcher prefers local `.venv` interpreter when available
+  - [x] fallback to plain `python` still exists if no venv is present
+  - [x] launcher remains simple to use
+  - [x] tests pass
+- Assumptions:
+  - The repository-local `.venv` layout matches the standard Windows virtualenv structure
+  - A text-only fallback error in the batch file is sufficient for launcher troubleshooting
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If launcher diagnostics ever need to grow, the next step should keep the normal startup path quiet and add any detail only behind an explicit debug switch
+
+## Task 025 - Externalize ADV1 Plot Progression and Investigation Rule Data
+
+- Status: implemented
+- Goal: move the first slice of authored rule content out of Python and into visible files under `adventures/ADV1/`, while keeping engine execution logic in Python
+- Files added:
+  - `adventures/ADV1/plots/plot_progression.json`
+  - `adventures/ADV1/plots/plot_resolution.json`
+  - `tests/test_adventure_rules.py`
+- Files changed:
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/data_paths.py`
+  - `vampire_storyteller/plot_engine.py`
+  - `vampire_storyteller/adjudication_engine.py`
+  - `vampire_storyteller/consequence_engine.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_adventure_paths.py`
+  - `progress.md`
+- What was implemented:
+  - Added visible ADV1 rule files for plot progression and investigation resolution under `adventures/ADV1/plots/`
+  - Added typed loader functions for the authored progression and resolution rules
+  - Updated the plot engine, adjudication engine, and consequence engine to read ADV1 rule values from files instead of embedding the plot stage, location, and difficulty constants directly in Python
+  - Preserved the current player-visible behavior for progression, investigate gating, and success/failure outcomes
+  - Extended path helpers and package exports for the new rule-file locations and loader functions
+  - Added regression tests for rule-file loading, path resolution, and clear failures when rule files are missing or malformed
+- Acceptance criteria checklist:
+  - [x] ADV1 progression data is no longer primarily hardcoded in Python
+  - [x] ADV1 investigation rule data is file-backed
+  - [x] current behavior remains the same
+  - [x] save/load still works
+  - [x] tests pass
+- Assumptions:
+  - A small explicit JSON shape is sufficient for this phase and does not require a general-purpose rule DSL
+  - Loading the rule files on demand is acceptable while the project stays single-adventure
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A future step can continue externalizing authored content while keeping the execution logic explicit in Python
+
+## Task 016 - OpenAI Scene Provider with Safe Fallback for v0 Phase 1
+
+- Status: implemented
+- Goal: add the first real OpenAI-backed narrative provider while preserving the deterministic provider as the default-safe fallback
+- Files added:
+  - `vampire_storyteller/openai_narrative_provider.py`
+  - `tests/test_openai_narrative_provider.py`
+- Files changed:
+  - `vampire_storyteller/command_result.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/cli.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_game_session.py`
+  - `tests/test_openai_narrative_provider.py`
+  - `progress.md`
+- What was implemented:
+  - Added a thin `OpenAISceneNarrativeProvider` that renders deterministic scene snapshots through the OpenAI Responses API
+  - Kept simulation truth in the deterministic world state by building prompts from `build_scene_snapshot(...)` and `snapshot_to_prompt_text(...)`
+  - Added an explicit opt-in provider selection path in the CLI using `VTM_USE_OPENAI_SCENE_PROVIDER=1`
+  - Kept the deterministic provider as the silent default when the flag is absent
+  - Added a brief fallback notice when the flag is set but `OPENAI_API_KEY` is missing
+  - Added session-level fallback so provider render failures revert to deterministic scene rendering instead of crashing the app
+  - Added regression tests covering construction, grounded prompt usage, selection, missing-key fallback, and runtime render fallback
+- Acceptance criteria checklist:
+  - [x] Project supports an OpenAI-backed scene provider
+  - [x] Deterministic provider remains available and default-safe
+  - [x] Missing key never breaks the CLI
+  - [x] Provider selection is explicit
+  - [x] Provider failure falls back safely
+  - [x] Tests cover selection and fallback behavior
+- Assumptions:
+  - The OpenAI Python SDK may not be installed in all local environments, so provider construction without a mocked client should fail closed and let the CLI fall back safely
+  - Session-level fallback is the simplest explicit way to keep provider failures from leaking into gameplay flow
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A later step can replace the CLI opt-in environment variable with a richer configuration surface if needed, without changing session or simulation logic
+
+## Task 015a - Restore Narrative Provider for All Scene-Returning Commands
+
+- Status: implemented
+- Goal: restore the scene-provider boundary so all scene-returning output routed through `GameSession` uses the configured provider, including `look`
+- Files changed:
+  - `vampire_storyteller/command_result.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_game_session.py`
+  - `tests/test_narrative_provider.py`
+  - `progress.md`
+- What was implemented:
+  - Extended `CommandResult` with a small explicit `render_scene` flag
+  - Updated the dispatcher so scene-returning commands mark themselves for provider rendering instead of rendering directly
+  - Centralized final scene rendering in `GameSession` for startup, `look`, and all mutating scene-returning commands
+  - Kept help/status/quit as direct command outputs that bypass the scene provider
+  - Added regression tests covering injected provider use for startup, `look`, mutating commands, and direct-output commands
+  - Added a small narrative-provider test to keep the deterministic default provider covered
+- Acceptance criteria checklist:
+  - [x] `look` now uses the configured provider
+  - [x] startup and all scene-returning command output go through the provider
+  - [x] help/status/quit remain direct outputs
+  - [x] consequence and NPC behavior remain intact
+  - [x] full test suite passes
+- Assumptions:
+  - A boolean scene-render flag is the smallest explicit way to preserve the centralized provider boundary
+  - The dispatcher may still execute game logic for scene-returning commands, but it should not own final scene rendering
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A future step can factor the provider decision into a dedicated session helper if more output modes are introduced
+
+## Task 015 - Minimal Consequence Engine and First Authored Interaction for v0 Phase 1
+
+- Status: implemented
+- Goal: add the first real authored interaction so the player can do something meaningful beyond moving and waiting, and wire that interaction through a minimal deterministic consequence engine
+- Files added:
+  - `vampire_storyteller/consequence_engine.py`
+  - `tests/test_consequence_engine.py`
+- Files changed:
+  - `vampire_storyteller/command_models.py`
+  - `vampire_storyteller/command_parser.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_command_parser.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Added a structured `InvestigateCommand` with deterministic parsing and no-argument validation
+  - Routed `investigate` through the dispatcher as a mutating command without embedding authored consequence rules in the dispatcher
+  - Added a minimal `apply_consequences(world_state, command)` layer for the sample-world-specific `plot_1` resolution at `loc_dock`
+  - Updated `GameSession` orchestration so mutating commands now flow through command execution, time-based NPC updates, plot progression, consequence application, and provider-based scene rendering
+  - Adjusted the sample world so the authored sequence `move loc_church -> wait 60 -> move loc_dock -> investigate` is reachable and resolves `plot_1`
+  - Added regression tests for parsing, consequence no-op cases, consequence resolution, event logging, session flow, and resolved scene output visibility
+- Acceptance criteria checklist:
+  - [x] `investigate` exists as a structured command
+  - [x] consequence logic is isolated in a consequence engine
+  - [x] the sample hook can be resolved through normal command flow
+  - [x] resolution is event-logged
+  - [x] scene output reflects the resolved state
+  - [x] regression tests cover the new behavior
+  - [x] existing CLI loop still works
+- Assumptions:
+  - The direct church-to-dock connection in the sample map is acceptable because the task explicitly allows sample-world adjustments
+  - The consequence engine remains sample-world-specific for `plot_1` rather than becoming a generic quest system
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A later step can add more authored interactions or additional deterministic consequence branches without changing the command pipeline shape
+
+## Task 014a - Restore Narrative Provider Boundary After NPC Engine Integration
+
+- Status: implemented
+- Goal: restore the scene-provider boundary so `GameSession` once again owns scene presentation through an injectable narrative provider
+- Files changed:
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/narrative_provider.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Added a minimal `SceneNarrativeProvider` protocol and a deterministic default provider
+  - Updated `GameSession` to accept an optional `scene_provider` while preserving the existing `world_state` constructor argument
+  - Routed startup rendering through the injected provider
+  - Routed post-mutation scene rendering through the injected provider after deterministic command execution, NPC updates, and plot progression
+  - Added regression tests proving provider injection works for startup output and for mutation flow that also triggers NPC movement
+  - Preserved the existing CLI-facing behavior and kept NPC engine logic unchanged
+- Acceptance criteria checklist:
+  - [x] Provider boundary is restored
+  - [x] NPC engine behavior remains intact
+  - [x] Session still applies NPC updates and plot progression correctly
+  - [x] Startup and post-mutation scene text both go through the provider
+  - [x] Full test suite passes
+- Assumptions:
+  - The deterministic provider remains the default until a later task replaces it with a richer narrative backend
+  - The provider only needs to render scene text; help/status/quit remain direct command outputs
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - The next integration step can layer a real narrative backend behind the provider interface without changing session flow again
+
+## Task 014 - Minimal NPC Engine and Time-Based NPC Scheduling for v0 Phase 1
+
+- Status: implemented
+- Goal: add the first deterministic NPC simulation layer so NPCs can change location over time and the world feels alive independently of player movement
+- Files added:
+  - `vampire_storyteller/npc_engine.py`
+  - `tests/test_npc_engine.py`
+- Files changed:
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_npc_engine.py`
+  - `progress.md`
+- What was implemented:
+  - Added `get_time_band(timestamp)` to map ISO timestamps to the sample scheduling bands `evening`, `night`, `late`, and `midnight`
+  - Added `update_npcs_for_current_time(world_state)` to move NPCs deterministically when the active band matches their schedule
+  - Skipped invalid or missing scheduled destinations safely without raising errors
+  - Logged each NPC move as an event with the current world timestamp and involved entity ids
+  - Wired `GameSession.process_input(...)` so `move` and `wait` apply NPC updates before plot progression and scene re-rendering
+  - Adjusted the sample world so Jonas Reed starts at the cafe during `night` and moves to the dock during `late`
+  - Added regression tests for time-band detection, NPC movement, safe skipping, event logging, session-flow integration, and scene visibility changes
+- Acceptance criteria checklist:
+  - [x] NPC positions update deterministically from current time
+  - [x] NPC moves are event-logged
+  - [x] Session flow applies NPC updates after mutating commands
+  - [x] Scene output reflects changed NPC presence
+  - [x] Regression tests cover the new behavior
+  - [x] Existing CLI loop still works
+- Assumptions:
+  - The current scheduler is intentionally sample-world-specific and only uses the existing `schedule: dict[str, str]` field
+  - Blank or invalid timestamps should fail closed by producing no NPC movement
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A later step can decide whether NPC schedules should also react to player-triggered location changes beyond the current deterministic time bands
+
+## Task 013 - Environment Config Scaffolding for OpenAI Fallback
+
+- Status: implemented
+- Goal: add safe environment-based configuration scaffolding for future OpenAI integration without making the current prototype depend on an API key
+- Files added:
+  - `vampire_storyteller/config.py`
+  - `.env.example`
+  - `.gitignore`
+  - `tests/test_config.py`
+- Files changed:
+  - `vampire_storyteller/__init__.py`
+  - `progress.md`
+- What was implemented:
+  - Added a minimal `AppConfig` dataclass with `openai_api_key` and `openai_model`
+  - Added `load_config()` using `os.getenv(...)` only, with a default model of `gpt-4.1-mini`
+  - Treated a missing or blank API key as absent instead of raising an error
+  - Added a committed `.env.example` with placeholder values only
+  - Added ignore rules for `.env`, `.env.local`, and `.env.*` while keeping `.env.example` tracked
+  - Exported `AppConfig` and `load_config` from the package root
+  - Added regression tests for defaults, explicit environment values, and blank-value fallback behavior
+- Acceptance criteria checklist:
+  - [x] Repo contains a safe `.env.example`
+  - [x] Local `.env` files are ignored
+  - [x] Config can load `OPENAI_API_KEY` and `OPENAI_MODEL` from environment
+  - [x] Missing key does not break current app behavior
+  - [x] No secrets are committed
+- Assumptions:
+  - Blank environment values should behave like missing values for safety
+  - The OpenAI integration will be wired in later and should read this config layer rather than parsing `.env` directly
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - The next integration step can consume `load_config()` without changing the current CLI startup path
+
+## Task 010 - Minimal Plot Engine and First Hook Progression for v0 Phase 1
+
+- Status: implemented
+- Goal: add deterministic story progression for the sample hook and surface it through session orchestration and scene output
+- Files added:
+  - `vampire_storyteller/plot_engine.py`
+  - `tests/test_plot_engine.py`
+- Files changed:
+  - `vampire_storyteller/game_session.py`
+  - `vampire_storyteller/context_builder.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_context_builder.py`
+  - `progress.md`
+- What was implemented:
+  - Added a thin deterministic plot engine for `plot_1` with the stages `hook`, `church_visited`, and `lead_confirmed`
+  - Wired `GameSession.process_input(...)` to advance plot state after successful command execution
+  - Exposed active plot stages in normal scene output as labeled strings like `Missing Ledger [hook]`
+  - Added regression tests for plot progression, event logging, session integration, and scene visibility
+- Acceptance criteria checklist:
+  - [x] Sample hook advances deterministically from player actions
+  - [x] Plot progression is triggered through `GameSession`
+  - [x] Plot stage changes are event-logged
+  - [x] Plot state becomes visible in normal scene output
+  - [x] Regression tests cover the new behavior
+  - [x] Existing CLI loop continues to work
+- Assumptions:
+  - Plot progression is intentionally sample-world-specific and only applies to `plot_1`
+  - Scene output shows the plot stage inline rather than introducing a separate scene plot model
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A future step could factor authored story hooks into a broader but still deterministic content system
+
+## Task 009 - Deterministic Core Test Suite for v0 Phase 1
+
+- Status: implemented
+- Goal: add a lightweight regression test suite for the deterministic backend foundation
+- Files added:
+  - `tests/test_command_parser.py`
+  - `tests/test_movement_and_wait.py`
+  - `tests/test_context_builder.py`
+  - `tests/test_game_session.py`
+  - `tests/test_serialization.py`
+- Files changed:
+  - `progress.md`
+- What was implemented:
+  - Added `unittest` coverage for command parsing, movement, wait behavior, context building, session orchestration, and serialization
+  - Kept tests focused on the shared sample world and real filesystem round-trips
+  - Covered valid and invalid parser inputs, hunger/time progression, scene snapshot filtering, session flow, and JSON persistence
+- Acceptance criteria checklist:
+  - [x] All tests run with `python -m unittest discover -s tests -v`
+  - [x] The suite covers parser, simulation, context, session, and serialization
+  - [x] No third-party dependencies are introduced
+  - [x] Current deterministic behavior is preserved
+- Assumptions:
+  - The shared sample world is the canonical test fixture for deterministic core behavior
+  - `unittest` discovery will run from the repository root as requested
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - With the regression suite in place, later tasks can expand gameplay behavior with lower risk
+
+## Task 008 - GameSession / Orchestrator Layer for v0 Phase 1
+
+- Status: implemented
+- Goal: introduce a thin reusable session object so the CLI no longer coordinates parsing, dispatch, and bootstrapping directly
+- Files added:
+  - `vampire_storyteller/game_session.py`
+- Files changed:
+  - `vampire_storyteller/__init__.py`
+  - `vampire_storyteller/cli.py`
+  - `vampire_storyteller/sample_world.py`
+  - `examples/sample_world.py`
+  - `progress.md`
+- What was implemented:
+  - Added `GameSession` as the reusable owner of a running play session
+  - Added `get_startup_text()`, `process_input(raw_input)`, and `get_world_state()`
+  - Refactored the CLI to use `GameSession` for session setup and input handling
+  - Refactored the sample script to use `GameSession` for the same session flow
+  - Kept parse and deterministic action errors propagating to the CLI for player-facing handling
+- Acceptance criteria checklist:
+  - [x] CLI no longer directly coordinates parser + dispatcher + world bootstrapping
+  - [x] `GameSession` owns the reusable session flow
+  - [x] `GameSession.process_input(...)` returns `CommandResult`
+  - [x] Existing behavior remains the same
+  - [x] Example script uses `GameSession`
+  - [x] JSON round-trip still works through the session state
+- Assumptions:
+  - `GameSession` is intentionally thin and does not add any new simulation behavior
+  - `GameSession` builds a default sample world when no `WorldState` is provided
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - The next layer can add a top-level entry point or packaging hook if the CLI needs to be launched as a command
+
+## Task 007 - Minimal CLI REPL Loop for v0 Phase 1
+
+- Status: implemented
+- Goal: create the first playable CLI loop by wiring sample world creation, structured parsing, command execution, user-facing errors, and quit flow
+- Files added:
+  - `vampire_storyteller/cli.py`
+  - `vampire_storyteller/sample_world.py`
+- Files changed:
+  - `vampire_storyteller/__init__.py`
+  - `examples/sample_world.py`
+  - `progress.md`
+- What was implemented:
+  - Added `run_cli()` with a welcome line, startup scene output, and a minimal stdin loop
+  - Wired the loop through `parse_command(...)` and `execute_command(...)`
+  - Added user-facing handling for `CommandParseError` and deterministic `WorldStateError` failures
+  - Reused a single shared `build_sample_world()` source for both the CLI and the example script
+  - Kept quit handling explicit through `should_quit=True`
+- Acceptance criteria checklist:
+  - [x] Running `run_cli()` starts a playable text loop
+  - [x] Initial scene is printed once at startup
+  - [x] Valid commands execute through existing parser + dispatcher
+  - [x] Parse errors are shown and do not crash the loop
+  - [x] Deterministic action errors are shown and do not crash the loop
+  - [x] `quit` exits the loop cleanly
+  - [x] Sample world creation is not duplicated
+- Assumptions:
+  - EOF on stdin exits the loop cleanly without an extra message
+  - Unexpected exceptions are allowed to propagate, per request
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - The next obvious step is a small top-level entry script or packaging hook that calls `run_cli()`
+
+## Task 006 - Command Execution Layer and Deterministic Text Renderers for v0 Phase 1
+
+- Status: implemented
+- Goal: add a deterministic command dispatcher that executes parsed commands and returns CLI-ready text
+- Files added:
+  - `vampire_storyteller/command_result.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/text_renderers.py`
+- Files changed:
+  - `vampire_storyteller/__init__.py`
+  - `examples/sample_world.py`
+  - `progress.md`
+- What was implemented:
+  - Added `CommandResult` with `output_text` and `should_quit`
+  - Added deterministic text renderers for scene, status, and help output
+  - Added `execute_command(world_state, command)` with explicit branching for look, status, help, move, wait, and quit
+  - Reused the existing movement, waiting, and scene-building systems without duplicating business logic
+  - Updated the sample script to parse and execute a sequence of commands through the dispatcher
+- Acceptance criteria checklist:
+  - [x] Parsed commands can be executed through one dispatcher
+  - [x] look, status, and help are non-mutating
+  - [x] move updates world state through existing systems
+  - [x] wait updates time and hunger through existing systems
+  - [x] quit returns `should_quit=True`
+  - [x] dispatcher returns plain text suitable for a CLI
+  - [x] sample script demonstrates a sequence of parsed commands executed through the dispatcher
+- Assumptions:
+  - The dispatcher is intentionally minimal and does not include a registry or handler abstraction
+  - `render_status_text` is concise and player-facing rather than formatted as a scene snapshot
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A thin stdin REPL can be added next, reusing `parse_command(...)` and `execute_command(...)`
+
+## Task 005 - Structured Command Models and Parser for v0 Phase 1
+
+- Status: implemented
+- Goal: add a strict structured command parser for the minimal backend input layer
+- Files added:
+  - `vampire_storyteller/command_models.py`
+  - `vampire_storyteller/command_parser.py`
+  - `progress.md`
+- Files changed:
+  - `vampire_storyteller/exceptions.py`
+  - `vampire_storyteller/__init__.py`
+  - `examples/sample_world.py`
+- What was implemented:
+  - Added typed dataclasses for `look`, `status`, `help`, `move`, `wait`, and `quit`
+  - Added deterministic `parse_command(raw_input: str) -> Command`
+  - Added `CommandParseError` for all parsing failures
+  - Updated the sample script to parse `move loc_church` and `wait 60` before executing the existing backend actions
+- Acceptance criteria checklist:
+  - [x] Valid structured commands parse into typed command objects
+  - [x] Invalid commands raise `CommandParseError`
+  - [x] `wait` only accepts positive integers
+  - [x] `move` requires exactly one `destination_id`
+  - [x] Commands with no arguments reject extra tokens
+  - [x] Sample script demonstrates using parsed commands to execute move and wait
+- Assumptions:
+  - The sample script only demonstrates parsing for the two executed commands and does not add a dispatcher loop yet
+  - Parsed `destination_id` is preserved exactly as typed after whitespace normalization
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - A small explicit command dispatcher or command handlers can be added next when the CLI loop is introduced

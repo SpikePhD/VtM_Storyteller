@@ -1,0 +1,15 @@
+{
+  "plot_id": "plot_1",
+  "plot_name": "Missing Ledger",
+  "move": {
+    "from_stage": "hook",
+    "destination_id": "loc_church",
+    "to_stage": "church_visited"
+  },
+  "wait": {
+    "from_stage": "church_visited",
+    "location_id": "loc_church",
+    "minimum_minutes": 60,
+    "to_stage": "lead_confirmed"
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "locations": [
+    {
+      "id": "loc_cafe",
+      "name": "Blackthorn Cafe",
+      "type": "social",
+      "connected_locations": [
+        "loc_church",
+        "loc_dock"
+      ],
+      "travel_time": {
+        "loc_church": 8,
+        "loc_dock": 12
+      },
+      "danger_level": 2
+    },
+    {
+      "id": "loc_church",
+      "name": "Saint Judith's Church",
+      "type": "sanctuary",
+      "connected_locations": [
+        "loc_cafe",
+        "loc_dock"
+      ],
+      "travel_time": {
+        "loc_cafe": 8,
+        "loc_dock": 15
+      },
+      "danger_level": 1
+    },
+    {
+      "id": "loc_dock",
+      "name": "North Dockside",
+      "type": "industrial",
+      "connected_locations": [
+        "loc_cafe",
+        "loc_church"
+      ],
+      "travel_time": {
+        "loc_cafe": 12,
+        "loc_church": 15
+      },
+      "danger_level": 4
+    }
+  ]
+}
