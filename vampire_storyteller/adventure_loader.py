@@ -59,6 +59,7 @@ class Adv1NpcDefinition:
     role: str
     starting_location_id: str
     attitude_to_player: str
+    trust_level: int
     goals: list[str]
     investigation_hint: str
     traits: dict[str, str]
@@ -102,6 +103,8 @@ class Adv1DialogueHookDefinition:
     npc_id: str
     required_plot_id: str
     required_plot_stage: str
+    minimum_trust_level: int
+    trust_delta: int
     dialogue_text: str
     blocked_text: str
 
@@ -365,6 +368,7 @@ def _npc_definition_from_dict(data: dict[str, Any]) -> Adv1NpcDefinition:
         role=_require_str(data, "role"),
         starting_location_id=_require_str(data, "starting_location_id"),
         attitude_to_player=_require_str(data, "attitude_to_player"),
+        trust_level=_require_int(data, "trust_level"),
         goals=_require_string_list(data, "goals"),
         investigation_hint=_require_str(data, "investigation_hint"),
         traits=_require_string_mapping(data, "traits"),
@@ -379,6 +383,7 @@ def _npc_from_definition(definition: Adv1NpcDefinition) -> NPC:
         role=definition.role,
         location_id=definition.starting_location_id,
         attitude_to_player=definition.attitude_to_player,
+        trust_level=definition.trust_level,
         goals=list(definition.goals),
         investigation_hint=definition.investigation_hint,
         schedule=dict(definition.schedule),
@@ -476,6 +481,8 @@ def _dialogue_hook_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueHoo
         npc_id=_require_str(data, "npc_id"),
         required_plot_id=_require_str(data, "required_plot_id"),
         required_plot_stage=_require_str(data, "required_plot_stage"),
+        minimum_trust_level=_require_int(data, "minimum_trust_level"),
+        trust_delta=_require_int(data, "trust_delta"),
         dialogue_text=_require_str(data, "dialogue_text"),
         blocked_text=_require_str(data, "blocked_text"),
     )

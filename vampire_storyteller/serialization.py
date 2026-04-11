@@ -60,6 +60,7 @@ def _npc_from_dict(data: dict[str, Any]) -> NPC:
         role=data["role"],
         location_id=data.get("location_id"),
         attitude_to_player=data["attitude_to_player"],
+        trust_level=data.get("trust_level", 0),
         goals=list(data.get("goals", [])),
         investigation_hint=data.get("investigation_hint", ""),
         schedule=dict(data.get("schedule", {})),

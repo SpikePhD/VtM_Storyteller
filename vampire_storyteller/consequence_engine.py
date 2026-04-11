@@ -45,6 +45,7 @@ def apply_consequences(
         plot.resolution_summary = outcome.resolved_event_text
         plot.learned_outcome = outcome.learned_outcome
         plot.closing_beat = outcome.closing_beat
+        _adjust_trust_for_resolution(world_state)
     else:
         message = rules.failure_message
     world_state.append_event(
@@ -56,3 +57,10 @@ def apply_consequences(
     )
     messages.append(message)
     return messages
+
+
+def _adjust_trust_for_resolution(world_state: WorldState) -> None:
+    for npc_id in ("npc_1", "npc_2"):
+        npc = world_state.npcs.get(npc_id)
+        if npc is not None:
+            npc.trust_level = max(0, npc.trust_level + 1)

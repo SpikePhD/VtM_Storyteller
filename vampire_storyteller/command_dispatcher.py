@@ -70,8 +70,9 @@ def _talk_to_npc(world_state: WorldState, npc_id: str) -> str:
     plot = world_state.plots.get("plot_1")
     current_stage = plot.stage if plot is not None else ""
     hooks = load_adv1_dialogue_hook_definitions()
-    hook = _find_dialogue_hook(hooks, npc_id, current_stage)
+    hook = _find_dialogue_hook(hooks, npc_id, current_stage, npc.trust_level)
     if hook is not None:
+        _adjust_npc_trust(world_state, npc_id, hook.trust_delta)
         return hook.dialogue_text
 
     fallback = _find_dialogue_fallback(hooks, npc_id)
@@ -81,11 +82,25 @@ def _talk_to_npc(world_state: WorldState, npc_id: str) -> str:
     return f"{npc.name} has nothing useful to say right now."
 
 
-def _find_dialogue_hook(hooks, npc_id: str, plot_stage: str):
+def _find_dialogue_hook(hooks, npc_id: str, plot_stage: str, current_trust_level: int):
+    matching_hook = None
     for hook in hooks:
-        if hook.npc_id == npc_id and hook.required_plot_id == "plot_1" and hook.required_plot_stage == plot_stage:
-            return hook
-    return None
+        if hook.npc_id != npc_id or hook.required_plot_id != "plot_1" or hook.required_plot_stage != plot_stage:
+            continue
+        if hook.minimum_trust_level > current_trust_level:
+            continue
+        if matching_hook is None or hook.minimum_trust_level > matching_hook.minimum_trust_level:
+            matching_hook = hook
+    return matching_hook
+
+
+def _adjust_npc_trust(world_state: WorldState, npc_id: str, delta: int) -> None:
+    if delta == 0:
+        return
+    npc = world_state.npcs.get(npc_id)
+    if npc is None:
+        return
+    npc.trust_level = max(0, npc.trust_level + delta)
 
 
 def _find_dialogue_fallback(hooks, npc_id: str) -> str | None:

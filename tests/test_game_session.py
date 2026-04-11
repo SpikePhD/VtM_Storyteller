@@ -98,6 +98,17 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("Jonas Reed keeps his voice low", result.output_text)
         self.assertFalse(result.render_scene)
         self.assertEqual(session.get_world_state().player.location_id, "loc_cafe")
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
+
+    def test_talk_can_shift_response_after_trust_improves(self) -> None:
+        session = GameSession()
+
+        first_result = session.process_input("talk npc_1")
+        second_result = session.process_input("talk npc_1")
+
+        self.assertIn("keeps his voice low", first_result.output_text)
+        self.assertIn("loosens his shoulders", second_result.output_text)
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
 
     def test_talk_to_absent_npc_returns_explicit_feedback(self) -> None:
         session = GameSession()
@@ -120,6 +131,19 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("Talk is blocked", result.output_text)
         self.assertIn("said what he will say", result.output_text)
         self.assertFalse(result.render_scene)
+
+    def test_successful_investigate_updates_relevant_trust(self) -> None:
+        session = GameSession()
+
+        session.process_input("move loc_church")
+        session.process_input("wait 60")
+        session.process_input("move loc_dock")
+        result = session.process_input("investigate")
+
+        self.assertTrue(result.render_scene)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "resolved")
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
+        self.assertEqual(session.get_world_state().npcs["npc_2"].trust_level, 1)
 
     def test_injected_scene_provider_is_used_for_startup_and_mutations(self) -> None:
         provider = RecordingSceneProvider()

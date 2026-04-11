@@ -9,6 +9,7 @@ class SceneNPC:
     name: str
     role: str
     attitude_to_player: str
+    trust_level: int
 
 
 @dataclass

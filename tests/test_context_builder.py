@@ -18,6 +18,7 @@ class ContextBuilderTests(unittest.TestCase):
         self.assertEqual(snapshot.location_scene_hook, "Muted conversations and posted notices make the cafe a quiet place to ask questions.")
         self.assertEqual(snapshot.location_notable_features, ["corner booths", "notice board", "narrow back room"])
         self.assertEqual(snapshot.location_flavor_tags, ["quiet", "watchful", "public"])
+        self.assertEqual(snapshot.npcs_present[0].trust_level, 0)
 
     def test_only_npcs_at_player_location_are_included(self) -> None:
         world = build_sample_world()

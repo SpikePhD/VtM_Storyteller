@@ -82,6 +82,7 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual([definition.id for definition in npc_definitions], ["npc_1", "npc_2"])
         self.assertEqual(npc_definitions[0].starting_location_id, "loc_cafe")
         self.assertEqual(npc_definitions[1].attitude_to_player, "guarded")
+        self.assertEqual(npc_definitions[0].trust_level, 0)
         self.assertEqual(npc_definitions[0].goals[0], "Keep his distance until Mara proves trustworthy")
         self.assertIn("dock", npc_definitions[0].investigation_hint)
         self.assertEqual(npc_definitions[1].goals[1], "Watch for anyone asking about the ledger")
@@ -105,10 +106,13 @@ class AdventureLoaderTests(unittest.TestCase):
     def test_dialogue_hook_definition_loader_reads_adv1_file(self) -> None:
         hook_definitions = load_adv1_dialogue_hook_definitions()
 
-        self.assertEqual([definition.npc_id for definition in hook_definitions], ["npc_1", "npc_1", "npc_2"])
+        self.assertEqual([definition.npc_id for definition in hook_definitions], ["npc_1", "npc_1", "npc_1", "npc_2", "npc_2"])
         self.assertEqual(hook_definitions[0].required_plot_stage, "hook")
         self.assertIn("dock", hook_definitions[0].dialogue_text)
         self.assertIn("ready", hook_definitions[0].blocked_text)
+        self.assertEqual(hook_definitions[1].minimum_trust_level, 1)
+        self.assertEqual(hook_definitions[1].trust_delta, 0)
+        self.assertIn("paper trail", hook_definitions[1].dialogue_text)
 
     def test_missing_location_definition_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -240,6 +244,20 @@ class AdventureLoaderTests(unittest.TestCase):
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
 
+    def test_missing_dialogue_hook_trust_fields_fail_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            hook_path = temp_root / "npcs" / "dialogue_hooks.json"
+            hook_data = json.loads(hook_path.read_text(encoding="utf-8"))
+            del hook_data["dialogue_hooks"][0]["minimum_trust_level"]
+            hook_path.write_text(json.dumps(hook_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_dialogue_hook_definitions(temp_root)
+
+        self.assertIn("Adventure field 'minimum_trust_level'", str(ctx.exception))
+
     def test_malformed_world_state_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir) / "ADV1"
@@ -300,6 +318,20 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_npc_definitions(temp_root)
 
         self.assertIn("Adventure field 'investigation_hint'", str(ctx.exception))
+
+    def test_missing_npc_trust_level_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            npc_path = temp_root / "npcs" / "npcs.json"
+            npc_data = json.loads(npc_path.read_text(encoding="utf-8"))
+            del npc_data["npcs"][0]["trust_level"]
+            npc_path.write_text(json.dumps(npc_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_npc_definitions(temp_root)
+
+        self.assertIn("Adventure field 'trust_level'", str(ctx.exception))
 
     def test_malformed_plot_thread_definition_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -23,6 +23,7 @@ def build_scene_snapshot(world_state: WorldState, recent_event_limit: int = 3) -
             name=npc.name,
             role=npc.role,
             attitude_to_player=npc.attitude_to_player,
+            trust_level=npc.trust_level,
         )
         for npc in sorted(
             (npc for npc in world_state.npcs.values() if npc.location_id == location_id),

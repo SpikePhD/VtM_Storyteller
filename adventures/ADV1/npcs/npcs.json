@@ -6,6 +6,7 @@
       "role": "Informant",
       "starting_location_id": "loc_cafe",
       "attitude_to_player": "wary",
+      "trust_level": 0,
       "goals": [
         "Keep his distance until Mara proves trustworthy",
         "Point Mara toward the dock if pressed"
@@ -26,6 +27,7 @@
       "role": "Haven Keeper",
       "starting_location_id": "loc_church",
       "attitude_to_player": "guarded",
+      "trust_level": 0,
       "goals": [
         "Protect the church records",
         "Watch for anyone asking about the ledger"

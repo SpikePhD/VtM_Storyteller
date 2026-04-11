@@ -25,6 +25,7 @@ class NPC:
     role: str
     location_id: str | None
     attitude_to_player: str
+    trust_level: int = 0
     goals: list[str] = field(default_factory=list)
     investigation_hint: str = ""
     schedule: dict[str, str] = field(default_factory=dict)

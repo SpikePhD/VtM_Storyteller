@@ -1120,3 +1120,43 @@
   - None
 - Notes for next task:
   - None
+
+## Task 037 - Add Lightweight Relationship State for Key ADV1 NPCs
+
+- Status: implemented
+- Goal: add a small deterministic trust axis for key ADV1 NPCs and update it on a few explicit beats
+- Files added:
+  - None
+- Files changed:
+  - `adventures/ADV1/npcs/npcs.json`
+  - `adventures/ADV1/npcs/dialogue_hooks.json`
+  - `vampire_storyteller/models.py`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/consequence_engine.py`
+  - `vampire_storyteller/context_builder.py`
+  - `vampire_storyteller/scene_models.py`
+  - `vampire_storyteller/serialization.py`
+  - `vampire_storyteller/sample_world.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_game_session.py`
+  - `tests/test_serialization.py`
+  - `tests/test_context_builder.py`
+  - `progress.md`
+- What was implemented:
+  - Added file-backed `trust_level` seeding for ADV1 NPCs
+  - Added trust-aware dialogue hook selection for `talk`
+  - Added a higher-trust Jonas hook so talk responses can vary by relationship state
+  - Added explicit deterministic trust bumps for `talk` and Missing Ledger resolution
+  - Threaded trust through save/load and scene/context data
+- Acceptance criteria checklist:
+  - [x] Key ADV1 NPCs have lightweight deterministic relationship state
+  - [x] Initial relationship values are file-backed
+  - [x] Selected existing actions update relationship state explicitly
+  - [x] Save/load preserves relationship state
+  - [x] Current Missing Ledger mechanics remain unchanged
+  - [x] Tests pass
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - None
