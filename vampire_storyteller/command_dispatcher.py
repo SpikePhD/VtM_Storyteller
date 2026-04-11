@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .actions import wait_action
+from .adventure_loader import load_adv1_dialogue_hook_definitions
 from .command_models import (
     Command,
     HelpCommand,
@@ -11,6 +12,7 @@ from .command_models import (
     QuitCommand,
     SaveCommand,
     StatusCommand,
+    TalkCommand,
     WaitCommand,
 )
 from .command_result import CommandResult
@@ -37,6 +39,9 @@ def execute_command(world_state: WorldState, command: Command) -> CommandResult:
         wait_action(world_state, command.minutes)
         return CommandResult(output_text="", render_scene=True)
 
+    if isinstance(command, TalkCommand):
+        return CommandResult(output_text=_talk_to_npc(world_state, command.npc_id))
+
     if isinstance(command, InvestigateCommand):
         return CommandResult(output_text="", render_scene=True)
 
@@ -50,3 +55,41 @@ def execute_command(world_state: WorldState, command: Command) -> CommandResult:
         return CommandResult(output_text="Goodbye.", should_quit=True)
 
     raise TypeError(f"unsupported command type: {type(command).__name__}")
+
+
+def _talk_to_npc(world_state: WorldState, npc_id: str) -> str:
+    npc = world_state.npcs.get(npc_id)
+    if npc is None:
+        return f"Talk is blocked: no NPC with id '{npc_id}' exists."
+
+    if npc.location_id != world_state.player.location_id:
+        location = world_state.locations.get(world_state.player.location_id or "")
+        location_name = location.name if location is not None else (world_state.player.location_id or "unknown location")
+        return f"Talk is blocked: {npc.name} is not present at {location_name}."
+
+    plot = world_state.plots.get("plot_1")
+    current_stage = plot.stage if plot is not None else ""
+    hooks = load_adv1_dialogue_hook_definitions()
+    hook = _find_dialogue_hook(hooks, npc_id, current_stage)
+    if hook is not None:
+        return hook.dialogue_text
+
+    fallback = _find_dialogue_fallback(hooks, npc_id)
+    if fallback is not None:
+        return f"Talk is blocked: {fallback}"
+
+    return f"{npc.name} has nothing useful to say right now."
+
+
+def _find_dialogue_hook(hooks, npc_id: str, plot_stage: str):
+    for hook in hooks:
+        if hook.npc_id == npc_id and hook.required_plot_id == "plot_1" and hook.required_plot_stage == plot_stage:
+            return hook
+    return None
+
+
+def _find_dialogue_fallback(hooks, npc_id: str) -> str | None:
+    for hook in hooks:
+        if hook.npc_id == npc_id:
+            return hook.blocked_text
+    return None

@@ -34,6 +34,11 @@ class WaitCommand(Command):
 
 
 @dataclass(frozen=True)
+class TalkCommand(Command):
+    npc_id: str
+
+
+@dataclass(frozen=True)
 class InvestigateCommand(Command):
     pass
 

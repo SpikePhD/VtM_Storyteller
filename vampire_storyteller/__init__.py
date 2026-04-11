@@ -7,6 +7,7 @@ from .adventure_loader import (
     Adv1LocationDefinition,
     Adv1PlotThreadDefinition,
     Adv1PlotOutcomeDefinition,
+    Adv1DialogueHookDefinition,
     Adv1PlayerSeedData,
     Adv1WorldSeedData,
     PlotInvestigationRules,
@@ -15,6 +16,7 @@ from .adventure_loader import (
     load_adv1_npc_definitions,
     load_adv1_plot_thread_definitions,
     load_adv1_plot_outcome_definitions,
+    load_adv1_dialogue_hook_definitions,
     load_adv1_player_seed_data,
     load_adv1_plot_investigation_rules,
     load_adv1_plot_progression_rules,
@@ -24,7 +26,7 @@ from .adventure_loader import (
 from .models import EventLogEntry, Location, NPC, Player, PlotThread
 from .adjudication_engine import AdjudicationDecision, adjudicate_command
 from .command_dispatcher import execute_command
-from .command_models import Command, HelpCommand, InvestigateCommand, LoadCommand, LookCommand, MoveCommand, QuitCommand, SaveCommand, StatusCommand, WaitCommand
+from .command_models import Command, HelpCommand, InvestigateCommand, LoadCommand, LookCommand, MoveCommand, QuitCommand, SaveCommand, StatusCommand, TalkCommand, WaitCommand
 from .command_result import CommandResult
 from .command_parser import parse_command
 from .context_builder import build_scene_snapshot, snapshot_to_prompt_text
@@ -72,6 +74,7 @@ __all__ = [
     "Adv1NpcDefinition",
     "Adv1PlotThreadDefinition",
     "Adv1PlotOutcomeDefinition",
+    "Adv1DialogueHookDefinition",
     "Adv1PlayerSeedData",
     "Adv1WorldSeedData",
     "PlotInvestigationRules",
@@ -101,6 +104,7 @@ __all__ = [
     "load_adv1_npc_definitions",
     "load_adv1_plot_thread_definitions",
     "load_adv1_plot_outcome_definitions",
+    "load_adv1_dialogue_hook_definitions",
     "load_adv1_player_seed_data",
     "advance_plots",
     "get_time_band",
@@ -115,6 +119,7 @@ __all__ = [
     "LoadCommand",
     "Player",
     "MoveCommand",
+    "TalkCommand",
     "OpenAISceneNarrativeProvider",
     "SceneNarrativeProvider",
     "PlotThread",

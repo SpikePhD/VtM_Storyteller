@@ -38,6 +38,7 @@ def render_help_text() -> str:
             "help",
             "move <destination_id>",
             "wait <minutes>",
+            "talk <npc_id>",
             "investigate",
             "save",
             "load",

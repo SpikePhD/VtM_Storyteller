@@ -97,6 +97,15 @@ class Adv1PlotOutcomeDefinition:
     closing_beat: str
 
 
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueHookDefinition:
+    npc_id: str
+    required_plot_id: str
+    required_plot_stage: str
+    dialogue_text: str
+    blocked_text: str
+
+
 def load_adv1_world_state(adventure_root: Path | None = None) -> WorldState:
     root = get_adventure_root() if adventure_root is None else Path(adventure_root)
     _validate_adventure_metadata(_read_json(root / "config" / "adventure.json"))
@@ -172,6 +181,21 @@ def load_adv1_plot_outcome_definitions(adventure_root: Path | None = None) -> li
         if not isinstance(outcome_data, dict):
             raise AdventureContentError("Adventure plot outcome entries must be JSON objects.")
         definitions.append(_plot_outcome_definition_from_dict(outcome_data))
+    return definitions
+
+
+def load_adv1_dialogue_hook_definitions(adventure_root: Path | None = None) -> list[Adv1DialogueHookDefinition]:
+    root = get_adventure_root() if adventure_root is None else Path(adventure_root)
+    data = _read_json(root / "npcs" / "dialogue_hooks.json")
+    hook_entries = data.get("dialogue_hooks")
+    if not isinstance(hook_entries, list):
+        raise AdventureContentError("Adventure field 'dialogue_hooks' must be a JSON array.")
+
+    definitions: list[Adv1DialogueHookDefinition] = []
+    for hook_data in hook_entries:
+        if not isinstance(hook_data, dict):
+            raise AdventureContentError("Adventure dialogue hook entries must be JSON objects.")
+        definitions.append(_dialogue_hook_definition_from_dict(hook_data))
     return definitions
 
 
@@ -444,6 +468,16 @@ def _plot_outcome_definition_from_dict(data: dict[str, Any]) -> Adv1PlotOutcomeD
         resolved_event_text=_require_str(data, "resolved_event_text"),
         learned_outcome=_require_str(data, "learned_outcome"),
         closing_beat=_require_str(data, "closing_beat"),
+    )
+
+
+def _dialogue_hook_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueHookDefinition:
+    return Adv1DialogueHookDefinition(
+        npc_id=_require_str(data, "npc_id"),
+        required_plot_id=_require_str(data, "required_plot_id"),
+        required_plot_stage=_require_str(data, "required_plot_stage"),
+        dialogue_text=_require_str(data, "dialogue_text"),
+        blocked_text=_require_str(data, "blocked_text"),
     )
 
 

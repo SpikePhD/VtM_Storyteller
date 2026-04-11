@@ -8,6 +8,7 @@ import unittest
 
 from vampire_storyteller.adventure_loader import (
     AdventureContentError,
+    load_adv1_dialogue_hook_definitions,
     load_adv1_location_definitions,
     load_adv1_npc_definitions,
     load_adv1_player_seed_data,
@@ -100,6 +101,14 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(outcome_definitions[0].resolved_event_text, "Plot 'Missing Ledger' resolved at North Dockside.")
         self.assertIn("hidden broker", outcome_definitions[0].learned_outcome)
         self.assertIn("North Dockside", outcome_definitions[0].closing_beat)
+
+    def test_dialogue_hook_definition_loader_reads_adv1_file(self) -> None:
+        hook_definitions = load_adv1_dialogue_hook_definitions()
+
+        self.assertEqual([definition.npc_id for definition in hook_definitions], ["npc_1", "npc_1", "npc_2"])
+        self.assertEqual(hook_definitions[0].required_plot_stage, "hook")
+        self.assertIn("dock", hook_definitions[0].dialogue_text)
+        self.assertIn("ready", hook_definitions[0].blocked_text)
 
     def test_missing_location_definition_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -220,6 +229,17 @@ class AdventureLoaderTests(unittest.TestCase):
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
 
+    def test_missing_dialogue_hook_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "npcs" / "dialogue_hooks.json").unlink()
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_dialogue_hook_definitions(temp_root)
+
+        self.assertIn("Required adventure file missing", str(ctx.exception))
+
     def test_malformed_world_state_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir) / "ADV1"
@@ -300,6 +320,17 @@ class AdventureLoaderTests(unittest.TestCase):
 
             with self.assertRaises(AdventureContentError) as ctx:
                 load_adv1_plot_outcome_definitions(temp_root)
+
+        self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def test_malformed_dialogue_hook_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "npcs" / "dialogue_hooks.json").write_text("{not valid json", encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_dialogue_hook_definitions(temp_root)
 
         self.assertIn("Malformed adventure file", str(ctx.exception))
 

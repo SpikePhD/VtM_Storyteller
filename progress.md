@@ -1084,3 +1084,39 @@
   - None
 - Notes for next task:
   - None
+
+## Task 036 - Add a Deterministic talk Command with Authored NPC Dialogue Hooks
+
+- Status: implemented
+- Goal: add a structured `talk <npc_id>` command with small file-backed ADV1 dialogue hooks
+- Files added:
+  - `adventures/ADV1/npcs/dialogue_hooks.json`
+- Files changed:
+  - `vampire_storyteller/command_models.py`
+  - `vampire_storyteller/command_parser.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/text_renderers.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_command_parser.py`
+  - `tests/test_game_session.py`
+  - `tests/test_adventure_loader.py`
+  - `progress.md`
+- What was implemented:
+  - Added the structured `talk <npc_id>` command
+  - Added authored ADV1 dialogue hooks keyed by NPC and plot stage
+  - Added deterministic feedback for absent NPCs and present-but-unhooked states
+  - Updated help text to include `talk <npc_id>`
+  - Added clear failure coverage for the new dialogue-hook file
+- Acceptance criteria checklist:
+  - [x] `talk <npc_id>` exists as a structured command
+  - [x] Help text includes `talk <npc_id>`
+  - [x] Talking to an absent NPC returns clear deterministic feedback
+  - [x] Talking to a present NPC returns authored deterministic dialogue when available
+  - [x] Current Missing Ledger mechanics remain unchanged
+  - [x] Save/load still works
+  - [x] Tests pass
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - None

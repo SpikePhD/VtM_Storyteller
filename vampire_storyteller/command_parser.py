@@ -10,6 +10,7 @@ from .command_models import (
     QuitCommand,
     SaveCommand,
     StatusCommand,
+    TalkCommand,
     WaitCommand,
 )
 from .exceptions import CommandParseError
@@ -77,5 +78,13 @@ def parse_command(raw_input: str) -> Command:
         if minutes <= 0:
             raise CommandParseError("wait requires a positive integer number of minutes")
         return WaitCommand(minutes=minutes)
+
+    if keyword == "talk":
+        if len(args) != 1:
+            raise CommandParseError("talk requires exactly 1 npc_id argument")
+        npc_id = args[0]
+        if not npc_id:
+            raise CommandParseError("talk requires exactly 1 npc_id argument")
+        return TalkCommand(npc_id=npc_id)
 
     raise CommandParseError(f"unknown command: {tokens[0]}")

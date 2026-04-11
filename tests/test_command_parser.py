@@ -11,6 +11,7 @@ from vampire_storyteller.command_models import (
     QuitCommand,
     SaveCommand,
     StatusCommand,
+    TalkCommand,
     WaitCommand,
 )
 from vampire_storyteller.command_parser import parse_command
@@ -46,6 +47,11 @@ class CommandParserTests(unittest.TestCase):
         self.assertIsInstance(command, WaitCommand)
         self.assertEqual(command.minutes, 60)
 
+    def test_valid_talk(self) -> None:
+        command = parse_command("talk npc_1")
+        self.assertIsInstance(command, TalkCommand)
+        self.assertEqual(command.npc_id, "npc_1")
+
     def test_valid_quit(self) -> None:
         self.assertIsInstance(parse_command("quit"), QuitCommand)
 
@@ -80,6 +86,14 @@ class CommandParserTests(unittest.TestCase):
     def test_move_too_many_args_rejected(self) -> None:
         with self.assertRaises(CommandParseError):
             parse_command("move loc_church extra")
+
+    def test_talk_missing_arg_rejected(self) -> None:
+        with self.assertRaises(CommandParseError):
+            parse_command("talk")
+
+    def test_talk_too_many_args_rejected(self) -> None:
+        with self.assertRaises(CommandParseError):
+            parse_command("talk npc_1 extra")
 
     def test_wait_missing_arg_rejected(self) -> None:
         with self.assertRaises(CommandParseError):

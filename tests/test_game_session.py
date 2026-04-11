@@ -90,6 +90,37 @@ class GameSessionTests(unittest.TestCase):
         self.assertFalse(result.render_scene)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "church_visited")
 
+    def test_talk_to_present_npc_returns_authored_dialogue(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("talk npc_1")
+
+        self.assertIn("Jonas Reed keeps his voice low", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertEqual(session.get_world_state().player.location_id, "loc_cafe")
+
+    def test_talk_to_absent_npc_returns_explicit_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("talk npc_2")
+
+        self.assertIn("Talk is blocked", result.output_text)
+        self.assertIn("Sister Eliza", result.output_text)
+        self.assertFalse(result.render_scene)
+
+    def test_talk_uses_blocked_feedback_when_no_hook_matches_state(self) -> None:
+        session = GameSession()
+
+        session.process_input("move loc_church")
+        session.process_input("wait 60")
+        session.process_input("move loc_dock")
+        session.process_input("investigate")
+        result = session.process_input("talk npc_1")
+
+        self.assertIn("Talk is blocked", result.output_text)
+        self.assertIn("said what he will say", result.output_text)
+        self.assertFalse(result.render_scene)
+
     def test_injected_scene_provider_is_used_for_startup_and_mutations(self) -> None:
         provider = RecordingSceneProvider()
         session = GameSession(scene_provider=provider)
@@ -126,7 +157,7 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertEqual(
             help_result.output_text.strip(),
-            "look\nstatus\nhelp\nmove <destination_id>\nwait <minutes>\ninvestigate\nsave\nload\nquit",
+            "look\nstatus\nhelp\nmove <destination_id>\nwait <minutes>\ntalk <npc_id>\ninvestigate\nsave\nload\nquit",
         )
         self.assertIn("Player:", status_result.output_text)
         self.assertTrue(quit_result.should_quit)

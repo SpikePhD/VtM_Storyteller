@@ -1,0 +1,25 @@
+{
+  "dialogue_hooks": [
+    {
+      "npc_id": "npc_1",
+      "required_plot_id": "plot_1",
+      "required_plot_stage": "hook",
+      "dialogue_text": "Jonas Reed keeps his voice low and says the dock is the only place worth checking tonight.",
+      "blocked_text": "Jonas Reed has said what he will say for now, and he is not ready to explain why yet."
+    },
+    {
+      "npc_id": "npc_1",
+      "required_plot_id": "plot_1",
+      "required_plot_stage": "lead_confirmed",
+      "dialogue_text": "Jonas Reed points toward the waterline and admits the broker used the dock to move papers.",
+      "blocked_text": "Jonas Reed has already said what he will say for now."
+    },
+    {
+      "npc_id": "npc_2",
+      "required_plot_id": "plot_1",
+      "required_plot_stage": "church_visited",
+      "dialogue_text": "Sister Eliza says the church records mention a dock receipt signed the same night.",
+      "blocked_text": "Sister Eliza insists the records are not for idle questions."
+    }
+  ]
+}
