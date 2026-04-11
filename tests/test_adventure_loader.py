@@ -12,6 +12,7 @@ from vampire_storyteller.adventure_loader import (
     load_adv1_player_seed_data,
     load_adv1_plot_thread_definitions,
     load_adv1_world_state,
+    load_adv1_world_state_seed_data,
 )
 from vampire_storyteller.data_paths import ADVENTURE_ROOT
 from vampire_storyteller.sample_world import build_sample_world
@@ -40,6 +41,11 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(world.npcs["npc_1"].schedule["late"], "loc_dock")
         self.assertEqual(world.npcs["npc_1"].traits["voice"], "quiet")
         self.assertEqual(world.plots["plot_1"].triggers, ["NPC mentions the ledger", "Player visits the dock"])
+
+    def test_world_state_seed_loader_reads_adv1_file(self) -> None:
+        world_seed = load_adv1_world_state_seed_data()
+
+        self.assertEqual(world_seed.current_time, "2026-04-09T22:00:00+02:00")
 
     def test_player_seed_loader_reads_adv1_file(self) -> None:
         player_seed = load_adv1_player_seed_data()
@@ -100,14 +106,14 @@ class AdventureLoaderTests(unittest.TestCase):
 
         self.assertIn("Malformed adventure file", str(ctx.exception))
 
-    def test_missing_seed_file_fails_clearly(self) -> None:
+    def test_missing_world_state_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir) / "ADV1"
             self._copy_adv1_files(temp_root)
-            (temp_root / "npcs" / "npcs.json").unlink()
+            (temp_root / "world" / "world_state.json").unlink()
 
             with self.assertRaises(AdventureContentError) as ctx:
-                load_adv1_world_state(temp_root)
+                load_adv1_world_state_seed_data(temp_root)
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
 
@@ -144,14 +150,14 @@ class AdventureLoaderTests(unittest.TestCase):
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
 
-    def test_malformed_seed_file_fails_clearly(self) -> None:
+    def test_malformed_world_state_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir) / "ADV1"
             self._copy_adv1_files(temp_root)
-            (temp_root / "world" / "time.json").write_text("{not valid json", encoding="utf-8")
+            (temp_root / "world" / "world_state.json").write_text("{not valid json", encoding="utf-8")
 
             with self.assertRaises(AdventureContentError) as ctx:
-                load_adv1_world_state(temp_root)
+                load_adv1_world_state_seed_data(temp_root)
 
         self.assertIn("Malformed adventure file", str(ctx.exception))
 

@@ -87,7 +87,7 @@ def load_adv1_world_state(adventure_root: Path | None = None) -> WorldState:
     root = get_adventure_root() if adventure_root is None else Path(adventure_root)
     _validate_adventure_metadata(_read_json(root / "config" / "adventure.json"))
 
-    seed_data = load_adv1_world_seed_data(root)
+    seed_data = load_adv1_world_state_seed_data(root)
     player_seed = load_adv1_player_seed_data(root)
     location_definitions = load_adv1_location_definitions(root)
     plot_thread_definitions = load_adv1_plot_thread_definitions(root)
@@ -109,11 +109,11 @@ def load_adv1_player_seed_data(adventure_root: Path | None = None) -> Adv1Player
     return Adv1PlayerSeedData(player=_player_from_dict(player_data))
 
 
-def load_adv1_world_seed_data(adventure_root: Path | None = None) -> Adv1WorldSeedData:
+def load_adv1_world_state_seed_data(adventure_root: Path | None = None) -> Adv1WorldSeedData:
     root = get_adventure_root() if adventure_root is None else Path(adventure_root)
-    time_data = _read_json(root / "world" / "time.json")
+    world_state_data = _read_json(root / "world" / "world_state.json")
 
-    return Adv1WorldSeedData(current_time=_require_str(time_data, "current_time"))
+    return Adv1WorldSeedData(current_time=_require_str(world_state_data, "current_time"))
 
 
 def load_adv1_location_definitions(adventure_root: Path | None = None) -> list[Adv1LocationDefinition]:

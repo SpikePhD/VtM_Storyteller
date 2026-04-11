@@ -5,7 +5,7 @@ from .adventure_loader import (
     load_adv1_npc_definitions,
     load_adv1_plot_thread_definitions,
     load_adv1_player_seed_data,
-    load_adv1_world_seed_data,
+    load_adv1_world_state_seed_data,
 )
 from .models import Location, NPC, PlotThread
 from .world_state import WorldState
@@ -13,7 +13,7 @@ from .world_state import WorldState
 
 def build_sample_world() -> WorldState:
     player_seed = load_adv1_player_seed_data()
-    seed_data = load_adv1_world_seed_data()
+    seed_data = load_adv1_world_state_seed_data()
     location_definitions = load_adv1_location_definitions()
     npc_definitions = load_adv1_npc_definitions()
     plot_definitions = load_adv1_plot_thread_definitions()

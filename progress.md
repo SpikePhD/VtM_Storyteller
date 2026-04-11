@@ -950,3 +950,36 @@
   - None
 - Notes for next task:
   - A small explicit command dispatcher or command handlers can be added next when the CLI loop is introduced
+
+## Task 030 - Externalize ADV1 Initial World Clock and Top-Level Runtime Seed Data
+
+- Status: implemented
+- Goal: move the remaining top-level ADV1 startup world-state seed values out of Python and into visible files under `adventures/ADV1/`
+- Files added:
+  - `adventures/ADV1/world/world_state.json`
+- Files changed:
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/data_paths.py`
+  - `vampire_storyteller/__init__.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_adventure_paths.py`
+  - `progress.md`
+- What was implemented:
+  - Added a visible ADV1 world-state seed file with the initial timestamp
+  - Added a typed loader for ADV1 world-state seed data
+  - Updated sample world construction to read the startup world clock from authored content
+  - Removed the legacy `time.json` compatibility path so `world_state.json` is the sole startup world seed
+  - Added clear missing/malformed failure coverage for the world-state seed loader
+- Acceptance criteria checklist:
+  - [x] ADV1 startup world-state seed data is no longer primarily hardcoded in Python
+  - [x] Initial world clock is file-backed
+  - [x] Current startup and time-based gameplay behavior remains the same
+  - [x] Save/load still works
+  - [ ] Tests pass
+- Assumptions:
+  - The only remaining top-level world seed value was `current_time`
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - Confirm the regression suite still passes after removing the legacy seed file

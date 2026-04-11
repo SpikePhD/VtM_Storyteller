@@ -45,8 +45,8 @@ def get_adventure_player_seed_path(adventure_id: str = ADVENTURE_ID) -> Path:
     return get_adventure_world_path(adventure_id) / "player.json"
 
 
-def get_adventure_time_seed_path(adventure_id: str = ADVENTURE_ID) -> Path:
-    return get_adventure_world_path(adventure_id) / "time.json"
+def get_adventure_world_state_seed_path(adventure_id: str = ADVENTURE_ID) -> Path:
+    return get_adventure_world_path(adventure_id) / "world_state.json"
 
 
 def get_adventure_locations_seed_path(adventure_id: str = ADVENTURE_ID) -> Path:
