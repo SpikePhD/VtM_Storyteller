@@ -26,6 +26,7 @@ class NPC:
     location_id: str | None
     attitude_to_player: str
     goals: list[str] = field(default_factory=list)
+    investigation_hint: str = ""
     schedule: dict[str, str] = field(default_factory=dict)
     traits: dict[str, str] = field(default_factory=dict)
 

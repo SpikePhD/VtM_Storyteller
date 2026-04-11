@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import shutil
 import tempfile
@@ -76,6 +77,10 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual([definition.id for definition in npc_definitions], ["npc_1", "npc_2"])
         self.assertEqual(npc_definitions[0].starting_location_id, "loc_cafe")
         self.assertEqual(npc_definitions[1].attitude_to_player, "guarded")
+        self.assertEqual(npc_definitions[0].goals[0], "Keep his distance until Mara proves trustworthy")
+        self.assertIn("dock", npc_definitions[0].investigation_hint)
+        self.assertEqual(npc_definitions[1].goals[1], "Watch for anyone asking about the ledger")
+        self.assertIn("ledger", npc_definitions[1].investigation_hint)
 
     def test_plot_thread_definition_loader_reads_adv1_file(self) -> None:
         plot_definitions = load_adv1_plot_thread_definitions()
@@ -182,6 +187,34 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_npc_definitions(temp_root)
 
         self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def test_missing_npc_goals_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            npc_path = temp_root / "npcs" / "npcs.json"
+            npc_data = json.loads(npc_path.read_text(encoding="utf-8"))
+            del npc_data["npcs"][0]["goals"]
+            npc_path.write_text(json.dumps(npc_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_npc_definitions(temp_root)
+
+        self.assertIn("Adventure field 'goals'", str(ctx.exception))
+
+    def test_missing_npc_investigation_hint_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            npc_path = temp_root / "npcs" / "npcs.json"
+            npc_data = json.loads(npc_path.read_text(encoding="utf-8"))
+            del npc_data["npcs"][0]["investigation_hint"]
+            npc_path.write_text(json.dumps(npc_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_npc_definitions(temp_root)
+
+        self.assertIn("Adventure field 'investigation_hint'", str(ctx.exception))
 
     def test_malformed_plot_thread_definition_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

@@ -29,6 +29,8 @@ class SerializationTests(unittest.TestCase):
         self.assertEqual(loaded_world.player.name, world.player.name)
         self.assertEqual(loaded_world.player.location_id, world.player.location_id)
         self.assertEqual(loaded_world.current_time, world.current_time)
+        self.assertEqual(loaded_world.npcs["npc_1"].goals, world.npcs["npc_1"].goals)
+        self.assertEqual(loaded_world.npcs["npc_1"].investigation_hint, world.npcs["npc_1"].investigation_hint)
 
     def test_event_log_round_trip_works(self) -> None:
         world = build_sample_world()

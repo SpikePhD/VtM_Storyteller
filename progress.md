@@ -983,3 +983,33 @@
   - None
 - Notes for next task:
   - Confirm the regression suite still passes after removing the legacy seed file
+
+## Task 033 - Externalize ADV1 NPC Goals and Authored Investigation Hints
+
+- Status: implemented
+- Goal: move the remaining authored NPC intent data for ADV1 out of Python and into visible files under `adventures/ADV1/`
+- Files changed:
+  - `adventures/ADV1/npcs/npcs.json`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/models.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/serialization.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_serialization.py`
+  - `progress.md`
+- What was implemented:
+  - Added authored NPC goals and small investigation-hint text to the ADV1 NPC file
+  - Added typed loader support for the new NPC fields
+  - Updated sample world construction to seed NPC goals from authored content
+  - Preserved save/load compatibility for the new NPC field data
+  - Added clear failure coverage when the new NPC fields are missing
+- Acceptance criteria checklist:
+  - [x] ADV1 NPC goals are no longer hardcoded as empty defaults
+  - [x] Any added ADV1 investigation-hint content is file-backed
+  - [x] Current gameplay behavior remains the same
+  - [x] Save/load still works
+  - [ ] Tests pass
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - Verify the regression suite and a short smoke path after the NPC seed update

@@ -59,6 +59,8 @@ class Adv1NpcDefinition:
     role: str
     starting_location_id: str
     attitude_to_player: str
+    goals: list[str]
+    investigation_hint: str
     traits: dict[str, str]
     schedule: dict[str, str]
 
@@ -298,7 +300,8 @@ def _npc_from_dict(data: dict[str, Any]) -> NPC:
         role=_require_str(data, "role"),
         location_id=data.get("location_id"),
         attitude_to_player=_require_str(data, "attitude_to_player"),
-        goals=list(data.get("goals", [])),
+        goals=_require_string_list(data, "goals"),
+        investigation_hint=_require_str(data, "investigation_hint"),
         schedule=dict(data.get("schedule", {})),
         traits=dict(data.get("traits", {})),
     )
@@ -311,6 +314,8 @@ def _npc_definition_from_dict(data: dict[str, Any]) -> Adv1NpcDefinition:
         role=_require_str(data, "role"),
         starting_location_id=_require_str(data, "starting_location_id"),
         attitude_to_player=_require_str(data, "attitude_to_player"),
+        goals=_require_string_list(data, "goals"),
+        investigation_hint=_require_str(data, "investigation_hint"),
         traits=_require_string_mapping(data, "traits"),
         schedule=_require_string_mapping(data, "schedule"),
     )
@@ -323,7 +328,8 @@ def _npc_from_definition(definition: Adv1NpcDefinition) -> NPC:
         role=definition.role,
         location_id=definition.starting_location_id,
         attitude_to_player=definition.attitude_to_player,
-        goals=[],
+        goals=list(definition.goals),
+        investigation_hint=definition.investigation_hint,
         schedule=dict(definition.schedule),
         traits=dict(definition.traits),
     )

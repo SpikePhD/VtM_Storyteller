@@ -6,6 +6,11 @@
       "role": "Informant",
       "starting_location_id": "loc_cafe",
       "attitude_to_player": "wary",
+      "goals": [
+        "Keep his distance until Mara proves trustworthy",
+        "Point Mara toward the dock if pressed"
+      ],
+      "investigation_hint": "Jonas knows the dock matters, but he will not say why unless trust is earned.",
       "traits": {
         "voice": "quiet",
         "behavior": "observant"
@@ -21,6 +26,11 @@
       "role": "Haven Keeper",
       "starting_location_id": "loc_church",
       "attitude_to_player": "guarded",
+      "goals": [
+        "Protect the church records",
+        "Watch for anyone asking about the ledger"
+      ],
+      "investigation_hint": "Sister Eliza will only mention the ledger after Mara has seen the church.",
       "traits": {
         "voice": "measured",
         "behavior": "watchful"

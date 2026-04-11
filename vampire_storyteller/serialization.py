@@ -61,6 +61,7 @@ def _npc_from_dict(data: dict[str, Any]) -> NPC:
         location_id=data.get("location_id"),
         attitude_to_player=data["attitude_to_player"],
         goals=list(data.get("goals", [])),
+        investigation_hint=data.get("investigation_hint", ""),
         schedule=dict(data.get("schedule", {})),
         traits=dict(data.get("traits", {})),
     )
