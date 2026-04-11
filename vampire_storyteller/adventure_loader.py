@@ -73,6 +73,9 @@ class Adv1LocationDefinition:
     connected_locations: list[str]
     travel_time: dict[str, int]
     danger_level: int
+    scene_hook: str
+    notable_features: list[str]
+    flavor_tags: list[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -83,6 +86,15 @@ class Adv1PlotThreadDefinition:
     active: bool
     triggers: list[str]
     consequences: list[str]
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1PlotOutcomeDefinition:
+    id: str
+    name: str
+    resolved_event_text: str
+    learned_outcome: str
+    closing_beat: str
 
 
 def load_adv1_world_state(adventure_root: Path | None = None) -> WorldState:
@@ -145,6 +157,21 @@ def load_adv1_plot_thread_definitions(adventure_root: Path | None = None) -> lis
         if not isinstance(plot_data, dict):
             raise AdventureContentError("Adventure plot entries must be JSON objects.")
         definitions.append(_plot_thread_definition_from_dict(plot_data))
+    return definitions
+
+
+def load_adv1_plot_outcome_definitions(adventure_root: Path | None = None) -> list[Adv1PlotOutcomeDefinition]:
+    root = get_adventure_root() if adventure_root is None else Path(adventure_root)
+    data = _read_json(root / "plots" / "plot_outcomes.json")
+    outcome_entries = data.get("plots")
+    if not isinstance(outcome_entries, list):
+        raise AdventureContentError("Adventure field 'plots' must be a JSON array.")
+
+    definitions: list[Adv1PlotOutcomeDefinition] = []
+    for outcome_data in outcome_entries:
+        if not isinstance(outcome_data, dict):
+            raise AdventureContentError("Adventure plot outcome entries must be JSON objects.")
+        definitions.append(_plot_outcome_definition_from_dict(outcome_data))
     return definitions
 
 
@@ -343,6 +370,9 @@ def _location_definition_from_dict(data: dict[str, Any]) -> Adv1LocationDefiniti
         connected_locations=_require_string_list(data, "connected_locations"),
         travel_time=_require_int_mapping(data, "travel_time"),
         danger_level=_require_int(data, "danger_level"),
+        scene_hook=_require_str(data, "scene_hook"),
+        notable_features=_require_string_list(data, "notable_features"),
+        flavor_tags=_require_string_list(data, "flavor_tags"),
     )
 
 
@@ -354,6 +384,9 @@ def _location_from_definition(definition: Adv1LocationDefinition) -> Location:
         connected_locations=list(definition.connected_locations),
         travel_time=dict(definition.travel_time),
         danger_level=definition.danger_level,
+        scene_hook=definition.scene_hook,
+        notable_features=list(definition.notable_features),
+        flavor_tags=list(definition.flavor_tags),
     )
 
 
@@ -365,6 +398,9 @@ def _location_from_dict(data: dict[str, Any]) -> Location:
         connected_locations=_require_string_list(data, "connected_locations"),
         travel_time=_require_int_mapping(data, "travel_time"),
         danger_level=_require_int(data, "danger_level"),
+        scene_hook=str(data.get("scene_hook", "")),
+        notable_features=list(data.get("notable_features", [])),
+        flavor_tags=list(data.get("flavor_tags", [])),
     )
 
 
@@ -398,6 +434,16 @@ def _plot_from_definition(definition: Adv1PlotThreadDefinition) -> PlotThread:
         active=definition.active,
         triggers=list(definition.triggers),
         consequences=list(definition.consequences),
+    )
+
+
+def _plot_outcome_definition_from_dict(data: dict[str, Any]) -> Adv1PlotOutcomeDefinition:
+    return Adv1PlotOutcomeDefinition(
+        id=_require_str(data, "id"),
+        name=_require_str(data, "name"),
+        resolved_event_text=_require_str(data, "resolved_event_text"),
+        learned_outcome=_require_str(data, "learned_outcome"),
+        closing_beat=_require_str(data, "closing_beat"),
     )
 
 

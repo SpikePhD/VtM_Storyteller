@@ -39,6 +39,9 @@ class Location:
     connected_locations: list[str] = field(default_factory=list)
     travel_time: dict[str, int] = field(default_factory=dict)
     danger_level: int = 0
+    scene_hook: str = ""
+    notable_features: list[str] = field(default_factory=list)
+    flavor_tags: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -49,6 +52,9 @@ class PlotThread:
     active: bool
     triggers: list[str] = field(default_factory=list)
     consequences: list[str] = field(default_factory=list)
+    resolution_summary: str = ""
+    learned_outcome: str = ""
+    closing_beat: str = ""
 
 
 @dataclass

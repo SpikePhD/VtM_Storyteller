@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .adventure_loader import load_adv1_plot_investigation_rules
+from .adventure_loader import AdventureContentError, load_adv1_plot_investigation_rules, load_adv1_plot_outcome_definitions
 from .command_models import Command, InvestigateCommand
 from .dice_engine import DiceRollResult
 from .models import EventLogEntry
@@ -35,7 +35,16 @@ def apply_consequences(
     if roll_result.is_success:
         plot.stage = rules.success_stage
         plot.active = rules.success_active
+        outcome = next(
+            (definition for definition in load_adv1_plot_outcome_definitions() if definition.id == plot.id),
+            None,
+        )
         message = rules.success_message
+        if outcome is None:
+            raise AdventureContentError(f"Missing ADV1 plot outcome definition for '{plot.id}'.")
+        plot.resolution_summary = outcome.resolved_event_text
+        plot.learned_outcome = outcome.learned_outcome
+        plot.closing_beat = outcome.closing_beat
     else:
         message = rules.failure_message
     world_state.append_event(

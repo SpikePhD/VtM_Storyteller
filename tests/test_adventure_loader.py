@@ -11,6 +11,7 @@ from vampire_storyteller.adventure_loader import (
     load_adv1_location_definitions,
     load_adv1_npc_definitions,
     load_adv1_player_seed_data,
+    load_adv1_plot_outcome_definitions,
     load_adv1_plot_thread_definitions,
     load_adv1_world_state,
     load_adv1_world_state_seed_data,
@@ -70,6 +71,9 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(location_definitions[0].danger_level, 2)
         self.assertEqual(location_definitions[1].connected_locations, ["loc_cafe", "loc_dock"])
         self.assertEqual(location_definitions[2].travel_time["loc_church"], 15)
+        self.assertEqual(location_definitions[0].scene_hook, "Muted conversations and posted notices make the cafe a quiet place to ask questions.")
+        self.assertEqual(location_definitions[1].notable_features, ["record shelves", "side chapel", "faded stonework"])
+        self.assertEqual(location_definitions[2].flavor_tags, ["exposed", "industrial", "cold"])
 
     def test_npc_definition_loader_reads_adv1_file(self) -> None:
         npc_definitions = load_adv1_npc_definitions()
@@ -88,6 +92,14 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual([definition.id for definition in plot_definitions], ["plot_1"])
         self.assertEqual(plot_definitions[0].stage, "hook")
         self.assertEqual(plot_definitions[0].consequences, ["A hidden broker becomes interested"])
+
+    def test_plot_outcome_definition_loader_reads_adv1_file(self) -> None:
+        outcome_definitions = load_adv1_plot_outcome_definitions()
+
+        self.assertEqual([definition.id for definition in outcome_definitions], ["plot_1"])
+        self.assertEqual(outcome_definitions[0].resolved_event_text, "Plot 'Missing Ledger' resolved at North Dockside.")
+        self.assertIn("hidden broker", outcome_definitions[0].learned_outcome)
+        self.assertIn("North Dockside", outcome_definitions[0].closing_beat)
 
     def test_missing_location_definition_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -110,6 +122,48 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_location_definitions(temp_root)
 
         self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def test_missing_location_scene_hook_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            location_path = temp_root / "locations" / "locations.json"
+            location_data = json.loads(location_path.read_text(encoding="utf-8"))
+            del location_data["locations"][0]["scene_hook"]
+            location_path.write_text(json.dumps(location_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_location_definitions(temp_root)
+
+        self.assertIn("Adventure field 'scene_hook'", str(ctx.exception))
+
+    def test_missing_location_notable_features_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            location_path = temp_root / "locations" / "locations.json"
+            location_data = json.loads(location_path.read_text(encoding="utf-8"))
+            del location_data["locations"][0]["notable_features"]
+            location_path.write_text(json.dumps(location_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_location_definitions(temp_root)
+
+        self.assertIn("Adventure field 'notable_features'", str(ctx.exception))
+
+    def test_missing_location_flavor_tags_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            location_path = temp_root / "locations" / "locations.json"
+            location_data = json.loads(location_path.read_text(encoding="utf-8"))
+            del location_data["locations"][0]["flavor_tags"]
+            location_path.write_text(json.dumps(location_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_location_definitions(temp_root)
+
+        self.assertIn("Adventure field 'flavor_tags'", str(ctx.exception))
 
     def test_missing_world_state_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -152,6 +206,17 @@ class AdventureLoaderTests(unittest.TestCase):
 
             with self.assertRaises(AdventureContentError) as ctx:
                 load_adv1_plot_thread_definitions(temp_root)
+
+        self.assertIn("Required adventure file missing", str(ctx.exception))
+
+    def test_missing_plot_outcome_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "plots" / "plot_outcomes.json").unlink()
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_plot_outcome_definitions(temp_root)
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
 
@@ -224,6 +289,17 @@ class AdventureLoaderTests(unittest.TestCase):
 
             with self.assertRaises(AdventureContentError) as ctx:
                 load_adv1_plot_thread_definitions(temp_root)
+
+        self.assertIn("Malformed adventure file", str(ctx.exception))
+
+    def test_malformed_plot_outcome_definition_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "plots" / "plot_outcomes.json").write_text("{not valid json", encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_plot_outcome_definitions(temp_root)
 
         self.assertIn("Malformed adventure file", str(ctx.exception))
 

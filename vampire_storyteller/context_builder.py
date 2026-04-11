@@ -36,6 +36,12 @@ def build_scene_snapshot(world_state: WorldState, recent_event_limit: int = 3) -
         if plot.active
     )
 
+    resolved_plots = sorted(
+        f"{plot.name}: {plot.resolution_summary}"
+        for plot in world_state.plots.values()
+        if not plot.active and plot.resolution_summary
+    )
+
     exits = sorted(
         {
             connected_location.name
@@ -60,9 +66,13 @@ def build_scene_snapshot(world_state: WorldState, recent_event_limit: int = 3) -
         location_name=location.name,
         location_type=location.type,
         location_danger_level=location.danger_level,
+        location_scene_hook=location.scene_hook,
+        location_notable_features=list(location.notable_features),
+        location_flavor_tags=list(location.flavor_tags),
         exits=exits,
         npcs_present=npcs_present,
         active_plots=active_plots,
+        resolved_plots=resolved_plots,
         recent_events=recent_events,
     )
 
@@ -108,9 +118,13 @@ def snapshot_to_narration_payload(snapshot: SceneSnapshot) -> SceneNarrationPayl
         player_name=snapshot.player_name,
         player_clan=snapshot.player_clan,
         location_name=snapshot.location_name,
+        location_scene_hook=snapshot.location_scene_hook,
+        location_notable_features=list(snapshot.location_notable_features),
+        location_flavor_tags=list(snapshot.location_flavor_tags),
         exits=list(snapshot.exits),
         npcs_present=list(snapshot.npcs_present),
         active_plots=list(snapshot.active_plots),
+        resolved_plots=list(snapshot.resolved_plots),
         recent_events=list(snapshot.recent_events),
     )
 

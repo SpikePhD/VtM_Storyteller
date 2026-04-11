@@ -12,7 +12,18 @@
         "loc_church": 8,
         "loc_dock": 12
       },
-      "danger_level": 2
+      "danger_level": 2,
+      "scene_hook": "Muted conversations and posted notices make the cafe a quiet place to ask questions.",
+      "notable_features": [
+        "corner booths",
+        "notice board",
+        "narrow back room"
+      ],
+      "flavor_tags": [
+        "quiet",
+        "watchful",
+        "public"
+      ]
     },
     {
       "id": "loc_church",
@@ -26,7 +37,18 @@
         "loc_cafe": 8,
         "loc_dock": 15
       },
-      "danger_level": 1
+      "danger_level": 1,
+      "scene_hook": "The church stays calm, with old records and careful attention shaping the room.",
+      "notable_features": [
+        "record shelves",
+        "side chapel",
+        "faded stonework"
+      ],
+      "flavor_tags": [
+        "sanctuary",
+        "reserved",
+        "quiet"
+      ]
     },
     {
       "id": "loc_dock",
@@ -40,7 +62,18 @@
         "loc_cafe": 12,
         "loc_church": 15
       },
-      "danger_level": 4
+      "danger_level": 4,
+      "scene_hook": "The dock is exposed and practical, with freight and idle boats under hard attention.",
+      "notable_features": [
+        "cargo stacks",
+        "mooring posts",
+        "wet planks"
+      ],
+      "flavor_tags": [
+        "exposed",
+        "industrial",
+        "cold"
+      ]
     }
   ]
 }

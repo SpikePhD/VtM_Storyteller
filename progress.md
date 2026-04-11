@@ -1013,3 +1013,74 @@
   - None
 - Notes for next task:
   - Verify the regression suite and a short smoke path after the NPC seed update
+
+## Task 034 - Externalize ADV1 Location Scene Hooks and Authored Flavor Tags
+
+- Status: implemented
+- Goal: add small, deterministic, file-backed location scene content for ADV1 so each location can carry restrained authored flavor used by the scene/context layer
+- Files changed:
+  - `adventures/ADV1/locations/locations.json`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/models.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/context_builder.py`
+  - `vampire_storyteller/scene_models.py`
+  - `vampire_storyteller/serialization.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_context_builder.py`
+  - `tests/test_openai_narrative_provider.py`
+  - `tests/test_serialization.py`
+  - `progress.md`
+- What was implemented:
+  - Added authored scene hooks, notable features, and restrained flavor tags to the ADV1 location file
+  - Added typed loader support for the new location fields
+  - Updated sample world construction to seed location metadata from authored content
+  - Threaded the deterministic location metadata through the scene snapshot and narration payload
+  - Preserved save/load compatibility for expanded location data
+  - Added clear failure coverage when the new location fields are missing
+- Acceptance criteria checklist:
+  - [x] ADV1 locations now carry small file-backed scene hooks or equivalent restrained authored flavor
+  - [x] The scene/context layer can access that deterministic location content
+  - [x] Current gameplay behavior remains the same
+  - [x] Save/load still works if model fields were expanded
+  - [x] Tests pass
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - None
+
+## Task 035 - Externalize ADV1 Resolution and Ending Content
+
+- Status: implemented
+- Goal: move the remaining authored resolution content for ADV1 out of Python and into visible files under `adventures/ADV1/`
+- Files added:
+  - `adventures/ADV1/plots/plot_outcomes.json`
+- Files changed:
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/consequence_engine.py`
+  - `vampire_storyteller/context_builder.py`
+  - `vampire_storyteller/scene_models.py`
+  - `vampire_storyteller/__init__.py`
+  - `vampire_storyteller/models.py`
+  - `vampire_storyteller/serialization.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_consequence_engine.py`
+  - `tests/test_serialization.py`
+  - `progress.md`
+- What was implemented:
+  - Added authored Missing Ledger resolution/ending content to a visible ADV1 outcomes file
+  - Added typed loader support for ADV1 plot outcome data
+  - Updated consequence resolution to store authored ending content on the resolved plot state
+  - Threaded resolved plot summaries into the scene payload for deterministic inspection
+  - Preserved the existing success/failure mechanics and visible resolved-path behavior
+  - Added clear failure coverage for missing or malformed outcomes content
+- Acceptance criteria checklist:
+  - [x] ADV1 resolution/ending content is file-backed
+  - [x] Missing Ledger resolution remains mechanically unchanged
+  - [x] The resolved state has explicit authored outcome content
+  - [x] Save/load still works
+  - [x] Tests pass
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - None

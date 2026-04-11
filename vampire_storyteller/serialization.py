@@ -75,6 +75,9 @@ def _location_from_dict(data: dict[str, Any]) -> Location:
         connected_locations=list(data.get("connected_locations", [])),
         travel_time=dict(data.get("travel_time", {})),
         danger_level=data["danger_level"],
+        scene_hook=_optional_str(data, "scene_hook"),
+        notable_features=_optional_string_list(data, "notable_features"),
+        flavor_tags=_optional_string_list(data, "flavor_tags"),
     )
 
 
@@ -86,6 +89,9 @@ def _plot_thread_from_dict(data: dict[str, Any]) -> PlotThread:
         active=data["active"],
         triggers=list(data.get("triggers", [])),
         consequences=list(data.get("consequences", [])),
+        resolution_summary=_optional_str(data, "resolution_summary"),
+        learned_outcome=_optional_str(data, "learned_outcome"),
+        closing_beat=_optional_str(data, "closing_beat"),
     )
 
 
@@ -95,3 +101,15 @@ def _event_log_entry_from_dict(data: dict[str, Any]) -> EventLogEntry:
         description=data["description"],
         involved_entities=list(data.get("involved_entities", [])),
     )
+
+
+def _optional_str(data: dict[str, Any], field_name: str) -> str:
+    value = data.get(field_name, "")
+    return value if isinstance(value, str) else ""
+
+
+def _optional_string_list(data: dict[str, Any], field_name: str) -> list[str]:
+    value = data.get(field_name, [])
+    if not isinstance(value, list):
+        return []
+    return [entry for entry in value if isinstance(entry, str) and entry]

@@ -69,6 +69,9 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertEqual(messages, ["Plot 'Missing Ledger' resolved at North Dockside."])
         self.assertFalse(world.plots["plot_1"].active)
         self.assertEqual(world.plots["plot_1"].stage, "resolved")
+        self.assertEqual(world.plots["plot_1"].resolution_summary, "Plot 'Missing Ledger' resolved at North Dockside.")
+        self.assertIn("hidden broker", world.plots["plot_1"].learned_outcome)
+        self.assertIn("Mara leaves North Dockside", world.plots["plot_1"].closing_beat)
         self.assertEqual(world.event_log[-1].description, "Plot 'Missing Ledger' resolved at North Dockside.")
         self.assertEqual(world.event_log[-1].involved_entities, ["player_1", "plot_1", "loc_dock"])
 
@@ -118,6 +121,7 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertIn("Active Plots: None", result.output_text)
         self.assertIn("Recent Events:", result.output_text)
         self.assertIn("Rolled 3 dice vs difficulty 6", result.output_text)
+        self.assertEqual(world.plots["plot_1"].resolution_summary, "Plot 'Missing Ledger' resolved at North Dockside.")
 
     def test_session_flow_failure_keeps_plot_active_and_logs_roll(self) -> None:
         session = GameSession()

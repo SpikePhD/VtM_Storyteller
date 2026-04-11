@@ -42,6 +42,9 @@ def build_sample_world() -> WorldState:
                 connected_locations=list(location_definition.connected_locations),
                 travel_time=dict(location_definition.travel_time),
                 danger_level=location_definition.danger_level,
+                scene_hook=location_definition.scene_hook,
+                notable_features=list(location_definition.notable_features),
+                flavor_tags=list(location_definition.flavor_tags),
             )
             for location_definition in location_definitions
         },

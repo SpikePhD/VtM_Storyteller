@@ -24,9 +24,13 @@ class SceneSnapshot:
     location_name: str
     location_type: str
     location_danger_level: int
+    location_scene_hook: str = ""
+    location_notable_features: list[str] = field(default_factory=list)
+    location_flavor_tags: list[str] = field(default_factory=list)
     exits: list[str] = field(default_factory=list)
     npcs_present: list[SceneNPC] = field(default_factory=list)
     active_plots: list[str] = field(default_factory=list)
+    resolved_plots: list[str] = field(default_factory=list)
     recent_events: list[str] = field(default_factory=list)
 
 
@@ -36,7 +40,11 @@ class SceneNarrationPayload:
     player_name: str
     player_clan: str
     location_name: str
+    location_scene_hook: str = ""
+    location_notable_features: list[str] = field(default_factory=list)
+    location_flavor_tags: list[str] = field(default_factory=list)
     exits: list[str] = field(default_factory=list)
     npcs_present: list[SceneNPC] = field(default_factory=list)
     active_plots: list[str] = field(default_factory=list)
+    resolved_plots: list[str] = field(default_factory=list)
     recent_events: list[str] = field(default_factory=list)
