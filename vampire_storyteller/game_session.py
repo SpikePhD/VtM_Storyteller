@@ -4,12 +4,13 @@ from pathlib import Path
 
 from .adjudication_engine import adjudicate_command
 from .command_dispatcher import execute_command
-from .command_models import Command, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, WaitCommand
+from .command_models import Command, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
 from .command_parser import parse_command
 from .command_result import CommandResult
 from .consequence_engine import apply_consequences
 from .dice_engine import roll_dice
 from .data_paths import ensure_adventure_directories, get_default_save_path
+from .input_interpreter import InputInterpreter
 from .models import EventLogEntry
 from .npc_engine import update_npcs_for_current_time
 from .narrative_provider import DeterministicSceneNarrativeProvider, SceneNarrativeProvider
@@ -29,13 +30,16 @@ class GameSession:
         self._world_state = world_state if world_state is not None else build_sample_world()
         self._scene_provider = scene_provider if scene_provider is not None else DeterministicSceneNarrativeProvider()
         self._fallback_scene_provider = DeterministicSceneNarrativeProvider()
+        self._input_interpreter = InputInterpreter()
         self._save_path = Path(save_path) if save_path is not None else get_default_save_path()
 
     def get_startup_text(self) -> str:
         return self._render_scene_text()
 
     def process_input(self, raw_input: str) -> CommandResult:
-        command = parse_command(raw_input)
+        interpretation = self._input_interpreter.interpret(raw_input, self._world_state)
+        command_input = interpretation.canonical_command if not interpretation.fallback_to_parser else raw_input
+        command = parse_command(command_input)
         if isinstance(command, SaveCommand):
             ensure_adventure_directories()
             save_world_state(self._world_state, self._save_path)
@@ -55,6 +59,15 @@ class GameSession:
         result = execute_command(self._world_state, command)
         if result.should_quit:
             return result
+
+        if isinstance(command, TalkCommand):
+            plot_messages = advance_plots(self._world_state, command)
+            if plot_messages:
+                result = CommandResult(
+                    output_text="\n".join([result.output_text, *plot_messages]) if result.output_text else "\n".join(plot_messages),
+                    should_quit=result.should_quit,
+                    render_scene=result.render_scene,
+                )
 
         if result.render_scene:
             if isinstance(command, (MoveCommand, WaitCommand)):
@@ -85,6 +98,17 @@ class GameSession:
 
             apply_consequences(self._world_state, command, roll_result=roll_result)
 
+            if isinstance(command, InvestigateCommand):
+                epilogue_text = self._build_resolution_epilogue()
+                if epilogue_text:
+                    rendered_scene_text = self._render_scene_text()
+                    result = CommandResult(
+                        output_text=f"{epilogue_text}\n\n{rendered_scene_text}",
+                        should_quit=result.should_quit,
+                        render_scene=True,
+                    )
+                    return result
+
             result = CommandResult(
                 output_text=self._render_scene_text(),
                 should_quit=result.should_quit,
@@ -106,3 +130,17 @@ class GameSession:
         command_name = command.__class__.__name__.removesuffix("Command").lower()
         player_id = self._world_state.player.id
         return f"{self._world_state.current_time}|{command_name}|{player_id}"
+
+    def _build_resolution_epilogue(self) -> str:
+        plot = self._world_state.plots.get("plot_1")
+        if plot is None or plot.active:
+            return ""
+        if not plot.resolution_summary or not plot.learned_outcome or not plot.closing_beat:
+            return ""
+        return "\n".join(
+            [
+                plot.resolution_summary,
+                f"Learned: {plot.learned_outcome}",
+                f"Closing beat: {plot.closing_beat}",
+            ]
+        )

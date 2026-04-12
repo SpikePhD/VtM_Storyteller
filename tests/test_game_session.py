@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import tempfile
 import unittest
+from pathlib import Path
 
 from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.exceptions import CommandParseError
@@ -64,7 +66,7 @@ class GameSessionTests(unittest.TestCase):
     def test_parse_errors_propagate(self) -> None:
         session = GameSession()
         with self.assertRaises(CommandParseError):
-            session.process_input("inspect")
+            session.process_input("sing a song")
 
     def test_investigate_while_premature_returns_explicit_feedback(self) -> None:
         session = GameSession()
@@ -99,6 +101,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertFalse(result.render_scene)
         self.assertEqual(session.get_world_state().player.location_id, "loc_cafe")
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
+        self.assertIn("trust: 1", session.get_startup_text())
 
     def test_talk_can_shift_response_after_trust_improves(self) -> None:
         session = GameSession()
@@ -108,7 +111,19 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIn("keeps his voice low", first_result.output_text)
         self.assertIn("loosens his shoulders", second_result.output_text)
+        self.assertIn("advanced from hook to lead_confirmed", second_result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+
+    def test_talk_one_shot_trust_hooks_do_not_stack_indefinitely(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        session.process_input("talk npc_1")
+        session.process_input("talk npc_1")
+
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
 
     def test_talk_to_absent_npc_returns_explicit_feedback(self) -> None:
         session = GameSession()
@@ -131,6 +146,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("Talk is blocked", result.output_text)
         self.assertIn("said what he will say", result.output_text)
         self.assertFalse(result.render_scene)
+        self.assertIn("trust: 1", session.get_startup_text())
 
     def test_successful_investigate_updates_relevant_trust(self) -> None:
         session = GameSession()
@@ -142,8 +158,26 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertTrue(result.render_scene)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "resolved")
+        self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
+        self.assertIn("Learned: The ledger's path points back to a hidden broker operating through the dock.", result.output_text)
+        self.assertIn("Closing beat: Mara leaves North Dockside with the ledger matter settled.", result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().npcs["npc_2"].trust_level, 1)
+
+    def test_save_load_restores_trust_reflected_in_scene_text(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            save_path = Path(temp_dir) / "save.json"
+            session = GameSession(save_path=save_path)
+
+            session.process_input("talk npc_1")
+            session.process_input("save")
+
+            reloaded_session = GameSession(save_path=save_path)
+            load_result = reloaded_session.process_input("load")
+
+            self.assertEqual(reloaded_session.get_world_state().npcs["npc_1"].trust_level, 1)
+            self.assertIn("trust: 1", reloaded_session.get_startup_text())
+            self.assertNotIn("Closing beat:", load_result.output_text)
 
     def test_injected_scene_provider_is_used_for_startup_and_mutations(self) -> None:
         provider = RecordingSceneProvider()
