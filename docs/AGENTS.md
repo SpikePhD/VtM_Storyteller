@@ -8,9 +8,10 @@ Each agent has a clear responsibility.
 
 ## Agents / Modules
 
-### 1. Intent Parser
-- interprets player input
-- extracts action type, target, context
+### 1. Intent Interpreter
+- interprets freeform player input
+- extracts structured intent, targets, and context
+- supports thoughts, intentions, descriptive actions, and dialogue
 
 ### 2. Adjudication Engine
 - decides if a roll is required
@@ -48,7 +49,7 @@ Each agent has a clear responsibility.
 
 ### 10. Narrative Provider
 - interface to LLM (local or API)
-- generates narration and dialogue
+- generates narration and dialogue feel after deterministic resolution
 
 ### 11. Event Logger
 - records events

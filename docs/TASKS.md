@@ -12,7 +12,7 @@
 7. Implement Consequence Engine
 
 ## Phase 3: Interaction
-8. Implement Intent Parser
+8. Implement Player Intent Resolution
 9. Implement Adjudication Engine
 10. Implement Dice Engine
 
