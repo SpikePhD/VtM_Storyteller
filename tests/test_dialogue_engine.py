@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import unittest
 
-from vampire_storyteller.command_models import DialogueAct, DialogueMetadata
-from vampire_storyteller.dialogue_engine import resolve_talk
+from vampire_storyteller.command_models import DialogueAct, DialogueMetadata, TalkCommand
+from vampire_storyteller.dialogue_engine import resolve_talk, resolve_talk_result
+from vampire_storyteller.plot_engine import advance_plots
 from vampire_storyteller.sample_world import build_sample_world
 
 
@@ -37,10 +38,42 @@ class DialogueEngineTests(unittest.TestCase):
             dialogue_act=DialogueAct.THREATEN,
         )
 
-        result = resolve_talk(world, "npc_1", threaten_metadata)
+        result = resolve_talk_result(world, "npc_1", threaten_metadata)
 
-        self.assertIn("ends the exchange", result)
+        self.assertIn("ends the exchange", result.output_text)
         self.assertEqual(world.npcs["npc_1"].trust_level, 0)
+
+    def test_question_follow_up_prefers_act_specific_hook_over_generic_trust_hook(self) -> None:
+        world = build_sample_world()
+        world.npcs["npc_1"].trust_level = 1
+        ask_metadata = DialogueMetadata(
+            utterance_text="What do you mean?",
+            speech_text="What do you mean?",
+            dialogue_act=DialogueAct.ASK,
+        )
+
+        result = resolve_talk_result(world, "npc_1", ask_metadata)
+
+        self.assertIn("hears 'What do you mean?'", result.output_text)
+        self.assertEqual(world.story_flags, [])
+        self.assertEqual(world.plots["plot_1"].stage, "hook")
+
+    def test_hostile_follow_up_stays_blocked_and_does_not_emit_story_flag(self) -> None:
+        world = build_sample_world()
+        world.npcs["npc_1"].trust_level = 1
+        hostile_metadata = DialogueMetadata(
+            utterance_text="I don't believe you.",
+            speech_text="I don't believe you.",
+            dialogue_act=DialogueAct.ACCUSE,
+        )
+
+        result = resolve_talk_result(world, "npc_1", hostile_metadata)
+        plot_messages = advance_plots(world, TalkCommand(npc_id="npc_1", dialogue_metadata=hostile_metadata))
+
+        self.assertIn("cuts the accusation off", result.output_text)
+        self.assertEqual(world.story_flags, [])
+        self.assertEqual(plot_messages, [])
+        self.assertEqual(world.plots["plot_1"].stage, "hook")
 
     def test_story_flag_emission_remains_idempotent(self) -> None:
         world = build_sample_world()
@@ -58,4 +91,3 @@ class DialogueEngineTests(unittest.TestCase):
 
         self.assertIn("Talk is blocked", result)
         self.assertIn("Sister Eliza", result)
-

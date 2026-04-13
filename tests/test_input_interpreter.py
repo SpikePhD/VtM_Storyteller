@@ -159,6 +159,30 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
 
+    def test_follow_up_what_do_you_mean_uses_conversation_focus(self) -> None:
+        result = self.interpreter.interpret("What do you mean?", self.world_state, conversation_focus_npc_id="npc_1")
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+
+    def test_follow_up_skeptical_line_uses_conversation_focus(self) -> None:
+        result = self.interpreter.interpret("I don't believe you.", self.world_state, conversation_focus_npc_id="npc_1")
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
+
+    def test_follow_up_that_sounds_wrong_uses_conversation_focus(self) -> None:
+        result = self.interpreter.interpret("That sounds wrong.", self.world_state, conversation_focus_npc_id="npc_1")
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
+
     def test_follow_up_without_focus_falls_back(self) -> None:
         result = self.interpreter.interpret("Why?", self.world_state)
 

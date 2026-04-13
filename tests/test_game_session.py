@@ -118,11 +118,11 @@ class GameSessionTests(unittest.TestCase):
     def test_follow_up_uses_conversation_focus(self) -> None:
         session = GameSession()
 
-        session.process_input("talk npc_1")
+        session.process_input("Jonas, good evening.")
         result = session.process_input("Why?")
         interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("Jonas Reed", result.output_text)
+        self.assertIn("hears 'Why?'", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
@@ -130,13 +130,26 @@ class GameSessionTests(unittest.TestCase):
     def test_follow_up_unknownish_line_still_targets_focus(self) -> None:
         session = GameSession()
 
-        session.process_input("talk npc_1")
+        session.process_input("Jonas, good evening.")
         result = session.process_input("I don't believe you.")
         interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("Jonas Reed", result.output_text)
+        self.assertIn("cuts the accusation off", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+
+    def test_follow_up_what_do_you_mean_stays_in_question_path(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, good evening.")
+        result = session.process_input("What do you mean?")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("hears 'What do you mean?'", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
 
     def test_talk_question_uses_preserved_utterance_text(self) -> None:
         session = GameSession()

@@ -40,7 +40,8 @@ def resolve_talk_result(
     plot = world_state.plots.get("plot_1")
     current_stage = plot.stage if plot is not None else ""
     hooks = load_adv1_dialogue_hook_definitions()
-    hook = _find_dialogue_hook(hooks, npc, current_stage, dialogue_metadata.dialogue_act if dialogue_metadata is not None else None)
+    dialogue_act = dialogue_metadata.dialogue_act if dialogue_metadata is not None else None
+    hook = _find_dialogue_hook(hooks, npc, current_stage, dialogue_act)
     if hook is not None:
         if hook.trust_delta != 0:
             _adjust_npc_trust(world_state, npc_id, hook.trust_delta)
@@ -68,34 +69,44 @@ def resolve_talk_result(
 
 
 def _find_dialogue_hook(hooks, npc, plot_stage: str, dialogue_act: DialogueAct | None):
-    matching_hook = None
-    matching_trust_level = -1
-    for hook in hooks:
-        if hook.npc_id != npc.id or hook.required_plot_id != "plot_1" or hook.required_plot_stage != plot_stage:
-            continue
-        if hook.minimum_trust_level > npc.trust_level:
-            continue
-        if not hook.repeatable and hook.hook_id in npc.consumed_dialogue_hooks:
-            continue
-        if hook.minimum_trust_level > matching_trust_level:
-            matching_hook = hook
-            matching_trust_level = hook.minimum_trust_level
-            continue
-        if hook.minimum_trust_level == matching_trust_level and dialogue_act is not None:
-            if hook.required_dialogue_acts and dialogue_act.value not in hook.required_dialogue_acts:
-                continue
-            if matching_hook is None:
-                matching_hook = hook
-                continue
-            if _hook_specificity_score(hook, dialogue_act) > _hook_specificity_score(matching_hook, dialogue_act):
-                matching_hook = hook
-    return matching_hook
+    matching_hooks = [
+        hook
+        for hook in hooks
+        if hook.npc_id == npc.id
+        and hook.required_plot_id == "plot_1"
+        and hook.required_plot_stage == plot_stage
+        and hook.minimum_trust_level <= npc.trust_level
+        and (hook.repeatable or hook.hook_id not in npc.consumed_dialogue_hooks)
+    ]
+    if not matching_hooks:
+        return None
+
+    if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
+        guarded_hook = _select_best_hook_for_act(matching_hooks, dialogue_act)
+        if guarded_hook is not None:
+            return guarded_hook
+        return None
+
+    if dialogue_act is not None:
+        matched_hook = _select_best_hook_for_act(matching_hooks, dialogue_act)
+        if matched_hook is not None:
+            return matched_hook
+
+    return _select_best_generic_hook(matching_hooks)
 
 
-def _hook_specificity_score(hook: Adv1DialogueHookDefinition, dialogue_act: DialogueAct) -> tuple[int, int]:
-    matches_act = 1 if hook.required_dialogue_acts and dialogue_act.value in hook.required_dialogue_acts else 0
-    any_specificity = 1 if hook.required_dialogue_acts else 0
-    return (matches_act, any_specificity)
+def _select_best_hook_for_act(hooks, dialogue_act: DialogueAct) -> Adv1DialogueHookDefinition | None:
+    act_specific_hooks = [hook for hook in hooks if dialogue_act.value in hook.required_dialogue_acts]
+    if not act_specific_hooks:
+        return None
+    return max(act_specific_hooks, key=lambda hook: (hook.minimum_trust_level, len(hook.required_dialogue_acts), hook.repeatable))
+
+
+def _select_best_generic_hook(hooks) -> Adv1DialogueHookDefinition | None:
+    generic_hooks = [hook for hook in hooks if not hook.required_dialogue_acts]
+    if not generic_hooks:
+        return None
+    return max(generic_hooks, key=lambda hook: (hook.minimum_trust_level, hook.repeatable))
 
 
 def _adjust_npc_trust(world_state: WorldState, npc_id: str, delta: int) -> None:
