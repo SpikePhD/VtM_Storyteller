@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from .command_models import DialogueAct, DialogueMetadata
 from .world_state import WorldState
 
 
@@ -15,6 +16,7 @@ class InterpretedInput:
     confidence: float
     match_reason: str
     fallback_to_parser: bool
+    dialogue_metadata: DialogueMetadata | None = None
 
 
 class InputInterpreter:
@@ -116,29 +118,125 @@ class InputInterpreter:
         if npc_match is None:
             return None
 
-        speech_patterns = (
-            "talk to",
-            "talk with",
-            "ask",
-            "speak to",
-            "speak with",
-            "tell",
-            "say",
-            "address",
-        )
+        speech_text = self._extract_speech_text(raw_input, npc_match["matched_text"])
+        normalized_speech_text = self._normalize_text(speech_text)
+        dialogue_act = self._classify_dialogue_act(raw_input, speech_text, normalized_speech_text)
         direct_address = self._looks_like_direct_address(raw_input, npc_match["matched_text"])
-        if not self._contains_any(normalized_text, speech_patterns) and not direct_address:
+
+        if dialogue_act is DialogueAct.UNKNOWN and not direct_address:
             return None
 
+        metadata = DialogueMetadata(
+            utterance_text=raw_input.strip(),
+            speech_text=speech_text,
+            dialogue_act=dialogue_act,
+        )
         return InterpretedInput(
             normalized_intent="talk",
             target_text=npc_match["matched_text"],
             target_reference=npc_match["npc_id"],
             canonical_command=f"talk {npc_match['npc_id']}",
-            confidence=0.95,
-            match_reason=f"speech text matched NPC '{npc_match['matched_text']}'",
+            confidence=0.95 if dialogue_act is not DialogueAct.UNKNOWN else 0.8,
+            match_reason=f"speech text matched NPC '{npc_match['matched_text']}' and classified as {dialogue_act.value}",
             fallback_to_parser=False,
+            dialogue_metadata=metadata,
         )
+
+    def _classify_dialogue_act(self, raw_input: str, speech_text: str, normalized_speech_text: str) -> DialogueAct:
+        if not normalized_speech_text:
+            return DialogueAct.UNKNOWN
+
+        if self._contains_any(
+            normalized_speech_text,
+            ("good morning", "good afternoon", "good evening", "good night", "hello", "hi", "hey", "greetings"),
+        ):
+            return DialogueAct.GREET
+
+        if self._contains_any(
+            normalized_speech_text,
+            (
+                "you're hiding",
+                "you are hiding",
+                "you're lying",
+                "you are lying",
+                "what did you do",
+                "what are you hiding",
+                "i know you",
+                "you did this",
+                "liar",
+                "lying",
+                "betray",
+                "betrayed",
+                "stole",
+                "stolen",
+                "murder",
+                "guilty",
+                "confess",
+            ),
+        ):
+            return DialogueAct.ACCUSE
+
+        if self._contains_any(
+            normalized_speech_text,
+            (
+                "or else",
+                "before this gets worse",
+                "don't make me",
+                "do this now",
+                "i won't ask again",
+                "you'll regret",
+                "regret this",
+                "make this difficult",
+                "last chance",
+                "comply",
+                "threat",
+                "hurt you",
+            ),
+        ):
+            return DialogueAct.THREATEN
+
+        if self._contains_any(
+            normalized_speech_text,
+            (
+                "i need you to",
+                "trust me",
+                "help me",
+                "please",
+                "listen to me",
+                "work with me",
+                "believe me",
+                "i can help",
+                "come with me",
+                "do this for me",
+                "convince",
+                "persuade",
+            ),
+        ):
+            return DialogueAct.PERSUADE
+
+        if "?" in speech_text or self._contains_any(
+            normalized_speech_text,
+            (
+                "what",
+                "why",
+                "who",
+                "where",
+                "when",
+                "how",
+                "can you",
+                "could you",
+                "would you",
+                "will you",
+                "do you",
+                "did you",
+                "are you",
+                "is it",
+                "tell me",
+            ),
+        ):
+            return DialogueAct.ASK
+
+        return DialogueAct.UNKNOWN
 
     def _match_location(self, normalized_text: str, world_state: WorldState) -> dict[str, str] | None:
         best_match: dict[str, str] | None = None
@@ -184,6 +282,13 @@ class InputInterpreter:
         aliases = [self._normalize_text(name)]
         aliases.extend(self._normalize_text(part) for part in name.split())
         return aliases
+
+    def _extract_speech_text(self, raw_input: str, matched_text: str) -> str:
+        pattern = rf"^\s*{re.escape(matched_text)}\s*[,!:.-]?\s*"
+        match = re.match(pattern, raw_input, flags=re.IGNORECASE)
+        if match is None:
+            return raw_input.strip()
+        return raw_input[match.end():].strip()
 
     def _parse_wait_amount(self, amount_text: str, unit_text: str | None) -> int | None:
         number_words = {

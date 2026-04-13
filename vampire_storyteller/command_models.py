@@ -1,6 +1,23 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from enum import Enum
+
+
+class DialogueAct(str, Enum):
+    GREET = "greet"
+    ASK = "ask"
+    ACCUSE = "accuse"
+    PERSUADE = "persuade"
+    THREATEN = "threaten"
+    UNKNOWN = "unknown"
+
+
+@dataclass(frozen=True, slots=True)
+class DialogueMetadata:
+    utterance_text: str
+    speech_text: str
+    dialogue_act: DialogueAct
 
 
 @dataclass(frozen=True)
@@ -36,6 +53,7 @@ class WaitCommand(Command):
 @dataclass(frozen=True)
 class TalkCommand(Command):
     npc_id: str
+    dialogue_metadata: DialogueMetadata | None = None
 
 
 @dataclass(frozen=True)

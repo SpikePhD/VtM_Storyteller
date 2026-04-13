@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from pathlib import Path
 
 from .adjudication_engine import adjudicate_command
@@ -10,7 +11,7 @@ from .command_result import CommandResult
 from .consequence_engine import apply_consequences
 from .dice_engine import roll_dice
 from .data_paths import ensure_adventure_directories, get_default_save_path
-from .input_interpreter import InputInterpreter
+from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
 from .npc_engine import update_npcs_for_current_time
 from .narrative_provider import DeterministicSceneNarrativeProvider, SceneNarrativeProvider
@@ -31,6 +32,7 @@ class GameSession:
         self._scene_provider = scene_provider if scene_provider is not None else DeterministicSceneNarrativeProvider()
         self._fallback_scene_provider = DeterministicSceneNarrativeProvider()
         self._input_interpreter = InputInterpreter()
+        self._last_interpreted_input: InterpretedInput | None = None
         self._save_path = Path(save_path) if save_path is not None else get_default_save_path()
 
     def get_startup_text(self) -> str:
@@ -38,8 +40,11 @@ class GameSession:
 
     def process_input(self, raw_input: str) -> CommandResult:
         interpretation = self._input_interpreter.interpret(raw_input, self._world_state)
+        self._last_interpreted_input = interpretation
         command_input = interpretation.canonical_command if not interpretation.fallback_to_parser else raw_input
         command = parse_command(command_input)
+        if isinstance(command, TalkCommand) and interpretation.dialogue_metadata is not None:
+            command = replace(command, dialogue_metadata=interpretation.dialogue_metadata)
         if isinstance(command, SaveCommand):
             ensure_adventure_directories()
             save_world_state(self._world_state, self._save_path)
@@ -118,6 +123,9 @@ class GameSession:
 
     def get_world_state(self) -> WorldState:
         return self._world_state
+
+    def get_last_interpreted_input(self) -> InterpretedInput | None:
+        return self._last_interpreted_input
 
     def _render_scene_text(self) -> str:
         try:
