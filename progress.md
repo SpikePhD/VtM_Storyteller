@@ -1,5 +1,24 @@
 # Progress
 
+## Current Interaction Model
+
+The current backend interaction path is now:
+- freeform player text enters the input interpreter first
+- simple natural-language observations, movement, waiting, and NPC-address speech are translated into existing deterministic commands where possible
+- targeted NPC speech preserves the original utterance plus a small deterministic dialogue-act classification
+- the existing strict command parser and dispatcher remain the execution boundary for canonical commands
+- deterministic world state still decides what is true; presentation and dialogue feel remain downstream concerns
+
+Current dialogue metadata contract:
+- `DialogueAct.greet`
+- `DialogueAct.ask`
+- `DialogueAct.accuse`
+- `DialogueAct.persuade`
+- `DialogueAct.threaten`
+- `DialogueAct.unknown`
+
+This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
+
 ## Task 039 - Preserve Freeform Dialogue Intent and Utterance Metadata
 
 - Status: implemented
