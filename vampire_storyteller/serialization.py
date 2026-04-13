@@ -32,6 +32,7 @@ def _world_state_from_dict(data: dict[str, Any]) -> WorldState:
             for location_id, location_data in data.get("locations", {}).items()
         },
         plots={plot_id: _plot_thread_from_dict(plot_data) for plot_id, plot_data in data.get("plots", {}).items()},
+        story_flags=[flag for flag in data.get("story_flags", []) if isinstance(flag, str) and flag],
         current_time=data.get("current_time", ""),
         event_log=[_event_log_entry_from_dict(entry) for entry in data.get("event_log", [])],
     )

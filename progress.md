@@ -9,6 +9,7 @@ The current backend interaction path is now:
 - low-intensity environmental observation now prefers `look` while stronger probing language maps to `investigate`
 - indirect speech forms such as `I speak to Jonas.` and `I ask Jonas what happened here.` now resolve to `talk <npc>` when the NPC can be identified
 - preserved dialogue metadata now influences deterministic `talk` response selection, so greeting, asking, accusing, and threatening can produce different authored outcomes
+- semantic story flags now carry plot state forward, so plot progression can depend on authored outcomes rather than consumed hook IDs
 - the existing strict command parser and dispatcher remain the execution boundary for canonical commands
 - deterministic world state still decides what is true; presentation and dialogue feel remain downstream concerns
 
@@ -21,6 +22,47 @@ Current dialogue metadata contract:
 - `DialogueAct.unknown`
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
+
+## Task 042 - Decouple Talk Progression from Consumed Hook IDs
+
+- Status: implemented
+- Goal: replace the fragile Jonas talk progression dependency on a consumed dialogue hook ID with a semantic story flag while keeping player-visible behavior unchanged
+- Files changed:
+  - `adventures/ADV1/npcs/dialogue_hooks.json`
+  - `adventures/ADV1/plots/plot_progression.json`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/plot_engine.py`
+  - `vampire_storyteller/sample_world.py`
+  - `vampire_storyteller/serialization.py`
+  - `vampire_storyteller/world_state.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_game_session.py`
+  - `tests/test_plot_engine.py`
+  - `tests/test_serialization.py`
+  - `progress.md`
+- What was implemented:
+  - Added a small serializable `story_flags` list to world state with idempotent insertion helper
+  - Extended authored dialogue hooks so they can emit explicit story flags when they resolve
+  - Migrated Jonas's plot progression to use `jonas_shared_dock_lead` instead of the consumed hook ID `jonas_hook_trust_1`
+  - Kept trust, repeatability, and player-visible talk output intact
+  - Preserved story flags through save/load
+  - Added regression coverage for story-flag emission, idempotent repeated triggering, plot progression using the semantic flag, and world-state round trips
+- Acceptance criteria checklist:
+  - [x] Plot progression no longer depends on specific dialogue hook IDs
+  - [x] Deterministic talk resolution can add semantic story flags
+  - [x] ADV1 behavior remains the same from the player perspective
+  - [x] Save/load preserves the new state cleanly
+  - [x] Tests cover the refactor
+  - [x] No LLM is involved
+  - [x] No unrelated gameplay behavior is changed
+- Assumptions:
+  - A top-level story flag list is sufficient for this refactor; a more general quest or state system would be unnecessary here
+  - Keeping the flag semantic and authored is better than teaching plot logic to look at hook names again
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - Future talk progression should continue using semantic flags instead of dialogue hook identifiers
 
 ## Task 041 - Make Talk Resolution React to Preserved Dialogue Acts
 

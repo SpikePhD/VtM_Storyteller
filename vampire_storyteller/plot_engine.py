@@ -54,7 +54,7 @@ def advance_plots(world_state: WorldState, command: Command) -> list[str]:
             if (
                 npc is not None
                 and npc.trust_level >= rules.talk_minimum_trust_level
-                and rules.talk_required_consumed_dialogue_hook_id in npc.consumed_dialogue_hooks
+                and rules.talk_required_story_flag in world_state.story_flags
             ):
                 previous_stage = plot.stage
                 plot.stage = rules.talk_to_stage

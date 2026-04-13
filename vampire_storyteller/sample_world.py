@@ -61,5 +61,6 @@ def build_sample_world() -> WorldState:
             )
             for plot_definition in plot_definitions
         },
+        story_flags=[],
         current_time=seed_data.current_time,
     )

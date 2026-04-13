@@ -84,9 +84,10 @@ class PlotEngineTests(unittest.TestCase):
         self.assertEqual(first_messages, [])
         self.assertEqual(world.plots["plot_1"].stage, "hook")
         self.assertEqual(world.npcs["npc_1"].trust_level, 0)
+        self.assertEqual(world.story_flags, [])
 
         world.npcs["npc_1"].trust_level = 1
-        world.npcs["npc_1"].consumed_dialogue_hooks = ["jonas_hook_trust_1"]
+        world.add_story_flag("jonas_shared_dock_lead")
         event_count_before = len(world.event_log)
         second_messages = advance_plots(world, TalkCommand(npc_id="npc_1"))
 

@@ -147,6 +147,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("advanced from hook to lead_confirmed", second_result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+        self.assertEqual(session.get_world_state().story_flags, ["jonas_shared_dock_lead"])
 
     def test_talk_one_shot_trust_hooks_do_not_stack_indefinitely(self) -> None:
         session = GameSession()
@@ -157,6 +158,7 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+        self.assertEqual(session.get_world_state().story_flags, ["jonas_shared_dock_lead"])
 
     def test_talk_to_absent_npc_returns_explicit_feedback(self) -> None:
         session = GameSession()
@@ -204,6 +206,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("Closing beat: Mara leaves North Dockside with the ledger matter settled.", result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().npcs["npc_2"].trust_level, 1)
+        self.assertEqual(session.get_world_state().story_flags, [])
 
     def test_save_load_restores_trust_reflected_in_scene_text(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

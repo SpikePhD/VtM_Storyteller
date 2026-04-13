@@ -29,7 +29,7 @@ class PlotProgressionRules:
     talk_npc_id: str
     talk_location_id: str
     talk_minimum_trust_level: int
-    talk_required_consumed_dialogue_hook_id: str
+    talk_required_story_flag: str
     talk_to_stage: str
 
 
@@ -114,6 +114,7 @@ class Adv1DialogueHookDefinition:
     trust_delta: int
     repeatable: bool
     required_dialogue_acts: list[str]
+    story_flags_to_add: list[str]
     dialogue_text: str
     blocked_text: str
 
@@ -248,7 +249,7 @@ def load_adv1_plot_progression_rules(adventure_root: Path | None = None) -> Plot
         talk_npc_id=_require_str(talk_rule, "npc_id"),
         talk_location_id=_require_str(talk_rule, "location_id"),
         talk_minimum_trust_level=_require_int(talk_rule, "minimum_trust_level"),
-        talk_required_consumed_dialogue_hook_id=_require_str(talk_rule, "required_consumed_dialogue_hook_id"),
+        talk_required_story_flag=_require_str(talk_rule, "required_story_flag"),
         talk_to_stage=_require_str(talk_rule, "to_stage"),
     )
 
@@ -502,6 +503,7 @@ def _dialogue_hook_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueHoo
         trust_delta=_require_int(data, "trust_delta"),
         repeatable=_require_bool(data, "repeatable"),
         required_dialogue_acts=_require_string_list(data, "required_dialogue_acts") if "required_dialogue_acts" in data else [],
+        story_flags_to_add=_require_string_list(data, "story_flags_to_add") if "story_flags_to_add" in data else [],
         dialogue_text=_require_str(data, "dialogue_text"),
         blocked_text=_require_str(data, "blocked_text"),
     )

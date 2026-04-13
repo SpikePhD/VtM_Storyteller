@@ -126,6 +126,7 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertIn("{speech_text}", hook_definitions[2].dialogue_text)
         self.assertEqual(hook_definitions[3].required_dialogue_acts, ["accuse"])
         self.assertEqual(hook_definitions[4].required_dialogue_acts, ["threaten"])
+        self.assertEqual(hook_definitions[5].story_flags_to_add, ["jonas_shared_dock_lead"])
         self.assertEqual(hook_definitions[5].minimum_trust_level, 1)
         self.assertEqual(hook_definitions[5].trust_delta, 0)
         self.assertFalse(hook_definitions[5].repeatable)
@@ -138,7 +139,7 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(progression.talk_npc_id, "npc_1")
         self.assertEqual(progression.talk_location_id, "loc_cafe")
         self.assertEqual(progression.talk_minimum_trust_level, 1)
-        self.assertEqual(progression.talk_required_consumed_dialogue_hook_id, "jonas_hook_trust_1")
+        self.assertEqual(progression.talk_required_story_flag, "jonas_shared_dock_lead")
         self.assertEqual(progression.talk_to_stage, "lead_confirmed")
 
     def test_missing_location_definition_file_fails_clearly(self) -> None:
@@ -222,13 +223,13 @@ class AdventureLoaderTests(unittest.TestCase):
             self._copy_adv1_files(temp_root)
             progression_path = temp_root / "plots" / "plot_progression.json"
             progression_data = json.loads(progression_path.read_text(encoding="utf-8"))
-            del progression_data["talk"]["required_consumed_dialogue_hook_id"]
+            del progression_data["talk"]["required_story_flag"]
             progression_path.write_text(json.dumps(progression_data, indent=2), encoding="utf-8")
 
             with self.assertRaises(AdventureContentError) as ctx:
                 load_adv1_plot_progression_rules(temp_root)
 
-        self.assertIn("Adventure field 'required_consumed_dialogue_hook_id'", str(ctx.exception))
+        self.assertIn("Adventure field 'required_story_flag'", str(ctx.exception))
 
     def test_missing_player_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

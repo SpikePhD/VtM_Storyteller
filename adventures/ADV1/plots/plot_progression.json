@@ -17,7 +17,7 @@
     "npc_id": "npc_1",
     "location_id": "loc_cafe",
     "minimum_trust_level": 1,
-    "required_consumed_dialogue_hook_id": "jonas_hook_trust_1",
+    "required_story_flag": "jonas_shared_dock_lead",
     "to_stage": "lead_confirmed"
   }
 }

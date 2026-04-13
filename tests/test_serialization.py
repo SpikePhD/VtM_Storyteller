@@ -29,6 +29,7 @@ class SerializationTests(unittest.TestCase):
         self.assertEqual(loaded_world.player.name, world.player.name)
         self.assertEqual(loaded_world.player.location_id, world.player.location_id)
         self.assertEqual(loaded_world.current_time, world.current_time)
+        self.assertEqual(loaded_world.story_flags, world.story_flags)
         self.assertEqual(loaded_world.npcs["npc_1"].goals, world.npcs["npc_1"].goals)
         self.assertEqual(loaded_world.npcs["npc_1"].investigation_hint, world.npcs["npc_1"].investigation_hint)
         self.assertEqual(loaded_world.npcs["npc_1"].trust_level, world.npcs["npc_1"].trust_level)
@@ -60,6 +61,7 @@ class SerializationTests(unittest.TestCase):
         world = build_sample_world()
         world.npcs["npc_1"].trust_level = 2
         world.npcs["npc_1"].consumed_dialogue_hooks = ["jonas_hook_trust_0"]
+        world.story_flags = ["jonas_shared_dock_lead"]
         world.plots["plot_2"] = world.plots["plot_1"].__class__(
             id="plot_2",
             name="Second Hook",
@@ -86,6 +88,7 @@ class SerializationTests(unittest.TestCase):
         self.assertIn("Mara leaves North Dockside", loaded_world.plots["plot_1"].closing_beat)
         self.assertEqual(loaded_world.npcs["npc_1"].trust_level, 2)
         self.assertEqual(loaded_world.npcs["npc_1"].consumed_dialogue_hooks, ["jonas_hook_trust_0"])
+        self.assertEqual(loaded_world.story_flags, ["jonas_shared_dock_lead"])
         self.assertIn("plot_2", loaded_world.plots)
         self.assertFalse(loaded_world.plots["plot_2"].active)
 
