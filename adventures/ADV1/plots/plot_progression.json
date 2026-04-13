@@ -11,5 +11,13 @@
     "location_id": "loc_church",
     "minimum_minutes": 60,
     "to_stage": "lead_confirmed"
+  },
+  "talk": {
+    "from_stage": "hook",
+    "npc_id": "npc_1",
+    "location_id": "loc_cafe",
+    "minimum_trust_level": 1,
+    "required_consumed_dialogue_hook_id": "jonas_hook_trust_1",
+    "to_stage": "lead_confirmed"
   }
 }

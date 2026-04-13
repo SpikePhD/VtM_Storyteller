@@ -96,7 +96,7 @@ def snapshot_to_prompt_text(snapshot: SceneSnapshot) -> str:
         "NPCs Present: "
         + (
             "; ".join(
-                f"{npc.name} ({npc.role}, attitude: {npc.attitude_to_player})"
+                f"{npc.name} ({npc.role}, attitude: {npc.attitude_to_player}, trust: {npc.trust_level})"
                 for npc in snapshot.npcs_present
             )
             if snapshot.npcs_present
@@ -141,7 +141,7 @@ def snapshot_to_footer_text(snapshot: SceneSnapshot) -> str:
         "NPCs Present: "
         + (
             ", ".join(
-                f"{npc.name} ({npc.role})"
+                f"{npc.name} ({npc.role}, trust: {npc.trust_level})"
                 for npc in snapshot.npcs_present
             )
             if snapshot.npcs_present

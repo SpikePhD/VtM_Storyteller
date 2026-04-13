@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from .command_models import Command, MoveCommand, WaitCommand
+from .command_models import Command, MoveCommand, TalkCommand, WaitCommand
 from .adventure_loader import load_adv1_plot_progression_rules
 from .models import EventLogEntry
 from .world_state import WorldState
@@ -43,5 +43,28 @@ def advance_plots(world_state: WorldState, command: Command) -> list[str]:
                     involved_entities=[world_state.player.id, plot.id, rules.wait_location_id],
                 )
             )
+
+    if isinstance(command, TalkCommand):
+        if (
+            plot.stage == rules.talk_from_stage
+            and command.npc_id == rules.talk_npc_id
+            and world_state.player.location_id == rules.talk_location_id
+        ):
+            npc = world_state.npcs.get(command.npc_id)
+            if (
+                npc is not None
+                and npc.trust_level >= rules.talk_minimum_trust_level
+                and rules.talk_required_consumed_dialogue_hook_id in npc.consumed_dialogue_hooks
+            ):
+                previous_stage = plot.stage
+                plot.stage = rules.talk_to_stage
+                messages.append(f"Plot '{plot.name}' advanced from {previous_stage} to {plot.stage}.")
+                world_state.append_event(
+                    EventLogEntry(
+                        timestamp=world_state.current_time,
+                        description=messages[-1],
+                        involved_entities=[world_state.player.id, plot.id, command.npc_id],
+                    )
+                )
 
     return messages

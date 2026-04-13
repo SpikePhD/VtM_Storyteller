@@ -72,7 +72,8 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertEqual(world.plots["plot_1"].resolution_summary, "Plot 'Missing Ledger' resolved at North Dockside.")
         self.assertIn("hidden broker", world.plots["plot_1"].learned_outcome)
         self.assertIn("Mara leaves North Dockside", world.plots["plot_1"].closing_beat)
-        self.assertEqual(world.event_log[-1].description, "Plot 'Missing Ledger' resolved at North Dockside.")
+        self.assertEqual(world.event_log[-1].description, "Mara leaves North Dockside with the ledger matter settled.")
+        self.assertEqual(world.event_log[-2].description, "Plot 'Missing Ledger' resolved at North Dockside.")
         self.assertEqual(world.event_log[-1].involved_entities, ["player_1", "plot_1", "loc_dock"])
 
     def test_consequence_failure_does_not_resolve_plot(self) -> None:
@@ -117,6 +118,9 @@ class ConsequenceEngineTests(unittest.TestCase):
         world = session.get_world_state()
         self.assertFalse(world.plots["plot_1"].active)
         self.assertEqual(world.plots["plot_1"].stage, "resolved")
+        self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
+        self.assertIn("Learned: The ledger's path points back to a hidden broker operating through the dock.", result.output_text)
+        self.assertIn("Closing beat: Mara leaves North Dockside with the ledger matter settled.", result.output_text)
         self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
         self.assertIn("Active Plots: None", result.output_text)
         self.assertIn("Recent Events:", result.output_text)

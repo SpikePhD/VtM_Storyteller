@@ -67,7 +67,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
         self.assertIn(footer, output)
         self.assertIn("Location: Blackthorn Cafe", output)
         self.assertIn("Exits: North Dockside, Saint Judith's Church", output)
-        self.assertIn("NPCs Present: Jonas Reed (Informant)", output)
+        self.assertIn("NPCs Present: Jonas Reed (Informant, trust: 0)", output)
         self.assertIn("Active Plots: Missing Ledger [hook]", output)
         self.assertIn("Recent Events: None", output)
 
@@ -117,7 +117,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
         look_result = session.process_input("look")
 
         self.assertIn("Time: 2026-04-09T22:00:00+02:00", startup_text)
-        self.assertIn("NPCs Present: Jonas Reed (Informant, attitude: wary)", startup_text)
+        self.assertIn("NPCs Present: Jonas Reed (Informant, attitude: wary, trust: 0)", startup_text)
         self.assertIn("Time: 2026-04-09T22:00:00+02:00", look_result.output_text)
 
     def test_deterministic_provider_behavior_remains_unchanged(self) -> None:

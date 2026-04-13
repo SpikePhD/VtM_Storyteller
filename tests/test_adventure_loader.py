@@ -12,6 +12,7 @@ from vampire_storyteller.adventure_loader import (
     load_adv1_location_definitions,
     load_adv1_npc_definitions,
     load_adv1_player_seed_data,
+    load_adv1_plot_progression_rules,
     load_adv1_plot_outcome_definitions,
     load_adv1_plot_thread_definitions,
     load_adv1_world_state,
@@ -106,13 +107,39 @@ class AdventureLoaderTests(unittest.TestCase):
     def test_dialogue_hook_definition_loader_reads_adv1_file(self) -> None:
         hook_definitions = load_adv1_dialogue_hook_definitions()
 
-        self.assertEqual([definition.npc_id for definition in hook_definitions], ["npc_1", "npc_1", "npc_1", "npc_2", "npc_2"])
+        self.assertEqual([definition.hook_id for definition in hook_definitions], [
+            "jonas_hook_trust_0",
+            "jonas_hook_trust_0_greet",
+            "jonas_hook_trust_0_ask",
+            "jonas_hook_trust_0_accuse",
+            "jonas_hook_trust_0_threaten",
+            "jonas_hook_trust_1",
+            "jonas_lead_confirmed",
+            "eliza_church_visited_0",
+            "eliza_church_visited_1",
+        ])
         self.assertEqual(hook_definitions[0].required_plot_stage, "hook")
         self.assertIn("dock", hook_definitions[0].dialogue_text)
         self.assertIn("ready", hook_definitions[0].blocked_text)
-        self.assertEqual(hook_definitions[1].minimum_trust_level, 1)
-        self.assertEqual(hook_definitions[1].trust_delta, 0)
-        self.assertIn("paper trail", hook_definitions[1].dialogue_text)
+        self.assertEqual(hook_definitions[1].required_dialogue_acts, ["greet"])
+        self.assertEqual(hook_definitions[2].required_dialogue_acts, ["ask"])
+        self.assertIn("{speech_text}", hook_definitions[2].dialogue_text)
+        self.assertEqual(hook_definitions[3].required_dialogue_acts, ["accuse"])
+        self.assertEqual(hook_definitions[4].required_dialogue_acts, ["threaten"])
+        self.assertEqual(hook_definitions[5].minimum_trust_level, 1)
+        self.assertEqual(hook_definitions[5].trust_delta, 0)
+        self.assertFalse(hook_definitions[5].repeatable)
+        self.assertIn("paper trail", hook_definitions[5].dialogue_text)
+
+    def test_plot_progression_definition_loader_reads_talk_branch(self) -> None:
+        progression = load_adv1_plot_progression_rules()
+
+        self.assertEqual(progression.talk_from_stage, "hook")
+        self.assertEqual(progression.talk_npc_id, "npc_1")
+        self.assertEqual(progression.talk_location_id, "loc_cafe")
+        self.assertEqual(progression.talk_minimum_trust_level, 1)
+        self.assertEqual(progression.talk_required_consumed_dialogue_hook_id, "jonas_hook_trust_1")
+        self.assertEqual(progression.talk_to_stage, "lead_confirmed")
 
     def test_missing_location_definition_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -189,6 +216,20 @@ class AdventureLoaderTests(unittest.TestCase):
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
 
+    def test_missing_talk_progression_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            progression_path = temp_root / "plots" / "plot_progression.json"
+            progression_data = json.loads(progression_path.read_text(encoding="utf-8"))
+            del progression_data["talk"]["required_consumed_dialogue_hook_id"]
+            progression_path.write_text(json.dumps(progression_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_plot_progression_rules(temp_root)
+
+        self.assertIn("Adventure field 'required_consumed_dialogue_hook_id'", str(ctx.exception))
+
     def test_missing_player_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir) / "ADV1"
@@ -257,6 +298,20 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_dialogue_hook_definitions(temp_root)
 
         self.assertIn("Adventure field 'minimum_trust_level'", str(ctx.exception))
+
+    def test_missing_dialogue_hook_repeatable_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            hook_path = temp_root / "npcs" / "dialogue_hooks.json"
+            hook_data = json.loads(hook_path.read_text(encoding="utf-8"))
+            del hook_data["dialogue_hooks"][0]["repeatable"]
+            hook_path.write_text(json.dumps(hook_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_dialogue_hook_definitions(temp_root)
+
+        self.assertIn("Adventure field 'repeatable'", str(ctx.exception))
 
     def test_malformed_world_state_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -332,6 +387,11 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_npc_definitions(temp_root)
 
         self.assertIn("Adventure field 'trust_level'", str(ctx.exception))
+
+    def test_missing_npc_consumed_dialogue_hooks_field_round_trip_defaults_cleanly(self) -> None:
+        world = build_sample_world()
+
+        self.assertEqual(world.npcs["npc_1"].consumed_dialogue_hooks, [])
 
     def test_malformed_plot_thread_definition_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

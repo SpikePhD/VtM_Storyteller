@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from vampire_storyteller.command_models import MoveCommand, WaitCommand
+from vampire_storyteller.command_models import MoveCommand, TalkCommand, WaitCommand
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.map_engine import move_player
 from vampire_storyteller.plot_engine import advance_plots
@@ -76,6 +76,24 @@ class PlotEngineTests(unittest.TestCase):
         wait_result = session.process_input("wait 60")
         self.assertIn("lead_confirmed", wait_result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+
+    def test_talk_advances_hook_to_lead_confirmed_after_trust_builds(self) -> None:
+        world = build_sample_world()
+        first_messages = advance_plots(world, TalkCommand(npc_id="npc_1"))
+
+        self.assertEqual(first_messages, [])
+        self.assertEqual(world.plots["plot_1"].stage, "hook")
+        self.assertEqual(world.npcs["npc_1"].trust_level, 0)
+
+        world.npcs["npc_1"].trust_level = 1
+        world.npcs["npc_1"].consumed_dialogue_hooks = ["jonas_hook_trust_1"]
+        event_count_before = len(world.event_log)
+        second_messages = advance_plots(world, TalkCommand(npc_id="npc_1"))
+
+        self.assertEqual(world.plots["plot_1"].stage, "lead_confirmed")
+        self.assertEqual(second_messages, ["Plot 'Missing Ledger' advanced from hook to lead_confirmed."])
+        self.assertEqual(len(world.event_log), event_count_before + 1)
+        self.assertEqual(world.event_log[-1].description, second_messages[0])
 
     def test_scene_text_exposes_plot_stage(self) -> None:
         world = build_sample_world()

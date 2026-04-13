@@ -14,7 +14,7 @@ class NarrativeProviderTests(unittest.TestCase):
         output = provider.render_scene(world)
 
         self.assertIn("Time: 2026-04-09T22:00:00+02:00", output)
-        self.assertIn("NPCs Present: Jonas Reed (Informant, attitude: wary)", output)
+        self.assertIn("NPCs Present: Jonas Reed (Informant, attitude: wary, trust: 0)", output)
 
 
 if __name__ == "__main__":

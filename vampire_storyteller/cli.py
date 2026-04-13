@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from .config import AppConfig, load_config
+from .data_paths import ADVENTURE_ID, ADVENTURE_ROOT, get_default_save_path
 from .game_session import GameSession
 from .narrative_provider import DeterministicSceneNarrativeProvider
 from .exceptions import CommandParseError, WorldStateError
@@ -26,10 +27,10 @@ def build_scene_provider(config: AppConfig | None = None) -> tuple[SceneNarrativ
 
 
 def run_cli() -> None:
-    scene_provider, notice = build_scene_provider()
-    if notice is not None:
-        print(notice)
-        print()
+    config = load_config()
+    scene_provider, notice = build_scene_provider(config)
+    print(_build_runtime_banner(config, scene_provider, notice))
+    print()
 
     session = GameSession(scene_provider=scene_provider)
     print("Vampire: The Masquerade storyteller prototype")
@@ -51,6 +52,24 @@ def run_cli() -> None:
             print(f"Action failed: {exc}")
         except EOFError:
             break
+
+
+def _build_runtime_banner(config: AppConfig, scene_provider: SceneNarrativeProvider, notice: str | None) -> str:
+    runtime_mode = "OpenAI" if isinstance(scene_provider, OpenAISceneNarrativeProvider) else "deterministic"
+    lines = [
+        "Runtime",
+        f"Adventure: {ADVENTURE_ID}",
+        f"Root: {ADVENTURE_ROOT.as_posix()}",
+        f"Mode: {runtime_mode}",
+        f"Provider: {scene_provider.__class__.__name__}",
+    ]
+    if config.use_openai_scene_provider or isinstance(scene_provider, OpenAISceneNarrativeProvider):
+        lines.append(f"Model: {config.openai_model}")
+    lines.append(f"Fallback: {'yes' if notice is not None else 'no'}")
+    if notice is not None:
+        lines.append(f"Notice: {notice}")
+    lines.append(f"Save: {get_default_save_path().as_posix()}")
+    return "\n".join(lines)
 
 
 if __name__ == "__main__":

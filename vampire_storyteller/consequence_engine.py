@@ -55,6 +55,14 @@ def apply_consequences(
             involved_entities=[world_state.player.id, plot.id, player_location_id],
         )
     )
+    if roll_result is not None and roll_result.is_success and plot.closing_beat:
+        world_state.append_event(
+            EventLogEntry(
+                timestamp=world_state.current_time,
+                description=plot.closing_beat,
+                involved_entities=[world_state.player.id, plot.id, player_location_id],
+            )
+        )
     messages.append(message)
     return messages
 

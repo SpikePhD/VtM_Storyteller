@@ -20,6 +20,45 @@ class InterpretedInput:
 
 
 class InputInterpreter:
+    _LOW_INTENSITY_OBSERVATION_PHRASES = (
+        "look around",
+        "take a look",
+        "take a careful look",
+        "look carefully",
+        "see if something is wrong",
+        "feel disturbed",
+        "disturbed",
+        "look",
+        "observe",
+        "watch",
+        "examine",
+    )
+
+    _HIGH_INTENSITY_OBSERVATION_PHRASES = (
+        "investigate",
+        "inspect closely",
+        "inspect the scene carefully for evidence",
+        "search the area for clues",
+        "check the scene carefully for evidence",
+        "examine for clues",
+        "probe for clues",
+        "search for clues",
+    )
+
+    _SPEECH_VERB_PHRASES = (
+        "speak to",
+        "speak with",
+        "talk to",
+        "talk with",
+        "ask",
+        "accuse",
+        "persuade",
+        "threaten",
+        "tell",
+        "say",
+        "address",
+    )
+
     def interpret(self, raw_input: str, world_state: WorldState) -> InterpretedInput:
         normalized_text = self._normalize_text(raw_input)
         if not normalized_text:
@@ -44,7 +83,18 @@ class InputInterpreter:
         return self._fallback("no freeform interpretation rule matched")
 
     def _interpret_observation(self, normalized_text: str) -> InterpretedInput | None:
-        if self._contains_any(normalized_text, ("investigate", "inspect", "search", "something wrong", "what is wrong", "wrong", "disturbed")):
+        if self._contains_any(normalized_text, self._LOW_INTENSITY_OBSERVATION_PHRASES):
+            return InterpretedInput(
+                normalized_intent="look",
+                target_text=None,
+                target_reference=None,
+                canonical_command="look",
+                confidence=0.86,
+                match_reason="observation text suggested a low-intensity look action",
+                fallback_to_parser=False,
+            )
+
+        if self._contains_any(normalized_text, self._HIGH_INTENSITY_OBSERVATION_PHRASES):
             return InterpretedInput(
                 normalized_intent="investigate",
                 target_text=None,
@@ -52,17 +102,6 @@ class InputInterpreter:
                 canonical_command="investigate",
                 confidence=0.9,
                 match_reason="observation text suggested active investigation",
-                fallback_to_parser=False,
-            )
-
-        if self._contains_any(normalized_text, ("look", "observe", "watch", "examine", "take a look")):
-            return InterpretedInput(
-                normalized_intent="look",
-                target_text=None,
-                target_reference=None,
-                canonical_command="look",
-                confidence=0.85,
-                match_reason="observation text suggested a basic look action",
                 fallback_to_parser=False,
             )
 
@@ -120,10 +159,10 @@ class InputInterpreter:
 
         speech_text = self._extract_speech_text(raw_input, npc_match["matched_text"])
         normalized_speech_text = self._normalize_text(speech_text)
-        dialogue_act = self._classify_dialogue_act(raw_input, speech_text, normalized_speech_text)
+        dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, speech_text, normalized_speech_text)
         direct_address = self._looks_like_direct_address(raw_input, npc_match["matched_text"])
 
-        if dialogue_act is DialogueAct.UNKNOWN and not direct_address:
+        if not self._contains_any(normalized_text, self._SPEECH_VERB_PHRASES) and not direct_address:
             return None
 
         metadata = DialogueMetadata(
@@ -142,17 +181,20 @@ class InputInterpreter:
             dialogue_metadata=metadata,
         )
 
-    def _classify_dialogue_act(self, raw_input: str, speech_text: str, normalized_speech_text: str) -> DialogueAct:
+    def _classify_dialogue_act(self, raw_input: str, normalized_text: str, speech_text: str, normalized_speech_text: str) -> DialogueAct:
         if not normalized_speech_text:
             return DialogueAct.UNKNOWN
 
         if self._contains_any(
-            normalized_speech_text,
+            normalized_text,
             ("good morning", "good afternoon", "good evening", "good night", "hello", "hi", "hey", "greetings"),
         ):
             return DialogueAct.GREET
 
         if self._contains_any(
+            normalized_text,
+            ("i accuse", "i accuse jonas", "i accuse sister", "i accuse you", "accuse"),
+        ) or self._contains_any(
             normalized_speech_text,
             (
                 "you're hiding",
@@ -177,9 +219,11 @@ class InputInterpreter:
             return DialogueAct.ACCUSE
 
         if self._contains_any(
+            normalized_text,
+            ("i threaten", "i threaten jonas", "i threaten you", "threaten", "or else"),
+        ) or self._contains_any(
             normalized_speech_text,
             (
-                "or else",
                 "before this gets worse",
                 "don't make me",
                 "do this now",
@@ -196,9 +240,11 @@ class InputInterpreter:
             return DialogueAct.THREATEN
 
         if self._contains_any(
+            normalized_text,
+            ("i need you to", "i persuade", "i persuade jonas", "i persuade you"),
+        ) or self._contains_any(
             normalized_speech_text,
             (
-                "i need you to",
                 "trust me",
                 "help me",
                 "please",
@@ -214,7 +260,10 @@ class InputInterpreter:
         ):
             return DialogueAct.PERSUADE
 
-        if "?" in speech_text or self._contains_any(
+        if "?" in raw_input or self._contains_any(
+            normalized_text,
+            ("i ask", "i ask jonas", "i ask you"),
+        ) or self._contains_any(
             normalized_speech_text,
             (
                 "what",
@@ -284,11 +333,19 @@ class InputInterpreter:
         return aliases
 
     def _extract_speech_text(self, raw_input: str, matched_text: str) -> str:
-        pattern = rf"^\s*{re.escape(matched_text)}\s*[,!:.-]?\s*"
-        match = re.match(pattern, raw_input, flags=re.IGNORECASE)
-        if match is None:
-            return raw_input.strip()
-        return raw_input[match.end():].strip()
+        stripped_input = raw_input.strip()
+
+        direct_address_pattern = rf"^\s*{re.escape(matched_text)}\s*[,!:.-]?\s*"
+        direct_address_match = re.match(direct_address_pattern, stripped_input, flags=re.IGNORECASE)
+        if direct_address_match is not None:
+            return stripped_input[direct_address_match.end():].strip()
+
+        indirect_prefix_pattern = rf"^\s*(?:i\s+)?(?:speak to|speak with|talk to|talk with|ask|accuse|persuade|threaten|tell|say|address)\s+{re.escape(matched_text)}\b[\s,!:.-]*"
+        indirect_prefix_match = re.match(indirect_prefix_pattern, stripped_input, flags=re.IGNORECASE)
+        if indirect_prefix_match is not None:
+            return stripped_input[indirect_prefix_match.end():].strip()
+
+        return stripped_input
 
     def _parse_wait_amount(self, amount_text: str, unit_text: str | None) -> int | None:
         number_words = {

@@ -103,7 +103,7 @@ class NpcEngineTests(unittest.TestCase):
         session = GameSession()
 
         startup_text = session.get_startup_text()
-        self.assertIn("NPCs Present: Jonas Reed (Informant, attitude: wary)", startup_text)
+        self.assertIn("NPCs Present: Jonas Reed (Informant, attitude: wary, trust: 0)", startup_text)
 
         result = session.process_input("wait 60")
 

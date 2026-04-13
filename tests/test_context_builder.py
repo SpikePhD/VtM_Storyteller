@@ -60,6 +60,7 @@ class ContextBuilderTests(unittest.TestCase):
         self.assertIn("Location: ", prompt_text)
         self.assertIn("Exits: ", prompt_text)
         self.assertIn("NPCs Present: ", prompt_text)
+        self.assertIn("trust: 0", prompt_text)
         self.assertIn("Active Plots: ", prompt_text)
         self.assertIn("Missing Ledger [hook]", prompt_text)
         self.assertIn("Recent Events: ", prompt_text)

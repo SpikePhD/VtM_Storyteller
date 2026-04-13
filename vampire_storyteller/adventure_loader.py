@@ -25,6 +25,12 @@ class PlotProgressionRules:
     wait_location_id: str
     wait_minimum_minutes: int
     wait_to_stage: str
+    talk_from_stage: str
+    talk_npc_id: str
+    talk_location_id: str
+    talk_minimum_trust_level: int
+    talk_required_consumed_dialogue_hook_id: str
+    talk_to_stage: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,11 +106,14 @@ class Adv1PlotOutcomeDefinition:
 
 @dataclass(frozen=True, slots=True)
 class Adv1DialogueHookDefinition:
+    hook_id: str
     npc_id: str
     required_plot_id: str
     required_plot_stage: str
     minimum_trust_level: int
     trust_delta: int
+    repeatable: bool
+    required_dialogue_acts: list[str]
     dialogue_text: str
     blocked_text: str
 
@@ -223,6 +232,7 @@ def load_adv1_plot_progression_rules(adventure_root: Path | None = None) -> Plot
     _validate_plot_rule_metadata(data)
     move_rule = _require_mapping(data, "move")
     wait_rule = _require_mapping(data, "wait")
+    talk_rule = _require_mapping(data, "talk")
 
     return PlotProgressionRules(
         plot_id=_require_str(data, "plot_id"),
@@ -234,6 +244,12 @@ def load_adv1_plot_progression_rules(adventure_root: Path | None = None) -> Plot
         wait_location_id=_require_str(wait_rule, "location_id"),
         wait_minimum_minutes=_require_int(wait_rule, "minimum_minutes"),
         wait_to_stage=_require_str(wait_rule, "to_stage"),
+        talk_from_stage=_require_str(talk_rule, "from_stage"),
+        talk_npc_id=_require_str(talk_rule, "npc_id"),
+        talk_location_id=_require_str(talk_rule, "location_id"),
+        talk_minimum_trust_level=_require_int(talk_rule, "minimum_trust_level"),
+        talk_required_consumed_dialogue_hook_id=_require_str(talk_rule, "required_consumed_dialogue_hook_id"),
+        talk_to_stage=_require_str(talk_rule, "to_stage"),
     )
 
 
@@ -478,11 +494,14 @@ def _plot_outcome_definition_from_dict(data: dict[str, Any]) -> Adv1PlotOutcomeD
 
 def _dialogue_hook_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueHookDefinition:
     return Adv1DialogueHookDefinition(
+        hook_id=_require_str(data, "hook_id"),
         npc_id=_require_str(data, "npc_id"),
         required_plot_id=_require_str(data, "required_plot_id"),
         required_plot_stage=_require_str(data, "required_plot_stage"),
         minimum_trust_level=_require_int(data, "minimum_trust_level"),
         trust_delta=_require_int(data, "trust_delta"),
+        repeatable=_require_bool(data, "repeatable"),
+        required_dialogue_acts=_require_string_list(data, "required_dialogue_acts") if "required_dialogue_acts" in data else [],
         dialogue_text=_require_str(data, "dialogue_text"),
         blocked_text=_require_str(data, "blocked_text"),
     )

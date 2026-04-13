@@ -32,6 +32,7 @@ class SerializationTests(unittest.TestCase):
         self.assertEqual(loaded_world.npcs["npc_1"].goals, world.npcs["npc_1"].goals)
         self.assertEqual(loaded_world.npcs["npc_1"].investigation_hint, world.npcs["npc_1"].investigation_hint)
         self.assertEqual(loaded_world.npcs["npc_1"].trust_level, world.npcs["npc_1"].trust_level)
+        self.assertEqual(loaded_world.npcs["npc_1"].consumed_dialogue_hooks, world.npcs["npc_1"].consumed_dialogue_hooks)
         self.assertEqual(loaded_world.locations["loc_cafe"].scene_hook, world.locations["loc_cafe"].scene_hook)
         self.assertEqual(loaded_world.locations["loc_cafe"].notable_features, world.locations["loc_cafe"].notable_features)
         self.assertEqual(loaded_world.locations["loc_cafe"].flavor_tags, world.locations["loc_cafe"].flavor_tags)
@@ -58,6 +59,7 @@ class SerializationTests(unittest.TestCase):
     def test_location_player_and_plot_data_survive_round_trip(self) -> None:
         world = build_sample_world()
         world.npcs["npc_1"].trust_level = 2
+        world.npcs["npc_1"].consumed_dialogue_hooks = ["jonas_hook_trust_0"]
         world.plots["plot_2"] = world.plots["plot_1"].__class__(
             id="plot_2",
             name="Second Hook",
@@ -83,6 +85,7 @@ class SerializationTests(unittest.TestCase):
         self.assertIn("hidden broker", loaded_world.plots["plot_1"].learned_outcome)
         self.assertIn("Mara leaves North Dockside", loaded_world.plots["plot_1"].closing_beat)
         self.assertEqual(loaded_world.npcs["npc_1"].trust_level, 2)
+        self.assertEqual(loaded_world.npcs["npc_1"].consumed_dialogue_hooks, ["jonas_hook_trust_0"])
         self.assertIn("plot_2", loaded_world.plots)
         self.assertFalse(loaded_world.plots["plot_2"].active)
 

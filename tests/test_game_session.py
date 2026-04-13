@@ -4,6 +4,8 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from vampire_storyteller.command_dispatcher import execute_command
+from vampire_storyteller.command_models import TalkCommand
 from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.exceptions import CommandParseError
 from vampire_storyteller.game_session import GameSession
@@ -103,6 +105,37 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertIn("trust: 1", session.get_startup_text())
 
+    def test_talk_greeting_uses_dialogue_metadata(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Jonas, good evening.")
+
+        self.assertIn("gives a brief nod", result.output_text)
+        self.assertNotIn("keeps his voice low", result.output_text)
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+
+    def test_talk_question_uses_preserved_utterance_text(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("I ask Jonas what happened here.")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIsNotNone(interpreted)
+        self.assertIsNotNone(interpreted.dialogue_metadata)
+        self.assertIn("I ask Jonas what happened here.", interpreted.dialogue_metadata.utterance_text)
+        self.assertIn("hears 'what happened here.'", result.output_text)
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+
+    def test_aggressive_talk_is_guarded(self) -> None:
+        session = GameSession()
+
+        accuse_result = session.process_input("I accuse Jonas of hiding something.")
+        threaten_result = session.process_input("I threaten Jonas to talk.")
+
+        self.assertIn("cuts the accusation off", accuse_result.output_text)
+        self.assertIn("ends the exchange", threaten_result.output_text)
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+
     def test_talk_can_shift_response_after_trust_improves(self) -> None:
         session = GameSession()
 
@@ -132,6 +165,14 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIn("Talk is blocked", result.output_text)
         self.assertIn("Sister Eliza", result.output_text)
+        self.assertFalse(result.render_scene)
+
+    def test_canonical_talk_without_metadata_still_works(self) -> None:
+        session = GameSession()
+
+        result = execute_command(session.get_world_state(), TalkCommand(npc_id="npc_1"))
+
+        self.assertIn("Jonas Reed keeps his voice low", result.output_text)
         self.assertFalse(result.render_scene)
 
     def test_talk_uses_blocked_feedback_when_no_hook_matches_state(self) -> None:

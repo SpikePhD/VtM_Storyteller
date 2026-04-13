@@ -1,47 +1,110 @@
 {
   "dialogue_hooks": [
     {
+      "hook_id": "jonas_hook_trust_0",
       "npc_id": "npc_1",
       "required_plot_id": "plot_1",
       "required_plot_stage": "hook",
       "minimum_trust_level": 0,
       "trust_delta": 1,
+      "repeatable": false,
+      "required_dialogue_acts": [],
       "dialogue_text": "Jonas Reed keeps his voice low and says the dock is the only place worth checking tonight.",
       "blocked_text": "Jonas Reed has said what he will say for now, and he is not ready to explain why yet."
     },
     {
+      "hook_id": "jonas_hook_trust_0_greet",
+      "npc_id": "npc_1",
+      "required_plot_id": "plot_1",
+      "required_plot_stage": "hook",
+      "minimum_trust_level": 0,
+      "trust_delta": 0,
+      "repeatable": false,
+      "required_dialogue_acts": ["greet"],
+      "dialogue_text": "Jonas Reed gives a brief nod and says the dock is the only place worth checking tonight.",
+      "blocked_text": "Jonas Reed gives a brief nod and keeps the conversation brief."
+    },
+    {
+      "hook_id": "jonas_hook_trust_0_ask",
+      "npc_id": "npc_1",
+      "required_plot_id": "plot_1",
+      "required_plot_stage": "hook",
+      "minimum_trust_level": 0,
+      "trust_delta": 0,
+      "repeatable": false,
+      "required_dialogue_acts": ["ask"],
+      "dialogue_text": "Jonas Reed hears '{speech_text}' and answers that the dock is the only place worth checking tonight.",
+      "blocked_text": "Jonas Reed considers the question but does not give up more than the dock."
+    },
+    {
+      "hook_id": "jonas_hook_trust_0_accuse",
+      "npc_id": "npc_1",
+      "required_plot_id": "plot_1",
+      "required_plot_stage": "hook",
+      "minimum_trust_level": 0,
+      "trust_delta": 0,
+      "repeatable": true,
+      "required_dialogue_acts": ["accuse"],
+      "dialogue_text": "Jonas Reed does not answer the accusation.",
+      "blocked_text": "Jonas Reed folds his arms and cuts the accusation off: '{speech_text}' is not a conversation he will continue."
+    },
+    {
+      "hook_id": "jonas_hook_trust_0_threaten",
+      "npc_id": "npc_1",
+      "required_plot_id": "plot_1",
+      "required_plot_stage": "hook",
+      "minimum_trust_level": 0,
+      "trust_delta": 0,
+      "repeatable": true,
+      "required_dialogue_acts": ["threaten"],
+      "dialogue_text": "Jonas Reed does not answer the threat.",
+      "blocked_text": "Jonas Reed goes quiet and ends the exchange."
+    },
+    {
+      "hook_id": "jonas_hook_trust_1",
       "npc_id": "npc_1",
       "required_plot_id": "plot_1",
       "required_plot_stage": "hook",
       "minimum_trust_level": 1,
       "trust_delta": 0,
+      "repeatable": false,
+      "required_dialogue_acts": [],
       "dialogue_text": "Jonas Reed loosens his shoulders and repeats that the dock is where the paper trail began.",
       "blocked_text": "Jonas Reed has already said what he will say for now."
     },
     {
+      "hook_id": "jonas_lead_confirmed",
       "npc_id": "npc_1",
       "required_plot_id": "plot_1",
       "required_plot_stage": "lead_confirmed",
       "minimum_trust_level": 1,
       "trust_delta": 0,
+      "repeatable": true,
+      "required_dialogue_acts": [],
       "dialogue_text": "Jonas Reed points toward the waterline and admits the broker used the dock to move papers.",
       "blocked_text": "Jonas Reed has already said what he will say for now."
     },
     {
+      "hook_id": "eliza_church_visited_0",
       "npc_id": "npc_2",
       "required_plot_id": "plot_1",
       "required_plot_stage": "church_visited",
       "minimum_trust_level": 0,
       "trust_delta": 1,
+      "repeatable": false,
+      "required_dialogue_acts": [],
       "dialogue_text": "Sister Eliza says the church records mention a dock receipt signed the same night.",
       "blocked_text": "Sister Eliza insists the records are not for idle questions."
     },
     {
+      "hook_id": "eliza_church_visited_1",
       "npc_id": "npc_2",
       "required_plot_id": "plot_1",
       "required_plot_stage": "church_visited",
       "minimum_trust_level": 1,
       "trust_delta": 0,
+      "repeatable": true,
+      "required_dialogue_acts": [],
       "dialogue_text": "Sister Eliza lowers her voice and adds that the receipt was copied into the ledger with care.",
       "blocked_text": "Sister Eliza still wants a reason to trust Mara with more."
     }

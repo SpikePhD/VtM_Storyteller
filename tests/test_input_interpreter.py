@@ -13,16 +13,38 @@ class InputInterpreterTests(unittest.TestCase):
         self.world_state = build_sample_world()
         self.interpreter = InputInterpreter()
 
-    def test_freeform_observation_maps_to_investigate(self) -> None:
+    def test_freeform_careful_look_maps_to_look(self) -> None:
+        result = self.interpreter.interpret("I take a careful look around.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "look")
+        self.assertEqual(result.canonical_command, "look")
+        self.assertIsNone(result.target_reference)
+
+    def test_freeform_ambiguous_observation_prefers_look(self) -> None:
         result = self.interpreter.interpret(
             "I feel disturbed by the environment. I take a look around to see if something is wrong.",
             self.world_state,
         )
 
         self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "look")
+        self.assertEqual(result.canonical_command, "look")
+        self.assertIsNone(result.target_reference)
+
+    def test_freeform_search_maps_to_investigate(self) -> None:
+        result = self.interpreter.interpret("I search the area for clues.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
         self.assertEqual(result.normalized_intent, "investigate")
         self.assertEqual(result.canonical_command, "investigate")
-        self.assertIsNone(result.target_reference)
+
+    def test_freeform_careful_inspection_maps_to_investigate(self) -> None:
+        result = self.interpreter.interpret("I inspect the scene carefully for evidence.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "investigate")
+        self.assertEqual(result.canonical_command, "investigate")
 
     def test_freeform_movement_maps_to_move(self) -> None:
         result = self.interpreter.interpret("I head to the church.", self.world_state)
@@ -61,6 +83,34 @@ class InputInterpreterTests(unittest.TestCase):
 
     def test_freeform_accusation_maps_to_accuse_act(self) -> None:
         result = self.interpreter.interpret("Jonas, you're hiding something.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
+
+    def test_freeform_speak_to_maps_to_talk(self) -> None:
+        result = self.interpreter.interpret("I speak to Jonas.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+
+    def test_freeform_talk_to_maps_to_talk(self) -> None:
+        result = self.interpreter.interpret("I talk to Jonas.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+
+    def test_freeform_ask_form_maps_to_talk(self) -> None:
+        result = self.interpreter.interpret("I ask Jonas what happened here.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+
+    def test_freeform_accuse_form_maps_to_talk(self) -> None:
+        result = self.interpreter.interpret("I accuse Jonas of hiding something.", self.world_state)
 
         self.assertFalse(result.fallback_to_parser)
         self.assertEqual(result.target_reference, "npc_1")

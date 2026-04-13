@@ -28,6 +28,7 @@ def build_sample_world() -> WorldState:
                 location_id=npc_definition.starting_location_id,
                 attitude_to_player=npc_definition.attitude_to_player,
                 trust_level=npc_definition.trust_level,
+                consumed_dialogue_hooks=[],
                 goals=list(npc_definition.goals),
                 investigation_hint=npc_definition.investigation_hint,
                 schedule=dict(npc_definition.schedule),
