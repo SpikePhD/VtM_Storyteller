@@ -1,19 +1,41 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .adventure_loader import Adv1DialogueHookDefinition, load_adv1_dialogue_hook_definitions
 from .command_models import DialogueAct, DialogueMetadata
 from .world_state import WorldState
 
 
+@dataclass(frozen=True, slots=True)
+class DialogueResolutionResult:
+    output_text: str
+    conversation_focus_npc_id: str | None
+
+
 def resolve_talk(world_state: WorldState, npc_id: str, dialogue_metadata: DialogueMetadata | None) -> str:
+    return resolve_talk_result(world_state, npc_id, dialogue_metadata).output_text
+
+
+def resolve_talk_result(
+    world_state: WorldState,
+    npc_id: str,
+    dialogue_metadata: DialogueMetadata | None,
+) -> DialogueResolutionResult:
     npc = world_state.npcs.get(npc_id)
     if npc is None:
-        return f"Talk is blocked: no NPC with id '{npc_id}' exists."
+        return DialogueResolutionResult(
+            output_text=f"Talk is blocked: no NPC with id '{npc_id}' exists.",
+            conversation_focus_npc_id=None,
+        )
 
     if npc.location_id != world_state.player.location_id:
         location = world_state.locations.get(world_state.player.location_id or "")
         location_name = location.name if location is not None else (world_state.player.location_id or "unknown location")
-        return f"Talk is blocked: {npc.name} is not present at {location_name}."
+        return DialogueResolutionResult(
+            output_text=f"Talk is blocked: {npc.name} is not present at {location_name}.",
+            conversation_focus_npc_id=None,
+        )
 
     plot = world_state.plots.get("plot_1")
     current_stage = plot.stage if plot is not None else ""
@@ -27,13 +49,22 @@ def resolve_talk(world_state: WorldState, npc_id: str, dialogue_metadata: Dialog
         if not hook.repeatable:
             _mark_dialogue_hook_consumed(world_state, npc_id, hook.hook_id)
         response_text = hook.blocked_text if _should_use_blocked_text(hook, dialogue_metadata) else hook.dialogue_text
-        return _render_dialogue_text(response_text, npc.name, dialogue_metadata)
+        return DialogueResolutionResult(
+            output_text=_render_dialogue_text(response_text, npc.name, dialogue_metadata),
+            conversation_focus_npc_id=npc_id,
+        )
 
     fallback = _find_dialogue_fallback(hooks, npc, current_stage)
     if fallback is not None:
-        return _render_dialogue_text(f"Talk is blocked: {fallback}", npc.name, dialogue_metadata)
+        return DialogueResolutionResult(
+            output_text=_render_dialogue_text(f"Talk is blocked: {fallback}", npc.name, dialogue_metadata),
+            conversation_focus_npc_id=npc_id,
+        )
 
-    return f"{npc.name} has nothing useful to say right now."
+    return DialogueResolutionResult(
+        output_text=f"{npc.name} has nothing useful to say right now.",
+        conversation_focus_npc_id=npc_id,
+    )
 
 
 def _find_dialogue_hook(hooks, npc, plot_stage: str, dialogue_act: DialogueAct | None):

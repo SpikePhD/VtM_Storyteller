@@ -151,6 +151,20 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.PERSUADE)
         self.assertEqual(interpreted.dialogue_metadata.utterance_text, "Jonas, I need you to trust me.")
 
+    def test_follow_up_uses_conversation_focus(self) -> None:
+        result = self.interpreter.interpret("Why?", self.world_state, conversation_focus_npc_id="npc_1")
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+
+    def test_follow_up_without_focus_falls_back(self) -> None:
+        result = self.interpreter.interpret("Why?", self.world_state)
+
+        self.assertTrue(result.fallback_to_parser)
+        self.assertIsNone(result.canonical_command)
+
 
 if __name__ == "__main__":
     unittest.main()

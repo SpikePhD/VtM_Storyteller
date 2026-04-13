@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from vampire_storyteller.command_dispatcher import execute_command
-from vampire_storyteller.command_models import TalkCommand
+from vampire_storyteller.command_models import DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.exceptions import CommandParseError
 from vampire_storyteller.game_session import GameSession
@@ -103,6 +103,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertFalse(result.render_scene)
         self.assertEqual(session.get_world_state().player.location_id, "loc_cafe")
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
         self.assertIn("trust: 1", session.get_startup_text())
 
     def test_talk_greeting_uses_dialogue_metadata(self) -> None:
@@ -113,6 +114,29 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("gives a brief nod", result.output_text)
         self.assertNotIn("keeps his voice low", result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+
+    def test_follow_up_uses_conversation_focus(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        result = session.process_input("Why?")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("Jonas Reed", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+
+    def test_follow_up_unknownish_line_still_targets_focus(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        result = session.process_input("I don't believe you.")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("Jonas Reed", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
 
     def test_talk_question_uses_preserved_utterance_text(self) -> None:
         session = GameSession()
@@ -135,6 +159,28 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("cuts the accusation off", accuse_result.output_text)
         self.assertIn("ends the exchange", threaten_result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+
+    def test_move_clears_conversation_focus(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        session.process_input("move loc_church")
+
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+        with self.assertRaises(CommandParseError):
+            session.process_input("Why?")
+
+    def test_explicit_other_npc_replaces_focus_when_available(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        session.process_input("move loc_church")
+        result = session.process_input("Sister Eliza, good evening.")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("Sister Eliza", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_2")
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_2")
 
     def test_talk_can_shift_response_after_trust_improves(self) -> None:
         session = GameSession()

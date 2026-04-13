@@ -20,6 +20,16 @@ class InterpretedInput:
 
 
 class InputInterpreter:
+    _FOCUSED_FOLLOW_UP_PHRASES = (
+        "why",
+        "what do you mean",
+        "go on",
+        "can you explain",
+        "i don't believe you",
+        "i do not believe you",
+        "that sounds wrong",
+    )
+
     _LOW_INTENSITY_OBSERVATION_PHRASES = (
         "look around",
         "take a look",
@@ -59,7 +69,12 @@ class InputInterpreter:
         "address",
     )
 
-    def interpret(self, raw_input: str, world_state: WorldState) -> InterpretedInput:
+    def interpret(
+        self,
+        raw_input: str,
+        world_state: WorldState,
+        conversation_focus_npc_id: str | None = None,
+    ) -> InterpretedInput:
         normalized_text = self._normalize_text(raw_input)
         if not normalized_text:
             return self._fallback("input was empty after normalization")
@@ -67,6 +82,10 @@ class InputInterpreter:
         talk_result = self._interpret_talk(raw_input, normalized_text, world_state)
         if talk_result is not None:
             return talk_result
+
+        focused_talk_result = self._interpret_focused_talk(raw_input, normalized_text, world_state, conversation_focus_npc_id)
+        if focused_talk_result is not None:
+            return focused_talk_result
 
         wait_result = self._interpret_wait(normalized_text)
         if wait_result is not None:
@@ -181,6 +200,41 @@ class InputInterpreter:
             dialogue_metadata=metadata,
         )
 
+    def _interpret_focused_talk(
+        self,
+        raw_input: str,
+        normalized_text: str,
+        world_state: WorldState,
+        conversation_focus_npc_id: str | None,
+    ) -> InterpretedInput | None:
+        if conversation_focus_npc_id is None:
+            return None
+
+        focused_npc = world_state.npcs.get(conversation_focus_npc_id)
+        if focused_npc is None or focused_npc.location_id != world_state.player.location_id:
+            return None
+
+        if not self._contains_any(normalized_text, self._FOCUSED_FOLLOW_UP_PHRASES):
+            return None
+
+        speech_text = raw_input.strip()
+        dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, speech_text, self._normalize_text(speech_text))
+        metadata = DialogueMetadata(
+            utterance_text=raw_input.strip(),
+            speech_text=speech_text,
+            dialogue_act=dialogue_act,
+        )
+        return InterpretedInput(
+            normalized_intent="talk",
+            target_text=focused_npc.name,
+            target_reference=focused_npc.id,
+            canonical_command=f"talk {focused_npc.id}",
+            confidence=0.72 if dialogue_act is not DialogueAct.UNKNOWN else 0.64,
+            match_reason=f"focused follow-up matched NPC '{focused_npc.name}' and classified as {dialogue_act.value}",
+            fallback_to_parser=False,
+            dialogue_metadata=metadata,
+        )
+
     def _classify_dialogue_act(self, raw_input: str, normalized_text: str, speech_text: str, normalized_speech_text: str) -> DialogueAct:
         if not normalized_speech_text:
             return DialogueAct.UNKNOWN
@@ -193,7 +247,7 @@ class InputInterpreter:
 
         if self._contains_any(
             normalized_text,
-            ("i accuse", "i accuse jonas", "i accuse sister", "i accuse you", "accuse"),
+            ("i accuse", "i accuse jonas", "i accuse sister", "i accuse you", "i don't believe you", "i do not believe you", "accuse"),
         ) or self._contains_any(
             normalized_speech_text,
             (
@@ -214,6 +268,10 @@ class InputInterpreter:
                 "murder",
                 "guilty",
                 "confess",
+                "not true",
+                "that sounds wrong",
+                "don't believe you",
+                "do not believe you",
             ),
         ):
             return DialogueAct.ACCUSE

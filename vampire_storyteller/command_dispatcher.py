@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .actions import wait_action
-from .dialogue_engine import resolve_talk
+from .dialogue_engine import resolve_talk_result
 from .command_models import (
     Command,
     HelpCommand,
@@ -40,7 +40,11 @@ def execute_command(world_state: WorldState, command: Command) -> CommandResult:
         return CommandResult(output_text="", render_scene=True)
 
     if isinstance(command, TalkCommand):
-        return CommandResult(output_text=resolve_talk(world_state, command.npc_id, command.dialogue_metadata))
+        talk_result = resolve_talk_result(world_state, command.npc_id, command.dialogue_metadata)
+        return CommandResult(
+            output_text=talk_result.output_text,
+            conversation_focus_npc_id=talk_result.conversation_focus_npc_id,
+        )
 
     if isinstance(command, InvestigateCommand):
         return CommandResult(output_text="", render_scene=True)

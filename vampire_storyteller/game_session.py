@@ -33,24 +33,29 @@ class GameSession:
         self._fallback_scene_provider = DeterministicSceneNarrativeProvider()
         self._input_interpreter = InputInterpreter()
         self._last_interpreted_input: InterpretedInput | None = None
+        self._conversation_focus_npc_id: str | None = None
         self._save_path = Path(save_path) if save_path is not None else get_default_save_path()
 
     def get_startup_text(self) -> str:
         return self._render_scene_text()
 
     def process_input(self, raw_input: str) -> CommandResult:
-        interpretation = self._input_interpreter.interpret(raw_input, self._world_state)
+        self._sync_conversation_focus()
+        interpretation = self._input_interpreter.interpret(raw_input, self._world_state, self._conversation_focus_npc_id)
         self._last_interpreted_input = interpretation
         command_input = interpretation.canonical_command if not interpretation.fallback_to_parser else raw_input
         command = parse_command(command_input)
         if isinstance(command, TalkCommand) and interpretation.dialogue_metadata is not None:
             command = replace(command, dialogue_metadata=interpretation.dialogue_metadata)
+        if isinstance(command, TalkCommand) and self._conversation_focus_npc_id not in (None, command.npc_id):
+            self._conversation_focus_npc_id = None
         if isinstance(command, SaveCommand):
             ensure_adventure_directories()
             save_world_state(self._world_state, self._save_path)
             return CommandResult(output_text=f"Game saved to {self._save_path.as_posix()}.")
 
         if isinstance(command, LoadCommand):
+            self._conversation_focus_npc_id = None
             if not self._save_path.exists():
                 return CommandResult(output_text=f"No save file found at {self._save_path.as_posix()}.")
             self._world_state = load_world_state(self._save_path)
@@ -66,6 +71,8 @@ class GameSession:
             return result
 
         if isinstance(command, TalkCommand):
+            if result.conversation_focus_npc_id is not None:
+                self._conversation_focus_npc_id = result.conversation_focus_npc_id
             plot_messages = advance_plots(self._world_state, command)
             if plot_messages:
                 result = CommandResult(
@@ -76,6 +83,7 @@ class GameSession:
 
         if result.render_scene:
             if isinstance(command, (MoveCommand, WaitCommand)):
+                self._conversation_focus_npc_id = None
                 update_npcs_for_current_time(self._world_state)
 
             advance_plots(self._world_state, command)
@@ -127,12 +135,22 @@ class GameSession:
     def get_last_interpreted_input(self) -> InterpretedInput | None:
         return self._last_interpreted_input
 
+    def get_conversation_focus_npc_id(self) -> str | None:
+        return self._conversation_focus_npc_id
+
     def _render_scene_text(self) -> str:
         try:
             return self._scene_provider.render_scene(self._world_state)
         except Exception:
             self._scene_provider = self._fallback_scene_provider
             return self._fallback_scene_provider.render_scene(self._world_state)
+
+    def _sync_conversation_focus(self) -> None:
+        if self._conversation_focus_npc_id is None:
+            return
+        focused_npc = self._world_state.npcs.get(self._conversation_focus_npc_id)
+        if focused_npc is None or focused_npc.location_id != self._world_state.player.location_id:
+            self._conversation_focus_npc_id = None
 
     def _derive_roll_seed(self, command: Command) -> str:
         command_name = command.__class__.__name__.removesuffix("Command").lower()
