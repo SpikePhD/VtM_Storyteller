@@ -197,8 +197,34 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIsNone(session.get_conversation_focus_npc_id())
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
-        with self.assertRaises(CommandParseError):
-            session.process_input("Why?")
+        result = session.process_input("Why?")
+
+        self.assertEqual(result.output_text, "There is no active conversation to continue.")
+
+    def test_follow_up_without_focus_returns_deterministic_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Go on.")
+
+        self.assertEqual(result.output_text, "There is no active conversation to continue.")
+        self.assertFalse(result.render_scene)
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+
+    def test_question_without_focus_returns_deterministic_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Why?")
+
+        self.assertEqual(result.output_text, "There is no active conversation to continue.")
+        self.assertFalse(result.render_scene)
+
+    def test_follow_up_phrase_without_focus_returns_deterministic_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("What do you mean?")
+
+        self.assertEqual(result.output_text, "There is no active conversation to continue.")
+        self.assertFalse(result.render_scene)
 
     def test_load_clears_conversation_focus_and_stance(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

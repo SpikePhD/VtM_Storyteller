@@ -16,6 +16,7 @@ class InterpretedInput:
     confidence: float
     match_reason: str
     fallback_to_parser: bool
+    no_active_conversation: bool = False
     dialogue_metadata: DialogueMetadata | None = None
 
 
@@ -86,6 +87,10 @@ class InputInterpreter:
         focused_talk_result = self._interpret_focused_talk(raw_input, normalized_text, world_state, conversation_focus_npc_id)
         if focused_talk_result is not None:
             return focused_talk_result
+
+        unfocused_follow_up_result = self._interpret_unfocused_follow_up(normalized_text)
+        if unfocused_follow_up_result is not None:
+            return unfocused_follow_up_result
 
         wait_result = self._interpret_wait(normalized_text)
         if wait_result is not None:
@@ -233,6 +238,21 @@ class InputInterpreter:
             match_reason=f"focused follow-up matched NPC '{focused_npc.name}' and classified as {dialogue_act.value}",
             fallback_to_parser=False,
             dialogue_metadata=metadata,
+        )
+
+    def _interpret_unfocused_follow_up(self, normalized_text: str) -> InterpretedInput | None:
+        if not self._contains_any(normalized_text, self._FOCUSED_FOLLOW_UP_PHRASES):
+            return None
+
+        return InterpretedInput(
+            normalized_intent="conversation_continuation_without_focus",
+            target_text=None,
+            target_reference=None,
+            canonical_command=None,
+            confidence=0.7,
+            match_reason="follow-up dialogue was attempted without an active conversation focus",
+            fallback_to_parser=False,
+            no_active_conversation=True,
         )
 
     def _classify_dialogue_act(self, raw_input: str, normalized_text: str, speech_text: str, normalized_speech_text: str) -> DialogueAct:

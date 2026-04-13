@@ -45,6 +45,8 @@ class GameSession:
         self._sync_conversation_focus()
         interpretation = self._input_interpreter.interpret(raw_input, self._world_state, self._conversation_focus_npc_id)
         self._last_interpreted_input = interpretation
+        if interpretation.no_active_conversation:
+            return CommandResult(output_text="There is no active conversation to continue.")
         command_input = interpretation.canonical_command if not interpretation.fallback_to_parser else raw_input
         command = parse_command(command_input)
         if isinstance(command, TalkCommand) and self._conversation_focus_npc_id not in (None, command.npc_id):

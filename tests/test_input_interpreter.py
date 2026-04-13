@@ -186,7 +186,22 @@ class InputInterpreterTests(unittest.TestCase):
     def test_follow_up_without_focus_falls_back(self) -> None:
         result = self.interpreter.interpret("Why?", self.world_state)
 
-        self.assertTrue(result.fallback_to_parser)
+        self.assertFalse(result.fallback_to_parser)
+        self.assertTrue(result.no_active_conversation)
+        self.assertIsNone(result.canonical_command)
+
+    def test_go_on_without_focus_returns_no_active_conversation_result(self) -> None:
+        result = self.interpreter.interpret("Go on.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertTrue(result.no_active_conversation)
+        self.assertEqual(result.match_reason, "follow-up dialogue was attempted without an active conversation focus")
+
+    def test_skeptical_follow_up_without_focus_returns_no_active_conversation_result(self) -> None:
+        result = self.interpreter.interpret("I don't believe you.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertTrue(result.no_active_conversation)
         self.assertIsNone(result.canonical_command)
 
 
