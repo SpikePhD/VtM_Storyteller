@@ -6,6 +6,8 @@ The current backend interaction path is now:
 - freeform player text enters the input interpreter first
 - simple natural-language observations, movement, waiting, and NPC-address speech are translated into existing deterministic commands where possible
 - targeted NPC speech preserves the original utterance plus a small deterministic dialogue-act classification
+- low-intensity environmental observation now prefers `look` while stronger probing language maps to `investigate`
+- indirect speech forms such as `I speak to Jonas.` and `I ask Jonas what happened here.` now resolve to `talk <npc>` when the NPC can be identified
 - the existing strict command parser and dispatcher remain the execution boundary for canonical commands
 - deterministic world state still decides what is true; presentation and dialogue feel remain downstream concerns
 
@@ -18,6 +20,35 @@ Current dialogue metadata contract:
 - `DialogueAct.unknown`
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
+
+## Task 040 - Refine Freeform Interpretation for Look vs Investigate and Indirect Speech
+
+- Status: implemented
+- Goal: reduce false-positive investigation escalation and improve indirect NPC speech recognition without changing gameplay logic
+- Files changed:
+  - `vampire_storyteller/input_interpreter.py`
+  - `tests/test_input_interpreter.py`
+  - `progress.md`
+- What was implemented:
+  - Split observational heuristics into low-intensity `look` language and stronger `investigate` language
+  - Made ambiguous environmental observation prefer `look`
+  - Added deterministic recognition for indirect speech forms such as `I speak to Jonas.`, `I talk to Jonas.`, `I ask Jonas what happened here.`, and `I accuse Jonas of hiding something.`
+  - Kept the strict command parser and existing talk resolution path unchanged
+  - Added regression coverage for the smoke-test cases that were misclassified or missed before
+- Acceptance criteria checklist:
+  - [x] Observational language no longer escalates too easily into `investigate`
+  - [x] Stronger probing language still maps to `investigate`
+  - [x] Indirect NPC speech forms resolve reliably to `talk <npc>`
+  - [x] Tests cover the smoke-test regressions
+  - [x] No LLM is involved
+  - [x] No unrelated gameplay or session behavior is changed
+- Assumptions:
+  - A small explicit phrase hierarchy is the safest way to reduce surprise without introducing fuzzy interpretation
+  - `look` should win when wording is ambiguous between observation and probing
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more conversational forms appear in smoke testing, they can be added as explicit phrases rather than broadening the heuristic surface
 
 ## Task 039 - Preserve Freeform Dialogue Intent and Utterance Metadata
 
