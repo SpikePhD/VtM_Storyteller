@@ -11,6 +11,7 @@ from .command_result import CommandResult
 from .consequence_engine import apply_consequences
 from .dice_engine import roll_dice
 from .data_paths import ensure_adventure_directories, get_default_save_path
+from .command_models import ConversationStance
 from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
 from .npc_engine import update_npcs_for_current_time
@@ -34,6 +35,7 @@ class GameSession:
         self._input_interpreter = InputInterpreter()
         self._last_interpreted_input: InterpretedInput | None = None
         self._conversation_focus_npc_id: str | None = None
+        self._conversation_stance: ConversationStance = ConversationStance.NEUTRAL
         self._save_path = Path(save_path) if save_path is not None else get_default_save_path()
 
     def get_startup_text(self) -> str:
@@ -45,10 +47,13 @@ class GameSession:
         self._last_interpreted_input = interpretation
         command_input = interpretation.canonical_command if not interpretation.fallback_to_parser else raw_input
         command = parse_command(command_input)
-        if isinstance(command, TalkCommand) and interpretation.dialogue_metadata is not None:
-            command = replace(command, dialogue_metadata=interpretation.dialogue_metadata)
         if isinstance(command, TalkCommand) and self._conversation_focus_npc_id not in (None, command.npc_id):
             self._conversation_focus_npc_id = None
+            self._conversation_stance = ConversationStance.NEUTRAL
+        if isinstance(command, TalkCommand) and interpretation.dialogue_metadata is not None:
+            command = replace(command, dialogue_metadata=interpretation.dialogue_metadata, conversation_stance=self._conversation_stance)
+        elif isinstance(command, TalkCommand):
+            command = replace(command, conversation_stance=self._conversation_stance)
         if isinstance(command, SaveCommand):
             ensure_adventure_directories()
             save_world_state(self._world_state, self._save_path)
@@ -56,6 +61,7 @@ class GameSession:
 
         if isinstance(command, LoadCommand):
             self._conversation_focus_npc_id = None
+            self._conversation_stance = ConversationStance.NEUTRAL
             if not self._save_path.exists():
                 return CommandResult(output_text=f"No save file found at {self._save_path.as_posix()}.")
             self._world_state = load_world_state(self._save_path)
@@ -73,17 +79,22 @@ class GameSession:
         if isinstance(command, TalkCommand):
             if result.conversation_focus_npc_id is not None:
                 self._conversation_focus_npc_id = result.conversation_focus_npc_id
+            if result.conversation_stance is not None:
+                self._conversation_stance = result.conversation_stance
             plot_messages = advance_plots(self._world_state, command)
             if plot_messages:
                 result = CommandResult(
                     output_text="\n".join([result.output_text, *plot_messages]) if result.output_text else "\n".join(plot_messages),
                     should_quit=result.should_quit,
                     render_scene=result.render_scene,
+                    conversation_focus_npc_id=result.conversation_focus_npc_id,
+                    conversation_stance=result.conversation_stance,
                 )
 
         if result.render_scene:
             if isinstance(command, (MoveCommand, WaitCommand)):
                 self._conversation_focus_npc_id = None
+                self._conversation_stance = ConversationStance.NEUTRAL
                 update_npcs_for_current_time(self._world_state)
 
             advance_plots(self._world_state, command)
@@ -126,6 +137,8 @@ class GameSession:
                 output_text=self._render_scene_text(),
                 should_quit=result.should_quit,
                 render_scene=True,
+                conversation_focus_npc_id=result.conversation_focus_npc_id,
+                conversation_stance=result.conversation_stance,
             )
         return result
 
@@ -137,6 +150,9 @@ class GameSession:
 
     def get_conversation_focus_npc_id(self) -> str | None:
         return self._conversation_focus_npc_id
+
+    def get_conversation_stance(self) -> ConversationStance:
+        return self._conversation_stance
 
     def _render_scene_text(self) -> str:
         try:
@@ -151,6 +167,7 @@ class GameSession:
         focused_npc = self._world_state.npcs.get(self._conversation_focus_npc_id)
         if focused_npc is None or focused_npc.location_id != self._world_state.player.location_id:
             self._conversation_focus_npc_id = None
+            self._conversation_stance = ConversationStance.NEUTRAL
 
     def _derive_roll_seed(self, command: Command) -> str:
         command_name = command.__class__.__name__.removesuffix("Command").lower()

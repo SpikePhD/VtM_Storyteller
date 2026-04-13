@@ -40,10 +40,11 @@ def execute_command(world_state: WorldState, command: Command) -> CommandResult:
         return CommandResult(output_text="", render_scene=True)
 
     if isinstance(command, TalkCommand):
-        talk_result = resolve_talk_result(world_state, command.npc_id, command.dialogue_metadata)
+        talk_result = resolve_talk_result(world_state, command.npc_id, command.dialogue_metadata, command.conversation_stance)
         return CommandResult(
             output_text=talk_result.output_text,
             conversation_focus_npc_id=talk_result.conversation_focus_npc_id,
+            conversation_stance=talk_result.conversation_stance,
         )
 
     if isinstance(command, InvestigateCommand):

@@ -13,6 +13,11 @@ class DialogueAct(str, Enum):
     UNKNOWN = "unknown"
 
 
+class ConversationStance(str, Enum):
+    NEUTRAL = "neutral"
+    GUARDED = "guarded"
+
+
 @dataclass(frozen=True, slots=True)
 class DialogueMetadata:
     utterance_text: str
@@ -54,6 +59,7 @@ class WaitCommand(Command):
 class TalkCommand(Command):
     npc_id: str
     dialogue_metadata: DialogueMetadata | None = None
+    conversation_stance: ConversationStance = ConversationStance.NEUTRAL
 
 
 @dataclass(frozen=True)

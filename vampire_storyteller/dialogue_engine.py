@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .adventure_loader import Adv1DialogueHookDefinition, load_adv1_dialogue_hook_definitions
-from .command_models import DialogueAct, DialogueMetadata
+from .command_models import ConversationStance, DialogueAct, DialogueMetadata
 from .world_state import WorldState
 
 
@@ -11,22 +11,30 @@ from .world_state import WorldState
 class DialogueResolutionResult:
     output_text: str
     conversation_focus_npc_id: str | None
+    conversation_stance: ConversationStance
 
 
-def resolve_talk(world_state: WorldState, npc_id: str, dialogue_metadata: DialogueMetadata | None) -> str:
-    return resolve_talk_result(world_state, npc_id, dialogue_metadata).output_text
+def resolve_talk(
+    world_state: WorldState,
+    npc_id: str,
+    dialogue_metadata: DialogueMetadata | None,
+    conversation_stance: ConversationStance = ConversationStance.NEUTRAL,
+) -> str:
+    return resolve_talk_result(world_state, npc_id, dialogue_metadata, conversation_stance).output_text
 
 
 def resolve_talk_result(
     world_state: WorldState,
     npc_id: str,
     dialogue_metadata: DialogueMetadata | None,
+    conversation_stance: ConversationStance = ConversationStance.NEUTRAL,
 ) -> DialogueResolutionResult:
     npc = world_state.npcs.get(npc_id)
     if npc is None:
         return DialogueResolutionResult(
             output_text=f"Talk is blocked: no NPC with id '{npc_id}' exists.",
             conversation_focus_npc_id=None,
+            conversation_stance=conversation_stance,
         )
 
     if npc.location_id != world_state.player.location_id:
@@ -35,13 +43,14 @@ def resolve_talk_result(
         return DialogueResolutionResult(
             output_text=f"Talk is blocked: {npc.name} is not present at {location_name}.",
             conversation_focus_npc_id=None,
+            conversation_stance=conversation_stance,
         )
 
     plot = world_state.plots.get("plot_1")
     current_stage = plot.stage if plot is not None else ""
     hooks = load_adv1_dialogue_hook_definitions()
     dialogue_act = dialogue_metadata.dialogue_act if dialogue_metadata is not None else None
-    hook = _find_dialogue_hook(hooks, npc, current_stage, dialogue_act)
+    hook = _find_dialogue_hook(hooks, npc, current_stage, dialogue_act, conversation_stance)
     if hook is not None:
         if hook.trust_delta != 0:
             _adjust_npc_trust(world_state, npc_id, hook.trust_delta)
@@ -50,25 +59,30 @@ def resolve_talk_result(
         if not hook.repeatable:
             _mark_dialogue_hook_consumed(world_state, npc_id, hook.hook_id)
         response_text = hook.blocked_text if _should_use_blocked_text(hook, dialogue_metadata) else hook.dialogue_text
+        next_stance = _next_conversation_stance(dialogue_act, response_text == hook.blocked_text)
         return DialogueResolutionResult(
             output_text=_render_dialogue_text(response_text, npc.name, dialogue_metadata),
             conversation_focus_npc_id=npc_id,
+            conversation_stance=next_stance,
         )
 
     fallback = _find_dialogue_fallback(hooks, npc, current_stage)
     if fallback is not None:
+        next_stance = ConversationStance.GUARDED if conversation_stance == ConversationStance.GUARDED or dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN) else ConversationStance.NEUTRAL
         return DialogueResolutionResult(
             output_text=_render_dialogue_text(f"Talk is blocked: {fallback}", npc.name, dialogue_metadata),
             conversation_focus_npc_id=npc_id,
+            conversation_stance=next_stance,
         )
 
     return DialogueResolutionResult(
         output_text=f"{npc.name} has nothing useful to say right now.",
         conversation_focus_npc_id=npc_id,
+        conversation_stance=conversation_stance,
     )
 
 
-def _find_dialogue_hook(hooks, npc, plot_stage: str, dialogue_act: DialogueAct | None):
+def _find_dialogue_hook(hooks, npc, plot_stage: str, dialogue_act: DialogueAct | None, conversation_stance: ConversationStance):
     matching_hooks = [
         hook
         for hook in hooks
@@ -85,6 +99,13 @@ def _find_dialogue_hook(hooks, npc, plot_stage: str, dialogue_act: DialogueAct |
         guarded_hook = _select_best_hook_for_act(matching_hooks, dialogue_act)
         if guarded_hook is not None:
             return guarded_hook
+        return None
+
+    if conversation_stance == ConversationStance.GUARDED:
+        if dialogue_act is not None:
+            matched_hook = _select_best_hook_for_act(matching_hooks, dialogue_act)
+            if matched_hook is not None:
+                return matched_hook
         return None
 
     if dialogue_act is not None:
@@ -107,6 +128,14 @@ def _select_best_generic_hook(hooks) -> Adv1DialogueHookDefinition | None:
     if not generic_hooks:
         return None
     return max(generic_hooks, key=lambda hook: (hook.minimum_trust_level, hook.repeatable))
+
+
+def _next_conversation_stance(dialogue_act: DialogueAct | None, used_blocked_text: bool) -> ConversationStance:
+    if used_blocked_text:
+        return ConversationStance.GUARDED
+    if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
+        return ConversationStance.GUARDED
+    return ConversationStance.NEUTRAL
 
 
 def _adjust_npc_trust(world_state: WorldState, npc_id: str, delta: int) -> None:

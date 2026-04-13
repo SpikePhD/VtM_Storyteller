@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 
 from vampire_storyteller.command_dispatcher import execute_command
-from vampire_storyteller.command_models import DialogueAct, TalkCommand
+from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.exceptions import CommandParseError
 from vampire_storyteller.game_session import GameSession
@@ -104,6 +104,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().player.location_id, "loc_cafe")
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
         self.assertIn("trust: 1", session.get_startup_text())
 
     def test_talk_greeting_uses_dialogue_metadata(self) -> None:
@@ -139,6 +140,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
 
     def test_follow_up_what_do_you_mean_stays_in_question_path(self) -> None:
         session = GameSession()
@@ -150,6 +152,20 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("hears 'What do you mean?'", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+
+    def test_guarded_follow_up_go_on_does_not_unlock_productive_progression(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, good evening.")
+        session.process_input("I don't believe you.")
+        result = session.process_input("Go on.")
+
+        self.assertNotIn("paper trail", result.output_text)
+        self.assertNotIn("advanced from hook to lead_confirmed", result.output_text)
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
 
     def test_talk_question_uses_preserved_utterance_text(self) -> None:
         session = GameSession()
@@ -180,8 +196,20 @@ class GameSessionTests(unittest.TestCase):
         session.process_input("move loc_church")
 
         self.assertIsNone(session.get_conversation_focus_npc_id())
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
         with self.assertRaises(CommandParseError):
             session.process_input("Why?")
+
+    def test_load_clears_conversation_focus_and_stance(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            save_path = Path(temp_dir) / "save.json"
+            session = GameSession(save_path=save_path)
+
+            session.process_input("talk npc_1")
+            session.process_input("load")
+
+            self.assertIsNone(session.get_conversation_focus_npc_id())
+            self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
 
     def test_explicit_other_npc_replaces_focus_when_available(self) -> None:
         session = GameSession()
