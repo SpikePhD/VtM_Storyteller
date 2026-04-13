@@ -10,6 +10,8 @@ The current backend interaction path is now:
 - indirect speech forms such as `I speak to Jonas.` and `I ask Jonas what happened here.` now resolve to `talk <npc>` when the NPC can be identified
 - preserved dialogue metadata now influences deterministic `talk` response selection, so greeting, asking, accusing, and threatening can produce different authored outcomes
 - semantic story flags now carry plot state forward, so plot progression can depend on authored outcomes rather than consumed hook IDs
+- a short-lived session-local conversation focus lets follow-up lines like `Why?` or `What do you mean?` target the current NPC without repeating the name
+- hostile or skeptical follow-ups stay on guarded paths and do not get upgraded into productive talk progression
 - the existing strict command parser and dispatcher remain the execution boundary for canonical commands
 - deterministic world state still decides what is true; presentation and dialogue feel remain downstream concerns
 
@@ -22,6 +24,38 @@ Current dialogue metadata contract:
 - `DialogueAct.unknown`
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
+
+## Task 043 - Tighten Focused Follow-Up Dialogue and Block Hostile Progression
+
+- Status: implemented
+- Goal: keep short conversation follow-ups natural while preventing skeptical or hostile lines from slipping into productive hooks or advancing the Missing Ledger plot
+- Files changed:
+  - `vampire_storyteller/dialogue_engine.py`
+  - `tests/test_dialogue_engine.py`
+  - `tests/test_game_session.py`
+  - `tests/test_input_interpreter.py`
+  - `progress.md`
+- What was implemented:
+  - Refined focused follow-up interpretation so `Why?`, `What do you mean?`, and `Can you explain?` stay on the question path when a conversation focus exists
+  - Kept skeptical follow-ups like `I don't believe you.` and `That sounds wrong.` deterministic, but classified them as hostile/guarded rather than productive
+  - Tightened act-aware hook selection so question and greeting follow-ups prefer their specific authored hooks instead of generic trust-building hooks
+  - Prevented hostile follow-ups from selecting the productive Jonas hook that emits `jonas_shared_dock_lead`
+  - Preserved the semantic story-flag architecture while ensuring only genuinely productive dialogue paths can advance the plot
+  - Added regression coverage for focused follow-ups, hostile blocked responses, story-flag suppression, and plot non-advancement
+- Acceptance criteria checklist:
+  - [x] Focused follow-up dialogue feels more tone-consistent
+  - [x] Hostile/skeptical lines no longer trigger productive talk progression
+  - [x] Question follow-ups still work through conversation focus
+  - [x] Semantic story-flag progression remains intact
+  - [x] Tests cover the smoke-test regression
+  - [x] No unrelated gameplay behavior is changed
+- Assumptions:
+  - A small set of explicit follow-up phrases is preferable to broad pronoun or sentiment inference
+  - Hostile lines should fail safe into guarded responses instead of being promoted to cooperative dialogue
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more follow-up forms appear, they should be added explicitly and tested against the existing act-aware hook rules
 
 ## Task 042 - Decouple Talk Progression from Consumed Hook IDs
 
