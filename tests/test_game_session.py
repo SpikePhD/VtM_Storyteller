@@ -249,6 +249,16 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.target_reference, "npc_2")
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_2")
 
+    def test_failed_explicit_retarget_clears_previous_focus_cleanly(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        result = session.process_input("talk npc_2")
+
+        self.assertIn("Talk is blocked", result.output_text)
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+
     def test_talk_can_shift_response_after_trust_improves(self) -> None:
         session = GameSession()
 
