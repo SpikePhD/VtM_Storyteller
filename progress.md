@@ -1,5 +1,35 @@
 # Progress
 
+## Task 039 - Preserve Freeform Dialogue Intent and Utterance Metadata
+
+- Status: implemented
+- Goal: preserve the player's spoken wording and a small deterministic dialogue-act classification when freeform NPC-address text is interpreted into `talk <npc>` behavior
+- Files changed:
+  - `vampire_storyteller/command_models.py`
+  - `vampire_storyteller/input_interpreter.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_input_interpreter.py`
+  - `progress.md`
+- What was implemented:
+  - Added a small `DialogueAct` enum and `DialogueMetadata` payload to represent structured NPC dialogue intent
+  - Extended the freeform input interpreter so targeted speech preserves the full utterance, the spoken portion, and the dialogue act classification
+  - Threaded dialogue metadata through `GameSession` without changing the existing `talk <npc>` parser or dispatcher behavior
+  - Kept the dialogue contract deterministic and rule-based with explicit heuristics and fallback behavior
+  - Added regression coverage for greeting, asking, accusing, persuading, unknown targeted speech, and non-targeted fallback behavior
+- Acceptance criteria checklist:
+  - [x] Freeform NPC speech preserves utterance text and dialogue act in structured form
+  - [x] Existing command parser and talk command behavior still work
+  - [x] Classification is deterministic and test-covered
+  - [x] No LLM is involved
+  - [x] No broad dialogue-system refactor was introduced
+- Assumptions:
+  - A small enum plus metadata payload is the cleanest way to preserve dialogue intent without changing gameplay rules
+  - The existing `talk <npc>` command remains the canonical execution path for now
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - Future dialogue work can consume `DialogueMetadata` without reworking the parser boundary again
+
 ## Task 031 - Make Blocked Investigate Attempts Return Explicit Deterministic Feedback
 
 - Status: implemented
@@ -1155,6 +1185,99 @@
   - [x] Selected existing actions update relationship state explicitly
   - [x] Save/load preserves relationship state
   - [x] Current Missing Ledger mechanics remain unchanged
+  - [x] Tests pass
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - None
+
+## Task 037a - Prevent Trust Farming and Align Trust-Aware Scene Output
+
+- Status: implemented
+- Goal: harden the ADV1 trust layer so trust-changing talk hooks are not farmable and scene text shows live trust
+- Files changed:
+  - `adventures/ADV1/npcs/dialogue_hooks.json`
+  - `vampire_storyteller/models.py`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/context_builder.py`
+  - `vampire_storyteller/scene_models.py`
+  - `vampire_storyteller/serialization.py`
+  - `vampire_storyteller/sample_world.py`
+  - `tests/test_game_session.py`
+  - `tests/test_context_builder.py`
+  - `tests/test_serialization.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_narrative_provider.py`
+  - `tests/test_openai_narrative_provider.py`
+  - `tests/test_npc_engine.py`
+  - `progress.md`
+- What was implemented:
+  - Added consumed-hook tracking for non-repeatable trust-changing dialogue hooks
+  - Added explicit `repeatable` and `hook_id` authored fields for ADV1 dialogue hooks
+  - Updated scene/context output to show live trust values
+  - Preserved save/load for trust and consumed-hook state
+- Acceptance criteria checklist:
+  - [x] Repeating the same trust-changing `talk` hook no longer stacks trust indefinitely unless explicitly authored
+  - [x] Trust-aware scene/context output reflects the actual current trust state
+  - [x] Save/load preserves trust state and consumed-hook state
+  - [x] Current Missing Ledger mechanics remain unchanged
+  - [x] Tests pass
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - None
+
+## Task 037b - Add a CLI Startup Runtime Banner Showing Active Execution Mode
+
+- Status: implemented
+- Goal: print a compact CLI startup banner showing the active execution mode, provider, and fallback status
+- Files added:
+  - `tests/test_cli_banner.py`
+- Files changed:
+  - `vampire_storyteller/cli.py`
+  - `tests/test_cli_banner.py`
+  - `progress.md`
+- What was implemented:
+  - Added a startup banner block before the first CLI scene
+  - Banner shows adventure id/root, execution mode, provider name, model when applicable, fallback status, and default save path
+  - Banner makes OpenAI-requested fallback explicit when it occurs
+- Acceptance criteria checklist:
+  - [x] CLI startup now clearly shows how the session is running
+  - [x] Deterministic vs OpenAI mode is obvious at launch
+  - [x] Fallback status is obvious when it happens
+  - [x] Gameplay behavior remains unchanged
+  - [x] Tests pass
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - None
+
+## Task 038 - Add One Additional Authored Branch for Missing Ledger Through talk
+
+- Status: implemented
+- Goal: add one alternate authored progression path to Missing Ledger using existing talk and authored NPC data
+- Files changed:
+  - `adventures/ADV1/npcs/dialogue_hooks.json`
+  - `adventures/ADV1/plots/plot_progression.json`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/plot_engine.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_plot_engine.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Added a small talk-based branch that advances Missing Ledger from `hook` to `lead_confirmed`
+  - Kept the original church/wait path unchanged
+  - Bound the branch to the authored Jonas dialogue hook state so it stays deterministic
+  - Kept the branch one-shot and file-backed
+- Acceptance criteria checklist:
+  - [x] Missing Ledger now has one additional deterministic authored path to `lead_confirmed`
+  - [x] The original path still works
+  - [x] Investigate gating/resolution remains unchanged
+  - [x] Save/load still works if new state was added
   - [x] Tests pass
 - Deviations/issues:
   - None
