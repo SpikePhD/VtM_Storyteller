@@ -8,6 +8,7 @@ The current backend interaction path is now:
 - targeted NPC speech preserves the original utterance plus a small deterministic dialogue-act classification
 - low-intensity environmental observation now prefers `look` while stronger probing language maps to `investigate`
 - indirect speech forms such as `I speak to Jonas.` and `I ask Jonas what happened here.` now resolve to `talk <npc>` when the NPC can be identified
+- preserved dialogue metadata now influences deterministic `talk` response selection, so greeting, asking, accusing, and threatening can produce different authored outcomes
 - the existing strict command parser and dispatcher remain the execution boundary for canonical commands
 - deterministic world state still decides what is true; presentation and dialogue feel remain downstream concerns
 
@@ -20,6 +21,40 @@ Current dialogue metadata contract:
 - `DialogueAct.unknown`
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
+
+## Task 041 - Make Talk Resolution React to Preserved Dialogue Acts
+
+- Status: implemented
+- Goal: consume preserved dialogue metadata during `talk` resolution so NPC responses can vary deterministically by speech act without changing the command pipeline
+- Files changed:
+  - `adventures/ADV1/npcs/dialogue_hooks.json`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/command_dispatcher.py`
+  - `vampire_storyteller/input_interpreter.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Extended the authored ADV1 dialogue hooks with explicit act-aware entries for Jonas
+  - Kept plain canonical `talk <npc>` behavior intact when no dialogue metadata is present
+  - Made act-aware talk selection prefer specific hooks for `greet`, `ask`, `accuse`, and `threaten`
+  - Preserved the utterance fragment through the hook rendering path so authored responses can quote or reference the player’s wording
+  - Kept aggressive acts on a guarded/blocked path while non-aggressive acts use authored deterministic dialogue
+  - Added regression coverage for greeting, asking, accusing, threatening, unknown targeted speech, and metadata-free canonical talk
+- Acceptance criteria checklist:
+  - [x] Preserved dialogue act metadata is now consumed by talk resolution
+  - [x] Different dialogue acts can produce meaningfully different deterministic outcomes
+  - [x] Plain `talk <npc>` still works
+  - [x] Behavior remains deterministic and test-covered
+  - [x] No LLM is involved
+  - [x] No broad dialogue-system rewrite is introduced
+- Assumptions:
+  - A few explicit act-specific hooks are enough to prove the pattern without building a generalized social system
+  - Aggressive acts should stay conservative and return guarded feedback rather than introducing a combat-like social response
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more dialogue nuance is needed later, it can be added with additional explicit hooks rather than a generic conversation tree
 
 ## Task 040 - Refine Freeform Interpretation for Look vs Investigate and Indirect Speech
 
