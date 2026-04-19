@@ -25,6 +25,34 @@ Current dialogue metadata contract:
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
 
+## Task 045 - Implement Validated Adventure Loaders for ADV1
+
+- Status: implemented
+- Goal: make ADV1 startup depend on explicit, validated, typed loaders for all authored content needed to build the playable world
+- Files changed:
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/sample_world.py`
+  - `tests/test_adventure_loader.py`
+  - `progress.md`
+- What was implemented:
+  - Added a typed `Adv1AdventureMetadata` loader for `adventures/ADV1/config/adventure.json`
+  - Tightened ADV1 world-seed validation so malformed timestamps fail early
+  - Added explicit startup relation checks for player and NPC starting locations plus location connectivity references
+  - Simplified sample-world bootstrapping to use the validated ADV1 world loader directly
+  - Added regression coverage for metadata loading, missing config, malformed world timestamps, and invalid starting locations
+- Acceptance criteria checklist:
+  - [x] ADV1 startup content is loaded through explicit loaders
+  - [x] Missing or malformed startup content fails clearly
+  - [x] Valid ADV1 startup behavior remains intact
+  - [x] Tests cover the validated startup path
+- Assumptions:
+  - Validating authored startup references at load time is preferable to discovering broken references after the world is constructed
+  - The existing per-file loaders remain useful as explicit, typed entry points
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - Further content validation should stay scoped to startup contracts rather than broadening game logic
+
 ## Task 044 - Formalize Deterministic GameSession Execution Pipeline
 
 - Status: implemented

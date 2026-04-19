@@ -8,6 +8,7 @@ import unittest
 
 from vampire_storyteller.adventure_loader import (
     AdventureContentError,
+    load_adv1_adventure_metadata,
     load_adv1_dialogue_hook_definitions,
     load_adv1_location_definitions,
     load_adv1_npc_definitions,
@@ -23,6 +24,14 @@ from vampire_storyteller.sample_world import build_sample_world
 
 
 class AdventureLoaderTests(unittest.TestCase):
+    def test_adventure_metadata_loader_reads_adv1_file(self) -> None:
+        metadata = load_adv1_adventure_metadata()
+
+        self.assertEqual(metadata.id, "ADV1")
+        self.assertEqual(metadata.name, "ADV1")
+        self.assertIn("Current sample adventure", metadata.description)
+        self.assertEqual(metadata.starting_world_state_source, "adventures/ADV1 files")
+
     def test_seed_world_is_loaded_from_adv1_files(self) -> None:
         world = build_sample_world()
 
@@ -217,6 +226,20 @@ class AdventureLoaderTests(unittest.TestCase):
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
 
+    def test_malformed_world_state_seed_time_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            world_state_path = temp_root / "world" / "world_state.json"
+            world_state_data = json.loads(world_state_path.read_text(encoding="utf-8"))
+            world_state_data["current_time"] = "not-a-time"
+            world_state_path.write_text(json.dumps(world_state_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_world_state(temp_root)
+
+        self.assertIn("current_time", str(ctx.exception))
+
     def test_missing_talk_progression_field_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir) / "ADV1"
@@ -230,6 +253,31 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_plot_progression_rules(temp_root)
 
         self.assertIn("Adventure field 'required_story_flag'", str(ctx.exception))
+
+    def test_missing_adv1_config_file_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            (temp_root / "config" / "adventure.json").unlink()
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_adventure_metadata(temp_root)
+
+        self.assertIn("Required adventure file missing", str(ctx.exception))
+
+    def test_player_starting_location_must_exist(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            player_path = temp_root / "world" / "player.json"
+            player_data = json.loads(player_path.read_text(encoding="utf-8"))
+            player_data["location_id"] = "loc_missing"
+            player_path.write_text(json.dumps(player_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_world_state(temp_root)
+
+        self.assertIn("Player starting location", str(ctx.exception))
 
     def test_missing_player_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

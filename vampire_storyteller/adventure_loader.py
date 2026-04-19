@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from datetime import datetime
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,14 @@ from .world_state import WorldState
 
 class AdventureContentError(RuntimeError):
     pass
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1AdventureMetadata:
+    id: str
+    name: str
+    description: str
+    starting_world_state_source: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,13 +130,19 @@ class Adv1DialogueHookDefinition:
 
 def load_adv1_world_state(adventure_root: Path | None = None) -> WorldState:
     root = get_adventure_root() if adventure_root is None else Path(adventure_root)
-    _validate_adventure_metadata(_read_json(root / "config" / "adventure.json"))
+    load_adv1_adventure_metadata(root)
 
     seed_data = load_adv1_world_state_seed_data(root)
     player_seed = load_adv1_player_seed_data(root)
     location_definitions = load_adv1_location_definitions(root)
     plot_thread_definitions = load_adv1_plot_thread_definitions(root)
     npc_definitions = load_adv1_npc_definitions(root)
+    _validate_adv1_world_state_relations(
+        player_seed=player_seed,
+        location_definitions=location_definitions,
+        npc_definitions=npc_definitions,
+        plot_thread_definitions=plot_thread_definitions,
+    )
 
     return WorldState(
         player=player_seed.player,
@@ -135,6 +150,18 @@ def load_adv1_world_state(adventure_root: Path | None = None) -> WorldState:
         locations={location_definition.id: _location_from_definition(location_definition) for location_definition in location_definitions},
         plots={plot_definition.id: _plot_from_definition(plot_definition) for plot_definition in plot_thread_definitions},
         current_time=seed_data.current_time,
+    )
+
+
+def load_adv1_adventure_metadata(adventure_root: Path | None = None) -> Adv1AdventureMetadata:
+    root = get_adventure_root() if adventure_root is None else Path(adventure_root)
+    data = _read_json(root / "config" / "adventure.json")
+    _validate_adventure_metadata(data)
+    return Adv1AdventureMetadata(
+        id=_require_str(data, "id"),
+        name=_require_str(data, "name"),
+        description=_require_str(data, "description"),
+        starting_world_state_source=_require_str(data, "starting_world_state_source"),
     )
 
 
@@ -149,7 +176,8 @@ def load_adv1_world_state_seed_data(adventure_root: Path | None = None) -> Adv1W
     root = get_adventure_root() if adventure_root is None else Path(adventure_root)
     world_state_data = _read_json(root / "world" / "world_state.json")
 
-    return Adv1WorldSeedData(current_time=_require_str(world_state_data, "current_time"))
+    current_time = _require_iso_datetime(_require_str(world_state_data, "current_time"))
+    return Adv1WorldSeedData(current_time=current_time)
 
 
 def load_adv1_location_definitions(adventure_root: Path | None = None) -> list[Adv1LocationDefinition]:
@@ -341,6 +369,52 @@ def _validate_adventure_metadata(data: dict[str, Any]) -> None:
     _require_str(data, "name")
     _require_str(data, "description")
     _require_str(data, "starting_world_state_source")
+
+
+def _validate_adv1_world_state_relations(
+    *,
+    player_seed: Adv1PlayerSeedData,
+    location_definitions: list[Adv1LocationDefinition],
+    npc_definitions: list[Adv1NpcDefinition],
+    plot_thread_definitions: list[Adv1PlotThreadDefinition],
+) -> None:
+    location_ids = {definition.id for definition in location_definitions}
+    plot_ids = {definition.id for definition in plot_thread_definitions}
+
+    player_location_id = player_seed.player.location_id
+    if player_location_id is not None and player_location_id not in location_ids:
+        raise AdventureContentError(
+            f"Player starting location '{player_location_id}' does not exist in ADV1 locations."
+        )
+
+    for npc_definition in npc_definitions:
+        if npc_definition.starting_location_id not in location_ids:
+            raise AdventureContentError(
+                f"NPC '{npc_definition.id}' starting location '{npc_definition.starting_location_id}' does not exist in ADV1 locations."
+            )
+
+    for location_definition in location_definitions:
+        for connected_location_id in location_definition.connected_locations:
+            if connected_location_id not in location_ids:
+                raise AdventureContentError(
+                    f"Location '{location_definition.id}' references missing connected location '{connected_location_id}'."
+                )
+        for destination_id in location_definition.travel_time:
+            if destination_id not in location_ids:
+                raise AdventureContentError(
+                    f"Location '{location_definition.id}' defines travel time to missing location '{destination_id}'."
+                )
+
+    if "plot_1" not in plot_ids:
+        raise AdventureContentError("ADV1 must define plot 'plot_1' to construct the playable startup world.")
+
+
+def _require_iso_datetime(value: str) -> str:
+    try:
+        datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise AdventureContentError(f"Adventure field 'current_time' must be a valid ISO datetime, found '{value}'.") from exc
+    return value
 
 
 def _validate_plot_rule_metadata(data: dict[str, Any]) -> None:
