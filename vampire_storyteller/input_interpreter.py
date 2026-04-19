@@ -5,7 +5,13 @@ from enum import Enum
 from dataclasses import dataclass
 
 from .command_models import DialogueAct, DialogueMetadata
-from .dialogue_intent_adapter import DialogueIntentAdapter, DialogueIntentProposal, build_dialogue_intent_context, is_pronoun_like_target
+from .dialogue_intent_adapter import (
+    DialogueIntentAdapter,
+    DialogueIntentProposal,
+    build_dialogue_intent_context,
+    is_non_specific_target,
+    is_pronoun_like_target,
+)
 from .world_state import WorldState
 
 
@@ -638,16 +644,19 @@ class InputInterpreter:
         conversation_focus_npc_id: str | None,
     ):
         normalized_target = self._normalize_text(proposal.target_npc_text)
-        if not normalized_target:
-            return None
+        present_npcs = [npc for npc in world_state.npcs.values() if npc.location_id == world_state.player.location_id]
+        single_present_npc = present_npcs[0] if len(present_npcs) == 1 else None
 
-        if is_pronoun_like_target(normalized_target):
+        if is_pronoun_like_target(normalized_target) or is_non_specific_target(normalized_target):
             if conversation_focus_npc_id is None:
-                return None
+                return single_present_npc
             focused_npc = world_state.npcs.get(conversation_focus_npc_id)
             if focused_npc is None or focused_npc.location_id != world_state.player.location_id:
-                return None
+                return single_present_npc
             return focused_npc
+
+        if not normalized_target:
+            return single_present_npc
 
         matches = self._match_npc_candidates(normalized_target, world_state)
         if len(matches) != 1:

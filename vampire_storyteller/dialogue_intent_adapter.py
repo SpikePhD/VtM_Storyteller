@@ -171,6 +171,35 @@ def is_pronoun_like_target(target_text: str) -> bool:
     }
 
 
+def is_non_specific_target(target_text: str) -> bool:
+    normalized_target = target_text.strip().lower()
+    if not normalized_target:
+        return True
+    return normalized_target in {
+        "me",
+        "us",
+        "you",
+        "him",
+        "her",
+        "them",
+        "it",
+        "someone",
+        "somebody",
+        "anyone",
+        "anybody",
+        "whoever",
+        "the person",
+        "that person",
+        "this person",
+        "the one",
+        "the guy",
+        "the girl",
+        "the man",
+        "the woman",
+        "the npc",
+    }
+
+
 def npc_summary_list(npcs: tuple[DialogueIntentContextNPC, ...]) -> str:
     return ", ".join(f"{npc.name} ({npc.id})" for npc in npcs)
 
