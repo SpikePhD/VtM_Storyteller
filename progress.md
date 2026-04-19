@@ -1,5 +1,28 @@
 # Progress
 
+## Task 054 - Emit Structured Turn Outcomes for UI and Narrative Consumers
+
+- Status: implemented
+- Goal: expose a richer completed-turn record that downstream consumers can read without scraping prose
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_action_resolution_contract.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Added explicit turn outcome metadata for canonical action text, normalization source, turn category, block reason, check kind, applied consequence effects, and world-state mutation
+  - Kept the nested action-resolution, adjudication, check, and consequence structures intact for existing callers
+  - Threaded the richer structured fields through the session turn record for blocked, direct, interpreted, and state-changing paths
+  - Added regression coverage for direct-command, interpreted-talk, blocked-investigate, and successful-investigate turn shapes
+- Acceptance criteria checklist:
+  - [x] The structured turn record is materially more useful than after SPI-15
+  - [x] Downstream code can reason about turn results without scraping prose
+  - [x] Tests cover the richer outcome shape on representative paths
+  - [x] SPI-11 through SPI-15 contracts remain intact
+- Notes:
+  - This stays intentionally narrow and does not replace the existing nested contract; it extends it
+
 ## Task 053 - Centralize Consequence Application After Action Resolution
 
 - Status: implemented

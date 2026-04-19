@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from vampire_storyteller.action_resolution import ActionBlockReason, NormalizationSource
+from vampire_storyteller.action_resolution import ActionBlockReason, NormalizationSource, TurnOutcomeKind
 from vampire_storyteller.dice_engine import DeterministicCheckKind
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
@@ -137,6 +137,7 @@ class GameSessionTests(unittest.TestCase):
 
         result = session.process_input("talk npc_1")
         normalized = session.get_last_normalized_action()
+        turn = session.get_last_action_resolution()
 
         self.assertIn("Jonas Reed keeps his voice low", result.output_text)
         self.assertFalse(result.render_scene)
@@ -149,15 +150,26 @@ class GameSessionTests(unittest.TestCase):
         assert normalized is not None
         self.assertEqual(normalized.source, NormalizationSource.DIRECT_COMMAND)
         self.assertEqual(normalized.canonical_command_text, "talk npc_1")
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.normalization_source, NormalizationSource.DIRECT_COMMAND)
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
 
     def test_talk_greeting_uses_dialogue_metadata(self) -> None:
         session = GameSession()
 
         result = session.process_input("Jonas, good evening.")
+        turn = session.get_last_action_resolution()
 
         self.assertIn("gives a brief nod", result.output_text)
         self.assertNotIn("keeps his voice low", result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.normalization_source, NormalizationSource.INTERPRETED)
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
 
     def test_follow_up_uses_conversation_focus(self) -> None:
         session = GameSession()

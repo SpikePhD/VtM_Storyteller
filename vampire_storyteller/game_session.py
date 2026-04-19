@@ -10,6 +10,7 @@ from .action_resolution import (
     ActionResolutionTurn,
     NormalizationSource,
     NormalizedActionInput,
+    TurnOutcomeKind,
     adjudication_outcome_from_decision,
 )
 from .adjudication_engine import adjudicate_command
@@ -87,6 +88,7 @@ class GameSession:
         result = self._execute_command(command)
         if result.should_quit:
             turn = self._build_final_resolution_turn(
+                command=command,
                 normalized_action=normalized_action,
                 adjudication=adjudication,
                 check=None,
@@ -111,6 +113,7 @@ class GameSession:
         # Phase 10: render the final response for the player.
         final_result = self._render_response(command, result)
         turn = self._build_final_resolution_turn(
+            command=command,
             normalized_action=normalized_action,
             adjudication=adjudication,
             check=check_outcome,
@@ -263,6 +266,13 @@ class GameSession:
             adjudication=adjudication,
             check=None,
             consequence_summary=ActionConsequenceSummary(),
+            turn_kind=TurnOutcomeKind.BLOCKED,
+            canonical_action_text=normalized_action.canonical_command_text,
+            normalization_source=normalized_action.source,
+            block_reason=adjudication.block_reason,
+            check_kind=None,
+            applied_effects=(),
+            world_state_mutated=False,
             output_text=adjudication.blocked_feedback,
             should_quit=False,
             render_scene=False,
@@ -272,17 +282,26 @@ class GameSession:
 
     def _build_final_resolution_turn(
         self,
+        command: Command,
         normalized_action: NormalizedActionInput,
         adjudication: ActionAdjudicationOutcome,
         check: ActionCheckOutcome | None,
         consequence_summary: ActionConsequenceSummary,
         result: CommandResult,
     ) -> ActionResolutionTurn:
+        turn_kind = self._classify_turn_kind(command, adjudication, consequence_summary)
         return ActionResolutionTurn(
             normalized_action=normalized_action,
             adjudication=adjudication,
             check=check,
             consequence_summary=consequence_summary,
+            turn_kind=turn_kind,
+            canonical_action_text=normalized_action.canonical_command_text,
+            normalization_source=normalized_action.source,
+            block_reason=adjudication.block_reason,
+            check_kind=check.kind if check is not None else None,
+            applied_effects=consequence_summary.applied_effects,
+            world_state_mutated=turn_kind is TurnOutcomeKind.STATEFUL_ACTION,
             output_text=result.output_text,
             should_quit=result.should_quit,
             render_scene=result.render_scene,
@@ -366,6 +385,18 @@ class GameSession:
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
         )
+
+    def _classify_turn_kind(
+        self,
+        command: Command,
+        adjudication: ActionAdjudicationOutcome,
+        consequence_summary: ActionConsequenceSummary,
+    ) -> TurnOutcomeKind:
+        if adjudication.is_blocked:
+            return TurnOutcomeKind.BLOCKED
+        if adjudication.requires_roll or consequence_summary.has_applied_effects or isinstance(command, (MoveCommand, WaitCommand, TalkCommand, InvestigateCommand)):
+            return TurnOutcomeKind.STATEFUL_ACTION
+        return TurnOutcomeKind.NON_STATEFUL_ACTION
 
     def _render_response(self, command: Command, result: CommandResult) -> CommandResult:
         if not result.render_scene:

@@ -33,6 +33,13 @@ class ActionBlockReason(str, Enum):
     TARGET_INACTIVE = "target_inactive"
 
 
+class TurnOutcomeKind(str, Enum):
+    BLOCKED = "blocked"
+    SESSION_COMMAND = "session_command"
+    STATEFUL_ACTION = "stateful_action"
+    NON_STATEFUL_ACTION = "non_stateful_action"
+
+
 @dataclass(frozen=True, slots=True)
 class AdjudicationDecision:
     resolution_kind: ActionResolutionKind
@@ -179,6 +186,13 @@ class ActionResolutionTurn:
     adjudication: ActionAdjudicationOutcome
     check: ActionCheckOutcome | None
     consequence_summary: ActionConsequenceSummary
+    turn_kind: TurnOutcomeKind
+    canonical_action_text: str | None
+    normalization_source: NormalizationSource | None
+    block_reason: ActionBlockReason | None
+    check_kind: DeterministicCheckKind | None
+    applied_effects: tuple[str, ...]
+    world_state_mutated: bool
     output_text: str
     should_quit: bool
     render_scene: bool

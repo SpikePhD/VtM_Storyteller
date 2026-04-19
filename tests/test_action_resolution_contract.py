@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
-from vampire_storyteller.action_resolution import ActionResolutionKind
+from vampire_storyteller.action_resolution import ActionBlockReason, ActionResolutionKind, NormalizationSource, TurnOutcomeKind
 from vampire_storyteller.dice_engine import DeterministicCheckKind, DeterministicCheckResolution
 from vampire_storyteller.game_session import GameSession
 
@@ -18,9 +18,13 @@ class ActionResolutionContractTests(unittest.TestCase):
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertEqual(turn.normalized_action.command_text, "investigate")
+        self.assertEqual(turn.canonical_action_text, "investigate")
         self.assertEqual(turn.adjudication.resolution_kind, ActionResolutionKind.BLOCKED)
         self.assertIsNone(turn.check)
         self.assertEqual(turn.consequence_summary.messages, ())
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.BLOCKED)
+        self.assertFalse(turn.world_state_mutated)
+        self.assertEqual(turn.block_reason, ActionBlockReason.PREREQUISITE_NOT_MET)
         self.assertIn("Investigate is blocked", turn.output_text)
         self.assertEqual(result.output_text, turn.output_text)
 
@@ -33,9 +37,13 @@ class ActionResolutionContractTests(unittest.TestCase):
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertEqual(turn.normalized_action.command_text, "status")
+        self.assertEqual(turn.canonical_action_text, "status")
+        self.assertEqual(turn.normalization_source, NormalizationSource.DIRECT_COMMAND)
         self.assertEqual(turn.adjudication.resolution_kind, ActionResolutionKind.AUTOMATIC)
         self.assertIsNone(turn.check)
         self.assertEqual(turn.consequence_summary.messages, ())
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.NON_STATEFUL_ACTION)
+        self.assertFalse(turn.world_state_mutated)
         self.assertEqual(result.output_text, turn.output_text)
         self.assertFalse(turn.render_scene)
 
@@ -74,6 +82,8 @@ class ActionResolutionContractTests(unittest.TestCase):
         self.assertIsNotNone(turn.adjudication.check_spec)
         assert turn.adjudication.check_spec is not None
         self.assertEqual(turn.adjudication.check_spec.kind, DeterministicCheckKind.INVESTIGATION)
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
+        self.assertTrue(turn.world_state_mutated)
         self.assertEqual(turn.consequence_summary.messages, ("Plot 'Missing Ledger' resolved at North Dockside.",))
         self.assertIn("investigate_resolution_success", turn.consequence_summary.applied_effects)
         self.assertIn("plot_resolution_updated", turn.consequence_summary.applied_effects)
