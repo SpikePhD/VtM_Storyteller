@@ -8,6 +8,7 @@ from .action_resolution import (
     ActionCheckOutcome,
     ActionConsequenceSummary,
     ActionResolutionTurn,
+    ActionBlockReason,
     NormalizationSource,
     NormalizedActionInput,
     TurnOutcomeKind,
@@ -23,6 +24,7 @@ from .command_result import CommandResult
 from .consequence_engine import apply_post_resolution_consequences
 from .conversation_context import ConversationContext
 from .data_paths import ensure_adventure_directories, get_default_save_path
+from .dialogue_adjudication import DialogueAdjudicationOutcome, adjudicate_dialogue_talk
 from .dialogue_intent_adapter import DialogueIntentAdapter, NullDialogueIntentAdapter
 from .dice_engine import resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
@@ -74,6 +76,15 @@ class GameSession:
         command = normalized_action.command
         assert command is not None
 
+        dialogue_adjudication = None
+        if isinstance(command, TalkCommand):
+            dialogue_adjudication = self._adjudicate_dialogue(command)
+            if dialogue_adjudication.is_blocked:
+                turn = self._build_blocked_resolution_turn(normalized_action, self._blocked_action_adjudication_from_dialogue(dialogue_adjudication), dialogue_adjudication)
+                self._last_action_resolution = turn
+                return turn.to_command_result()
+            command = self._apply_dialogue_adjudication(command, dialogue_adjudication)
+
         # Phase 3: handle session-level commands that do not enter the world pipeline.
         session_result = self._handle_session_command(command)
         if session_result is not None:
@@ -97,6 +108,7 @@ class GameSession:
                 check=None,
                 consequence_summary=ActionConsequenceSummary(),
                 result=result,
+                dialogue_adjudication=dialogue_adjudication,
             )
             self._last_action_resolution = turn
             return result
@@ -122,6 +134,7 @@ class GameSession:
             check=check_outcome,
             consequence_summary=consequence_summary,
             result=final_result,
+            dialogue_adjudication=dialogue_adjudication,
         )
         self._last_action_resolution = turn
         return final_result
@@ -281,6 +294,7 @@ class GameSession:
         self,
         normalized_action: NormalizedActionInput,
         adjudication: ActionAdjudicationOutcome,
+        dialogue_adjudication: DialogueAdjudicationOutcome | None = None,
     ) -> ActionResolutionTurn:
         assert adjudication.blocked_feedback is not None
         return ActionResolutionTurn(
@@ -300,6 +314,7 @@ class GameSession:
             render_scene=False,
             conversation_focus_npc_id=None,
             conversation_stance=None,
+            dialogue_adjudication=dialogue_adjudication,
         )
 
     def _build_final_resolution_turn(
@@ -310,6 +325,7 @@ class GameSession:
         check: ActionCheckOutcome | None,
         consequence_summary: ActionConsequenceSummary,
         result: CommandResult,
+        dialogue_adjudication: DialogueAdjudicationOutcome | None = None,
     ) -> ActionResolutionTurn:
         turn_kind = self._classify_turn_kind(command, adjudication, consequence_summary)
         return ActionResolutionTurn(
@@ -329,11 +345,35 @@ class GameSession:
             render_scene=result.render_scene,
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
+            dialogue_adjudication=dialogue_adjudication,
         )
 
     def _adjudicate_command(self, command: Command) -> ActionAdjudicationOutcome:
         adjudication = adjudicate_command(self._world_state, command)
         return adjudication_outcome_from_decision(adjudication)
+
+    def _adjudicate_dialogue(self, command: TalkCommand) -> DialogueAdjudicationOutcome:
+        return adjudicate_dialogue_talk(self._world_state, command)
+
+    def _apply_dialogue_adjudication(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+    ) -> TalkCommand:
+        if dialogue_adjudication.conversation_stance is ConversationStance.GUARDED and command.conversation_stance is not ConversationStance.GUARDED:
+            return replace(command, conversation_stance=ConversationStance.GUARDED)
+        return command
+
+    def _blocked_action_adjudication_from_dialogue(
+        self,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+    ) -> ActionAdjudicationOutcome:
+        assert dialogue_adjudication.blocked_feedback is not None
+        return ActionAdjudicationOutcome.blocked(
+            reason=dialogue_adjudication.reason_code,
+            blocked_feedback=dialogue_adjudication.blocked_feedback,
+            block_reason=ActionBlockReason.TARGET_NOT_PRESENT,
+        )
 
     def _execute_command(self, command: Command) -> CommandResult:
         return execute_command(self._world_state, command)

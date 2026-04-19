@@ -10,6 +10,7 @@ from .dice_engine import (
     DeterministicCheckResolution,
     DeterministicCheckSpecification,
 )
+from .dialogue_adjudication import DialogueAdjudicationOutcome
 from .input_interpreter import InterpretedInput
 
 
@@ -198,6 +199,7 @@ class ActionResolutionTurn:
     render_scene: bool
     conversation_focus_npc_id: str | None
     conversation_stance: ConversationStance | None
+    dialogue_adjudication: DialogueAdjudicationOutcome | None = None
 
     def to_command_result(self) -> CommandResult:
         return CommandResult(
