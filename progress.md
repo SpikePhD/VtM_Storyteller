@@ -1,5 +1,21 @@
 # Progress
 
+## Task 052 - Fix SPI-14 Consequence Engine Test Regression
+
+- Status: implemented
+- Goal: update stale consequence-engine test patch targets after the deterministic check refactor
+- Files changed:
+  - `tests/test_consequence_engine.py`
+  - `progress.md`
+- What is being implemented:
+  - Swapped the old `game_session.roll_dice` patch target for the new shared deterministic check resolver in the consequence-engine session-flow tests
+  - Kept the existing gameplay and consequence behavior unchanged
+- Acceptance criteria checklist:
+- [x] `tests.test_consequence_engine` passes cleanly on top of SPI-14
+- [x] No production behavior changes are introduced
+- Notes:
+  - This is a follow-up regression cleanup only
+
 ## Task 051 - Generalize Deterministic Dice and Check Resolution
 
 - Status: in progress
