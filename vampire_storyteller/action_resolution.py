@@ -16,12 +16,36 @@ class ActionResolutionKind(str, Enum):
     ROLL_GATED = "roll_gated"
 
 
+class NormalizationSource(str, Enum):
+    INTERPRETED = "interpreted"
+    DIRECT_COMMAND = "direct_command"
+    FAILED = "failed"
+
+
 @dataclass(frozen=True, slots=True)
 class NormalizedActionInput:
     raw_input: str
-    command_text: str
-    command: Command
+    command_text: str | None
+    command: Command | None
+    source: NormalizationSource = NormalizationSource.INTERPRETED
     interpretation: InterpretedInput | None = None
+    failure_reason: str | None = None
+
+    @property
+    def canonical_command_text(self) -> str | None:
+        return self.command_text
+
+    @property
+    def is_success(self) -> bool:
+        return self.command is not None
+
+    @property
+    def used_interpreter(self) -> bool:
+        return self.source is NormalizationSource.INTERPRETED
+
+    @property
+    def used_parser_boundary(self) -> bool:
+        return self.source is NormalizationSource.DIRECT_COMMAND
 
 
 @dataclass(frozen=True, slots=True)

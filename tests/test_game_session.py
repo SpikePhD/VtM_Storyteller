@@ -4,10 +4,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from vampire_storyteller.action_resolution import NormalizationSource
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
-from vampire_storyteller.exceptions import CommandParseError
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.narrative_provider import SceneNarrativeProvider
 from vampire_storyteller.world_state import WorldState
@@ -65,10 +65,33 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("quit")
         self.assertTrue(result.should_quit)
 
-    def test_parse_errors_propagate(self) -> None:
+    def test_unsupported_freeform_input_returns_explicit_failure(self) -> None:
         session = GameSession()
-        with self.assertRaises(CommandParseError):
-            session.process_input("sing a song")
+
+        result = session.process_input("sing a song")
+        normalized = session.get_last_normalized_action()
+
+        self.assertIn("Unsupported freeform input", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized.source, NormalizationSource.FAILED)
+        self.assertIsNone(normalized.command)
+        self.assertIn("no freeform interpretation rule matched", normalized.failure_reason or "")
+
+    def test_invalid_canonical_command_returns_explicit_failure(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("talk")
+        normalized = session.get_last_normalized_action()
+
+        self.assertIn("Invalid canonical command", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized.source, NormalizationSource.FAILED)
+        self.assertIsNone(normalized.command)
+        self.assertIn("talk requires exactly 1 npc_id argument", normalized.failure_reason or "")
 
     def test_investigate_while_premature_returns_explicit_feedback(self) -> None:
         session = GameSession()
@@ -98,6 +121,7 @@ class GameSessionTests(unittest.TestCase):
         session = GameSession()
 
         result = session.process_input("talk npc_1")
+        normalized = session.get_last_normalized_action()
 
         self.assertIn("Jonas Reed keeps his voice low", result.output_text)
         self.assertFalse(result.render_scene)
@@ -106,6 +130,10 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
         self.assertIn("trust: 1", session.get_startup_text())
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized.source, NormalizationSource.DIRECT_COMMAND)
+        self.assertEqual(normalized.canonical_command_text, "talk npc_1")
 
     def test_talk_greeting_uses_dialogue_metadata(self) -> None:
         session = GameSession()

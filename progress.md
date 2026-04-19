@@ -9,16 +9,16 @@
   - `vampire_storyteller/game_session.py`
   - `tests/test_action_resolution_contract.py`
   - `progress.md`
-- What is being implemented:
-  - Introduce a canonical normalized action input object that records whether an action came from freeform interpretation or the direct parser boundary
-  - Represent adjudication explicitly as blocked, automatic, or roll-gated
-  - Carry an optional check / roll outcome and a consequence summary through the turn pipeline
-  - Expose the final structured turn resolution alongside the existing `CommandResult` return path
+- What was implemented:
+  - Extended the SPI-11 action-resolution contract with explicit normalization source metadata and normalization failure reasons
+  - Preserved the canonical turn structure while making the normalized action record richer for downstream inspection
+  - Kept supported gameplay behavior stable and left adjudication / dice behavior unchanged
+  - Exposed the final structured turn resolution alongside the existing `CommandResult` return path
 - Acceptance criteria checklist:
-- [x] Supported gameplay actions pass through one common internal action-resolution contract
-- [x] Blocked, automatic, and roll-gated outcomes are explicit
-- [x] The contract is visible in code and covered by focused tests
-- [x] Current deterministic behavior still works
+  - [x] Supported gameplay actions pass through one common internal action-resolution contract
+  - [x] Blocked, automatic, and roll-gated outcomes are explicit
+  - [x] The contract is visible in code and covered by focused tests
+  - [x] Current deterministic behavior still works
 - Notes:
   - This work stays intentionally narrow and keeps the M1 command boundary intact
 
