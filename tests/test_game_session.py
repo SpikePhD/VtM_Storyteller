@@ -200,13 +200,19 @@ class GameSessionTests(unittest.TestCase):
         session.process_input("Jonas, good evening.")
         result = session.process_input("I don't believe you.")
         interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
 
-        self.assertIn("cuts the accusation off", result.output_text)
+        self.assertIn("Talk is guarded", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertTrue(turn.dialogue_adjudication.is_guarded)
 
     def test_follow_up_what_do_you_mean_stays_in_question_path(self) -> None:
         session = GameSession()
@@ -250,10 +256,32 @@ class GameSessionTests(unittest.TestCase):
 
         accuse_result = session.process_input("I accuse Jonas of hiding something.")
         threaten_result = session.process_input("I threaten Jonas to talk.")
+        threaten_turn = session.get_last_action_resolution()
 
-        self.assertIn("cuts the accusation off", accuse_result.output_text)
-        self.assertIn("ends the exchange", threaten_result.output_text)
+        self.assertIn("Talk is guarded", accuse_result.output_text)
+        self.assertIn("Talk is guarded", threaten_result.output_text)
+        self.assertNotIn("said what he will say", threaten_result.output_text)
+        self.assertIsNotNone(threaten_turn)
+        assert threaten_turn is not None
+        self.assertIsNotNone(threaten_turn.dialogue_adjudication)
+        assert threaten_turn.dialogue_adjudication is not None
+        self.assertTrue(threaten_turn.dialogue_adjudication.is_guarded)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+
+    def test_persuade_returns_escalation_placeholder_and_marks_check_required(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("I persuade Jonas to help with the dock.")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("social check is required", result.output_text)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertTrue(turn.dialogue_adjudication.check_required)
+        self.assertEqual(turn.dialogue_adjudication.reason_code, "persuade_check_required")
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
 
     def test_move_clears_conversation_focus(self) -> None:
         session = GameSession()
