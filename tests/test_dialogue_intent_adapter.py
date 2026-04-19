@@ -56,40 +56,43 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.tone, "careful")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
 
-    def test_adapter_on_single_present_npc_grounds_implicit_dialogue_line(self) -> None:
-        class ImplicitDialogueIntentAdapter:
-            def propose_dialogue_intent(self, context: DialogueIntentContext) -> DialogueIntentProposal | None:
-                return DialogueIntentProposal(
-                    dialogue_act="ask",
-                    target_npc_text="",
-                    topic="dock",
-                    tone="careful",
+    def test_openai_adapter_on_single_present_npc_falls_back_from_bad_target_text(self) -> None:
+        for target_text, raw_input in (
+            ("dock", "We need to talk about the dock."),
+            ("ledger", "We need to talk about the ledger."),
+        ):
+            with self.subTest(target_text=target_text):
+                mock_client = Mock()
+                mock_client.responses.create.return_value.output_text = (
+                    '{"dialogue_act":"ask","target_npc_text":"'
+                    + target_text
+                    + '","topic":"dock","tone":"careful"}'
                 )
-
-        session = GameSession(dialogue_intent_adapter=ImplicitDialogueIntentAdapter())
-
-        result = session.process_input("We need to talk about the dock.")
-        interpreted = session.get_last_interpreted_input()
-
-        self.assertIn("Jonas Reed", result.output_text)
-        self.assertIsNotNone(interpreted)
-        assert interpreted is not None
-        self.assertEqual(interpreted.target_reference, "npc_1")
-        self.assertEqual(interpreted.canonical_command, "talk npc_1")
-        self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
-        self.assertEqual(interpreted.dialogue_metadata.topic, "dock")
-        self.assertEqual(interpreted.dialogue_metadata.tone, "careful")
-
-    def test_adapter_on_multiple_present_npcs_does_not_guess_implicit_target(self) -> None:
-        class ImplicitDialogueIntentAdapter:
-            def propose_dialogue_intent(self, context: DialogueIntentContext) -> DialogueIntentProposal | None:
-                return DialogueIntentProposal(
-                    dialogue_act="ask",
-                    target_npc_text="her",
-                    topic="dock",
-                    tone="careful",
+                adapter = OpenAIDialogueIntentAdapter(
+                    api_key="test-key",
+                    model="gpt-4.1-mini",
+                    client=mock_client,
                 )
+                session = GameSession(dialogue_intent_adapter=adapter)
 
+                result = session.process_input(raw_input)
+                interpreted = session.get_last_interpreted_input()
+
+                self.assertIn("Jonas Reed", result.output_text)
+                self.assertIsNotNone(interpreted)
+                assert interpreted is not None
+                self.assertEqual(interpreted.target_reference, "npc_1")
+                self.assertEqual(interpreted.canonical_command, "talk npc_1")
+                self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+                self.assertEqual(interpreted.dialogue_metadata.topic, "dock")
+                self.assertEqual(interpreted.dialogue_metadata.tone, "careful")
+
+    def test_openai_adapter_bad_target_text_does_not_guess_in_multi_npc_scene(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = (
+            '{"dialogue_act":"ask","target_npc_text":"dock","topic":"dock","tone":"careful"}'
+        )
+        adapter = OpenAIDialogueIntentAdapter(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
         world = build_sample_world()
         world.npcs["npc_3"] = NPC(
             id="npc_3",
@@ -110,7 +113,7 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         result = InputInterpreter().interpret(
             "We need to talk about the dock.",
             world,
-            dialogue_intent_adapter=ImplicitDialogueIntentAdapter(),
+            dialogue_intent_adapter=adapter,
         )
 
         self.assertFalse(result.fallback_to_parser)
@@ -118,23 +121,36 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         self.assertIsNotNone(result.failure_reason)
         self.assertIn("could not identify", result.failure_reason or "")
 
-    def test_adapter_on_explicit_absent_npc_still_blocks_safely(self) -> None:
-        class ExplicitAbsentDialogueIntentAdapter:
-            def propose_dialogue_intent(self, context: DialogueIntentContext) -> DialogueIntentProposal | None:
-                return DialogueIntentProposal(
-                    dialogue_act="ask",
-                    target_npc_text="Sister Eliza",
-                    topic="dock",
-                    tone="careful",
-                )
+    def test_openai_adapter_explicit_absent_npc_still_blocks_safely(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = (
+            '{"dialogue_act":"ask","target_npc_text":"dock","topic":"dock","tone":"careful"}'
+        )
+        adapter = OpenAIDialogueIntentAdapter(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+        session = GameSession(dialogue_intent_adapter=adapter)
 
-        session = GameSession(dialogue_intent_adapter=ExplicitAbsentDialogueIntentAdapter())
-
-        result = session.process_input("Sister Eliza, we need to speak.")
+        result = session.process_input("I cautiously give a sign to Elena that I want to talk with her.")
 
         self.assertIn("Talk is blocked", result.output_text)
-        self.assertIn("not present at Blackthorn Cafe", result.output_text)
+        self.assertIn("could not identify", result.output_text)
         self.assertFalse(result.render_scene)
+
+    def test_openai_adapter_explicit_present_named_target_still_works(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = (
+            '{"dialogue_act":"ask","target_npc_text":"dock","topic":"dock","tone":"careful"}'
+        )
+        adapter = OpenAIDialogueIntentAdapter(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+        session = GameSession(dialogue_intent_adapter=adapter)
+
+        result = session.process_input("I say to Jonas that we need to talk about the dock.")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("Jonas Reed", result.output_text)
+        self.assertIsNotNone(interpreted)
+        assert interpreted is not None
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.canonical_command, "talk npc_1")
 
     def test_invalid_enum_values_are_rejected_safely(self) -> None:
         mock_client = Mock()

@@ -84,7 +84,8 @@ class OpenAIDialogueIntentAdapter:
                 "Do not add markdown, comments, or any extra keys.",
                 "Allowed dialogue_act values: greet, ask, accuse, persuade, threaten, unknown.",
                 "Do not invent NPCs, relationships, clue state, legality, check outcomes, or world mutations.",
-                "If the target is unclear, choose unknown and keep the target text grounded in the player input or active focus.",
+                "target_npc_text is the intended addressee only, not the topic or object being discussed.",
+                "If the target is unclear, choose unknown and keep target_npc_text empty or grounded in the addressee from the player input or active focus.",
                 "Context JSON:",
                 context_json,
             ]

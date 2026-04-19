@@ -12,6 +12,7 @@ from .dialogue_intent_adapter import (
     is_non_specific_target,
     is_pronoun_like_target,
 )
+from .models import NPC
 from .world_state import WorldState
 
 
@@ -268,6 +269,7 @@ class InputInterpreter:
 
         adapter_result = self._interpret_dialogue_intent_proposal(
             raw_input,
+            normalized_text,
             world_state,
             conversation_focus_npc_id,
             dialogue_intent_adapter,
@@ -596,6 +598,7 @@ class InputInterpreter:
     def _interpret_dialogue_intent_proposal(
         self,
         raw_input: str,
+        normalized_text: str,
         world_state: WorldState,
         conversation_focus_npc_id: str | None,
         dialogue_intent_adapter: DialogueIntentAdapter | None,
@@ -603,16 +606,22 @@ class InputInterpreter:
         if dialogue_intent_adapter is None:
             return None
 
+        has_explicit_npc_reference = bool(self._match_npc_candidates(normalized_text, world_state))
+        explicit_addressee_hint = self._extract_explicit_addressee_hint(raw_input)
         proposal = dialogue_intent_adapter.propose_dialogue_intent(
             build_dialogue_intent_context(world_state, raw_input, conversation_focus_npc_id)
         )
         if proposal is None:
             return None
 
-        resolved_npc = self._resolve_adapter_target(
+        resolved_npc, resolution_source = self._resolve_adapter_target(
             proposal,
+            raw_input,
+            normalized_text,
             world_state,
             conversation_focus_npc_id,
+            has_explicit_npc_reference,
+            explicit_addressee_hint,
         )
         if resolved_npc is None:
             return None
@@ -632,7 +641,7 @@ class InputInterpreter:
             target_reference=resolved_npc.id,
             canonical_command=f"talk {resolved_npc.id}",
             confidence=0.88 if dialogue_act is not DialogueAct.UNKNOWN else 0.76,
-            match_reason=f"dialogue intent adapter grounded target '{proposal.target_npc_text}' as {resolved_npc.name}",
+            match_reason=self._build_adapter_match_reason(proposal.target_npc_text, resolved_npc, resolution_source),
             fallback_to_parser=False,
             dialogue_metadata=metadata,
         )
@@ -640,32 +649,83 @@ class InputInterpreter:
     def _resolve_adapter_target(
         self,
         proposal: DialogueIntentProposal,
+        raw_input: str,
+        normalized_text: str,
         world_state: WorldState,
         conversation_focus_npc_id: str | None,
-    ):
+        has_explicit_npc_reference: bool,
+        explicit_addressee_hint: str | None,
+    ) -> tuple[NPC | None, str | None]:
         normalized_target = self._normalize_text(proposal.target_npc_text)
         present_npcs = [npc for npc in world_state.npcs.values() if npc.location_id == world_state.player.location_id]
         single_present_npc = present_npcs[0] if len(present_npcs) == 1 else None
+        dialogue_like = self._looks_like_dialogue_entry(normalized_text, raw_input)
+        has_explicit_addressee_hint = explicit_addressee_hint is not None
 
         if is_pronoun_like_target(normalized_target) or is_non_specific_target(normalized_target):
             if conversation_focus_npc_id is None:
-                return single_present_npc
+                if single_present_npc is not None and dialogue_like and not has_explicit_npc_reference and not has_explicit_addressee_hint:
+                    return single_present_npc, "single-present NPC fallback after non-specific adapter target"
+                return None, None
             focused_npc = world_state.npcs.get(conversation_focus_npc_id)
             if focused_npc is None or focused_npc.location_id != world_state.player.location_id:
-                return single_present_npc
-            return focused_npc
+                if single_present_npc is not None and dialogue_like and not has_explicit_npc_reference and not has_explicit_addressee_hint:
+                    return single_present_npc, "single-present NPC fallback after non-specific adapter target"
+                return None, None
+            return focused_npc, "active conversation focus"
 
         if not normalized_target:
-            return single_present_npc
+            if single_present_npc is not None and dialogue_like and not has_explicit_npc_reference and not has_explicit_addressee_hint:
+                return single_present_npc, "single-present NPC fallback after empty adapter target"
+            return None, None
 
         matches = self._match_npc_candidates(normalized_target, world_state)
-        if len(matches) != 1:
+        if len(matches) == 1:
+            resolved_npc = world_state.npcs.get(matches[0]["npc_id"])
+            if resolved_npc is None:
+                return None, None
+            if resolved_npc.location_id != world_state.player.location_id:
+                return None, None
+            return resolved_npc, "explicit adapter target"
+
+        if len(matches) > 1:
+            return None, None
+
+        if single_present_npc is not None and dialogue_like and not has_explicit_npc_reference and not has_explicit_addressee_hint:
+            return single_present_npc, "single-present NPC fallback after unresolved adapter target"
+
+        return None, None
+
+    def _build_adapter_match_reason(self, target_text: str, npc: NPC, resolution_source: str | None) -> str:
+        if resolution_source == "explicit adapter target":
+            return f"dialogue intent adapter grounded target '{target_text}' as {npc.name}"
+        if resolution_source == "active conversation focus":
+            return f"dialogue intent adapter reused active conversation focus for {npc.name}"
+        if resolution_source is not None:
+            return f"dialogue intent adapter grounded '{target_text}' via {resolution_source} as {npc.name}"
+        return f"dialogue intent adapter grounded target '{target_text}' as {npc.name}"
+
+    def _extract_explicit_addressee_hint(self, raw_input: str) -> str | None:
+        stripped_input = raw_input.strip()
+        if not stripped_input:
             return None
 
-        resolved_npc = world_state.npcs.get(matches[0]["npc_id"])
-        if resolved_npc is None or resolved_npc.location_id != world_state.player.location_id:
-            return None
-        return resolved_npc
+        direct_address_match = re.match(
+            r"^\s*([A-Z][\w'’\-]*(?:\s+[A-Z][\w'’\-]*){0,2})\s*[,!:]",
+            stripped_input,
+        )
+        if direct_address_match is not None:
+            return direct_address_match.group(1)
+
+        for pattern in (
+            r"\b(?:to|with|for|at|from)\s+([A-Z][\w'’\-]*(?:\s+[A-Z][\w'’\-]*){0,2})\b",
+            r"\b(?:ask|tell|say|speak|talk|address|give)\s+(?:a\s+sign\s+to\s+)?([A-Z][\w'’\-]*(?:\s+[A-Z][\w'’\-]*){0,2})\b",
+        ):
+            match = re.search(pattern, stripped_input)
+            if match is not None:
+                return match.group(1)
+
+        return None
 
     def _coerce_dialogue_act(self, dialogue_act: str) -> DialogueAct:
         try:
