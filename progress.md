@@ -1,5 +1,27 @@
 # Progress
 
+## Task 049 - Define Canonical Action and Resolution Contract
+
+- Status: implemented
+- Goal: establish one explicit internal action-resolution contract for the supported deterministic gameplay loop without changing player-visible behavior
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_action_resolution_contract.py`
+  - `progress.md`
+- What is being implemented:
+  - Introduce a canonical normalized action input object that records whether an action came from freeform interpretation or the direct parser boundary
+  - Represent adjudication explicitly as blocked, automatic, or roll-gated
+  - Carry an optional check / roll outcome and a consequence summary through the turn pipeline
+  - Expose the final structured turn resolution alongside the existing `CommandResult` return path
+- Acceptance criteria checklist:
+- [x] Supported gameplay actions pass through one common internal action-resolution contract
+- [x] Blocked, automatic, and roll-gated outcomes are explicit
+- [x] The contract is visible in code and covered by focused tests
+- [x] Current deterministic behavior still works
+- Notes:
+  - This work stays intentionally narrow and keeps the M1 command boundary intact
+
 ## Current Interaction Model
 
 The current backend interaction path is now:
