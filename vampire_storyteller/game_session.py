@@ -12,6 +12,7 @@ from .consequence_engine import apply_consequences
 from .dice_engine import roll_dice
 from .data_paths import ensure_adventure_directories, get_default_save_path
 from .command_models import ConversationStance
+from .adventure_loader import load_adv1_plot_investigation_rules
 from .conversation_context import ConversationContext
 from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
@@ -164,6 +165,7 @@ class GameSession:
         seed = self._derive_roll_seed(command)
         assert adjudication.roll_pool is not None
         assert adjudication.difficulty is not None
+        plot_id = load_adv1_plot_investigation_rules().plot_id
         roll_result = roll_dice(adjudication.roll_pool, adjudication.difficulty, seed=seed)
         self._world_state.append_event(
             EventLogEntry(
@@ -174,7 +176,7 @@ class GameSession:
                 ),
                 involved_entities=[
                     self._world_state.player.id,
-                    "plot_1",
+                    plot_id,
                     self._world_state.player.location_id or "",
                 ],
             )
@@ -240,7 +242,8 @@ class GameSession:
         return f"{self._world_state.current_time}|{command_name}|{player_id}"
 
     def _build_resolution_epilogue(self) -> str:
-        plot = self._world_state.plots.get("plot_1")
+        plot_id = load_adv1_plot_investigation_rules().plot_id
+        plot = self._world_state.plots.get(plot_id)
         if plot is None or plot.active:
             return ""
         if not plot.resolution_summary or not plot.learned_outcome or not plot.closing_beat:

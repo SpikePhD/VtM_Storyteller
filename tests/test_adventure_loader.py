@@ -112,6 +112,7 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(outcome_definitions[0].resolved_event_text, "Plot 'Missing Ledger' resolved at North Dockside.")
         self.assertIn("hidden broker", outcome_definitions[0].learned_outcome)
         self.assertIn("North Dockside", outcome_definitions[0].closing_beat)
+        self.assertEqual(outcome_definitions[0].trust_adjustments, {"npc_1": 1, "npc_2": 1})
 
     def test_dialogue_hook_definition_loader_reads_adv1_file(self) -> None:
         hook_definitions = load_adv1_dialogue_hook_definitions()
@@ -322,6 +323,20 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_plot_outcome_definitions(temp_root)
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
+
+    def test_missing_plot_outcome_trust_adjustments_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            outcome_path = temp_root / "plots" / "plot_outcomes.json"
+            outcome_data = json.loads(outcome_path.read_text(encoding="utf-8"))
+            del outcome_data["plots"][0]["trust_adjustments"]
+            outcome_path.write_text(json.dumps(outcome_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_plot_outcome_definitions(temp_root)
+
+        self.assertIn("Adventure field 'trust_adjustments'", str(ctx.exception))
 
     def test_missing_dialogue_hook_definition_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

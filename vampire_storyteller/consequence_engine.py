@@ -45,7 +45,7 @@ def apply_consequences(
         plot.resolution_summary = outcome.resolved_event_text
         plot.learned_outcome = outcome.learned_outcome
         plot.closing_beat = outcome.closing_beat
-        _adjust_trust_for_resolution(world_state)
+        _adjust_trust_for_resolution(world_state, outcome.trust_adjustments)
     else:
         message = rules.failure_message
     world_state.append_event(
@@ -67,8 +67,8 @@ def apply_consequences(
     return messages
 
 
-def _adjust_trust_for_resolution(world_state: WorldState) -> None:
-    for npc_id in ("npc_1", "npc_2"):
+def _adjust_trust_for_resolution(world_state: WorldState, trust_adjustments: dict[str, int]) -> None:
+    for npc_id, delta in trust_adjustments.items():
         npc = world_state.npcs.get(npc_id)
         if npc is not None:
-            npc.trust_level = max(0, npc.trust_level + 1)
+            npc.trust_level = max(0, npc.trust_level + delta)

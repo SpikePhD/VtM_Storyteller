@@ -2,7 +2,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .adventure_loader import Adv1DialogueHookDefinition, load_adv1_dialogue_hook_definitions
+from .adventure_loader import (
+    Adv1DialogueHookDefinition,
+    load_adv1_dialogue_hook_definitions,
+    load_adv1_plot_progression_rules,
+)
 from .command_models import ConversationStance, DialogueAct, DialogueMetadata
 from .world_state import WorldState
 
@@ -46,11 +50,12 @@ def resolve_talk_result(
             conversation_stance=conversation_stance,
         )
 
-    plot = world_state.plots.get("plot_1")
+    plot_rules = load_adv1_plot_progression_rules()
+    plot = world_state.plots.get(plot_rules.plot_id)
     current_stage = plot.stage if plot is not None else ""
     hooks = load_adv1_dialogue_hook_definitions()
     dialogue_act = dialogue_metadata.dialogue_act if dialogue_metadata is not None else None
-    hook = _find_dialogue_hook(hooks, npc, current_stage, dialogue_act, conversation_stance)
+    hook = _find_dialogue_hook(hooks, npc, current_stage, dialogue_act, conversation_stance, plot_rules.plot_id)
     if hook is not None:
         if hook.trust_delta != 0:
             _adjust_npc_trust(world_state, npc_id, hook.trust_delta)
@@ -66,7 +71,7 @@ def resolve_talk_result(
             conversation_stance=next_stance,
         )
 
-    fallback = _find_dialogue_fallback(hooks, npc, current_stage)
+    fallback = _find_dialogue_fallback(hooks, npc, current_stage, plot_rules.plot_id)
     if fallback is not None:
         next_stance = ConversationStance.GUARDED if conversation_stance == ConversationStance.GUARDED or dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN) else ConversationStance.NEUTRAL
         return DialogueResolutionResult(
@@ -82,12 +87,19 @@ def resolve_talk_result(
     )
 
 
-def _find_dialogue_hook(hooks, npc, plot_stage: str, dialogue_act: DialogueAct | None, conversation_stance: ConversationStance):
+def _find_dialogue_hook(
+    hooks,
+    npc,
+    plot_stage: str,
+    dialogue_act: DialogueAct | None,
+    conversation_stance: ConversationStance,
+    plot_id: str,
+):
     matching_hooks = [
         hook
         for hook in hooks
         if hook.npc_id == npc.id
-        and hook.required_plot_id == "plot_1"
+        and hook.required_plot_id == plot_id
         and hook.required_plot_stage == plot_stage
         and hook.minimum_trust_level <= npc.trust_level
         and (hook.repeatable or hook.hook_id not in npc.consumed_dialogue_hooks)
@@ -155,9 +167,9 @@ def _mark_dialogue_hook_consumed(world_state: WorldState, npc_id: str, hook_id: 
         npc.consumed_dialogue_hooks.append(hook_id)
 
 
-def _find_dialogue_fallback(hooks, npc, plot_stage: str) -> str | None:
+def _find_dialogue_fallback(hooks, npc, plot_stage: str, plot_id: str) -> str | None:
     for hook in hooks:
-        if hook.npc_id == npc.id and hook.required_plot_id == "plot_1" and hook.required_plot_stage == plot_stage:
+        if hook.npc_id == npc.id and hook.required_plot_id == plot_id and hook.required_plot_stage == plot_stage:
             return hook.blocked_text
     for hook in hooks:
         if hook.npc_id == npc.id:

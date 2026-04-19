@@ -111,6 +111,7 @@ class Adv1PlotOutcomeDefinition:
     resolved_event_text: str
     learned_outcome: str
     closing_beat: str
+    trust_adjustments: dict[str, int]
 
 
 @dataclass(frozen=True, slots=True)
@@ -564,6 +565,7 @@ def _plot_outcome_definition_from_dict(data: dict[str, Any]) -> Adv1PlotOutcomeD
         resolved_event_text=_require_str(data, "resolved_event_text"),
         learned_outcome=_require_str(data, "learned_outcome"),
         closing_beat=_require_str(data, "closing_beat"),
+        trust_adjustments=_require_int_mapping(data, "trust_adjustments"),
     )
 
 

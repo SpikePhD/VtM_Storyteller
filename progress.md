@@ -25,6 +25,35 @@ Current dialogue metadata contract:
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
 
+## Task 047 - Enforce Content-Logic Separation Between ADV1 Content and Engine Rules
+
+- Status: implemented
+- Goal: remove remaining ADV1-authored content leaks from engine code so authored data stays in `adventures/` and the engine applies only generic rules
+- Files changed:
+  - `adventures/ADV1/plots/plot_outcomes.json`
+  - `vampire_storyteller/adventure_loader.py`
+  - `vampire_storyteller/consequence_engine.py`
+  - `tests/test_adventure_loader.py`
+  - `tests/test_consequence_engine.py`
+  - `progress.md`
+- What was implemented:
+  - Moved the Missing Ledger resolution trust bump out of engine constants and into authored plot outcome data
+  - Updated the consequence engine to apply generic trust adjustments from the loaded outcome definition
+  - Added loader validation and regression coverage for the new authored trust-adjustment field
+  - Preserved the existing resolution behavior and player-visible output
+- Acceptance criteria checklist:
+  - [x] Engine code no longer embeds the remaining obvious ADV1 content leak
+  - [x] Authored resolution data stays visible under `adventures/`
+  - [x] Valid ADV1 gameplay behavior remains intact
+  - [x] Tests cover the new authored field and resolution path
+- Assumptions:
+  - A small per-outcome trust-adjustment mapping is sufficient for this content-logic boundary cleanup
+  - The engine should keep applying generic rule mechanics rather than special-casing NPC names
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If more authored state needs to be moved later, keep it in file-backed adventure data and let the engine stay generic
+
 ## Task 046 - Implement Full Save/Load Roundtrip for WorldState
 
 - Status: implemented
