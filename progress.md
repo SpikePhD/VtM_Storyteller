@@ -25,6 +25,32 @@ Current dialogue metadata contract:
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
 
+## Task 044 - Formalize Deterministic GameSession Execution Pipeline
+
+- Status: implemented
+- Goal: make the single-turn `GameSession` pipeline explicit and ordered while preserving current gameplay behavior
+- Files changed:
+  - `vampire_storyteller/game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Split the turn flow into named phases for interpretation, normalization, session-command handling, adjudication, execution, consequences, NPC updates, plot progression, and response rendering
+  - Kept save/load, dialogue focus handling, plot progression, and scene rendering behavior intact
+  - Made the phase ordering readable in one place so deterministic execution is easier to audit
+  - Preserved the existing render-time fallback and epilogue behavior for investigate resolution
+- Acceptance criteria checklist:
+  - [x] The turn pipeline is explicit in `GameSession`
+  - [x] Phase boundaries are readable in code
+  - [x] Deterministic behavior remains intact
+  - [x] Presentation still stays downstream from simulation truth
+  - [x] Tests cover the existing session and persistence behavior
+- Assumptions:
+  - The existing command/result model is sufficient; no command model redesign was needed
+  - Session-local conversation focus remains an orchestration concern rather than canonical world state
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - SPI-6 can now build on a clearer orchestration boundary without re-litigating the turn order
+
 ## Task 043 - Tighten Focused Follow-Up Dialogue and Block Hostile Progression
 
 - Status: implemented
