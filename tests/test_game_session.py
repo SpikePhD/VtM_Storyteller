@@ -4,10 +4,11 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from vampire_storyteller.action_resolution import ActionBlockReason, NormalizationSource, TurnOutcomeKind
+from vampire_storyteller.dice_engine import DeterministicCheckKind
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
-from vampire_storyteller.exceptions import CommandParseError
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.narrative_provider import SceneNarrativeProvider
 from vampire_storyteller.world_state import WorldState
@@ -52,6 +53,20 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(world.player.location_id, "loc_church")
         self.assertEqual(world.current_time, "2026-04-09T22:08:00+02:00")
 
+    def test_move_to_invalid_destination_returns_explicit_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("move loc_missing")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("Move is blocked", result.output_text)
+        self.assertIn("loc_missing", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertTrue(turn.adjudication.is_blocked)
+        self.assertEqual(turn.adjudication.block_reason, ActionBlockReason.INVALID_DESTINATION)
+
     def test_wait_updates_hunger_and_time(self) -> None:
         session = GameSession()
         session.process_input("wait 60")
@@ -65,10 +80,33 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("quit")
         self.assertTrue(result.should_quit)
 
-    def test_parse_errors_propagate(self) -> None:
+    def test_unsupported_freeform_input_returns_explicit_failure(self) -> None:
         session = GameSession()
-        with self.assertRaises(CommandParseError):
-            session.process_input("sing a song")
+
+        result = session.process_input("sing a song")
+        normalized = session.get_last_normalized_action()
+
+        self.assertIn("Unsupported freeform input", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized.source, NormalizationSource.FAILED)
+        self.assertIsNone(normalized.command)
+        self.assertIn("no freeform interpretation rule matched", normalized.failure_reason or "")
+
+    def test_invalid_canonical_command_returns_explicit_failure(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("talk")
+        normalized = session.get_last_normalized_action()
+
+        self.assertIn("Invalid canonical command", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized.source, NormalizationSource.FAILED)
+        self.assertIsNone(normalized.command)
+        self.assertIn("talk requires exactly 1 npc_id argument", normalized.failure_reason or "")
 
     def test_investigate_while_premature_returns_explicit_feedback(self) -> None:
         session = GameSession()
@@ -98,6 +136,8 @@ class GameSessionTests(unittest.TestCase):
         session = GameSession()
 
         result = session.process_input("talk npc_1")
+        normalized = session.get_last_normalized_action()
+        turn = session.get_last_action_resolution()
 
         self.assertIn("Jonas Reed keeps his voice low", result.output_text)
         self.assertFalse(result.render_scene)
@@ -106,15 +146,30 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
         self.assertIn("trust: 1", session.get_startup_text())
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized.source, NormalizationSource.DIRECT_COMMAND)
+        self.assertEqual(normalized.canonical_command_text, "talk npc_1")
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.normalization_source, NormalizationSource.DIRECT_COMMAND)
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
 
     def test_talk_greeting_uses_dialogue_metadata(self) -> None:
         session = GameSession()
 
         result = session.process_input("Jonas, good evening.")
+        turn = session.get_last_action_resolution()
 
         self.assertIn("gives a brief nod", result.output_text)
         self.assertNotIn("keeps his voice low", result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.normalization_source, NormalizationSource.INTERPRETED)
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
 
     def test_follow_up_uses_conversation_focus(self) -> None:
         session = GameSession()
@@ -126,6 +181,17 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("hears 'Why?'", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+
+    def test_pronoun_follow_up_reuses_conversation_focus(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, good evening.")
+        result = session.process_input("I turn back to her and continue.")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("Jonas Reed", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
 
     def test_follow_up_unknownish_line_still_targets_focus(self) -> None:
@@ -199,7 +265,8 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
         result = session.process_input("Why?")
 
-        self.assertEqual(result.output_text, "There is no active conversation to continue.")
+        self.assertIn("Talk is blocked", result.output_text)
+        self.assertIn("not present at Saint Judith's Church", result.output_text)
 
     def test_follow_up_without_focus_returns_deterministic_feedback(self) -> None:
         session = GameSession()
@@ -237,6 +304,19 @@ class GameSessionTests(unittest.TestCase):
             self.assertIsNone(session.get_conversation_focus_npc_id())
             self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
 
+    def test_follow_up_after_load_returns_stale_focus_feedback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            save_path = Path(temp_dir) / "save.json"
+            session = GameSession(save_path=save_path)
+
+            session.process_input("talk npc_1")
+            session.process_input("save")
+            session.process_input("load")
+            result = session.process_input("Why?")
+
+            self.assertIn("current conversation was reset when the save was loaded", result.output_text)
+            self.assertFalse(result.render_scene)
+
     def test_explicit_other_npc_replaces_focus_when_available(self) -> None:
         session = GameSession()
 
@@ -248,6 +328,27 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("Sister Eliza", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_2")
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_2")
+
+    def test_explicit_retarget_to_present_npc_after_focus_reset(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        session.process_input("move loc_church")
+        result = session.process_input("Sister Eliza, we need to speak.")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("Sister Eliza", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_2")
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_2")
+
+    def test_natural_dialogue_to_absent_npc_returns_grounded_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Sister Eliza, we need to speak.")
+
+        self.assertIn("Talk is blocked", result.output_text)
+        self.assertIn("not present at Blackthorn Cafe", result.output_text)
+        self.assertFalse(result.render_scene)
 
     def test_failed_explicit_retarget_clears_previous_focus_cleanly(self) -> None:
         session = GameSession()
@@ -321,8 +422,19 @@ class GameSessionTests(unittest.TestCase):
         session.process_input("wait 60")
         session.process_input("move loc_dock")
         result = session.process_input("investigate")
+        turn = session.get_last_action_resolution()
 
         self.assertTrue(result.render_scene)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.check)
+        assert turn.check is not None
+        self.assertEqual(turn.check.kind, DeterministicCheckKind.INVESTIGATION)
+        self.assertIsNotNone(turn.adjudication.check_spec)
+        assert turn.adjudication.check_spec is not None
+        self.assertEqual(turn.adjudication.check_spec.kind, DeterministicCheckKind.INVESTIGATION)
+        self.assertIn("investigate_resolution_success", turn.consequence_summary.applied_effects)
+        self.assertIn("plot_resolution_updated", turn.consequence_summary.applied_effects)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "resolved")
         self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
         self.assertIn("Learned: The ledger's path points back to a hidden broker operating through the dock.", result.output_text)

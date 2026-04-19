@@ -3,21 +3,31 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
-from .adjudication_engine import AdjudicationDecision, adjudicate_command
+from .action_resolution import (
+    ActionAdjudicationOutcome,
+    ActionCheckOutcome,
+    ActionConsequenceSummary,
+    ActionResolutionTurn,
+    NormalizationSource,
+    NormalizedActionInput,
+    TurnOutcomeKind,
+    adjudication_outcome_from_decision,
+)
+from .adjudication_engine import adjudicate_command
+from .adventure_loader import load_adv1_plot_investigation_rules
 from .command_dispatcher import execute_command
-from .command_models import Command, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
+from .command_models import Command, ConversationStance, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
+from .exceptions import CommandParseError
 from .command_parser import parse_command
 from .command_result import CommandResult
-from .consequence_engine import apply_consequences
-from .dice_engine import roll_dice
-from .data_paths import ensure_adventure_directories, get_default_save_path
-from .command_models import ConversationStance
-from .adventure_loader import load_adv1_plot_investigation_rules
+from .consequence_engine import apply_post_resolution_consequences
 from .conversation_context import ConversationContext
+from .data_paths import ensure_adventure_directories, get_default_save_path
+from .dice_engine import resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
-from .npc_engine import update_npcs_for_current_time
 from .narrative_provider import DeterministicSceneNarrativeProvider, SceneNarrativeProvider
+from .npc_engine import update_npcs_for_current_time
 from .plot_engine import advance_plots
 from .sample_world import build_sample_world
 from .serialization import load_world_state, save_world_state
@@ -36,6 +46,8 @@ class GameSession:
         self._fallback_scene_provider = DeterministicSceneNarrativeProvider()
         self._input_interpreter = InputInterpreter()
         self._last_interpreted_input: InterpretedInput | None = None
+        self._last_normalized_action: NormalizedActionInput | None = None
+        self._last_action_resolution: ActionResolutionTurn | None = None
         self._conversation_context = ConversationContext()
         self._save_path = Path(save_path) if save_path is not None else get_default_save_path()
 
@@ -47,31 +59,50 @@ class GameSession:
         interpretation = self._interpret_input(raw_input)
         self._last_interpreted_input = interpretation
         if interpretation.no_active_conversation:
+            self._last_action_resolution = None
             return CommandResult(output_text="There is no active conversation to continue.")
 
         # Phase 2: normalize to the canonical structured command.
-        command = self._normalize_command(raw_input, interpretation)
+        normalized_action = self._normalize_action(raw_input, interpretation)
+        self._last_normalized_action = normalized_action
+        if not normalized_action.is_success:
+            self._last_action_resolution = None
+            return CommandResult(output_text=normalized_action.failure_reason or "I could not normalize that input into a supported action.")
+        command = normalized_action.command
+        assert command is not None
 
         # Phase 3: handle session-level commands that do not enter the world pipeline.
         session_result = self._handle_session_command(command)
         if session_result is not None:
+            self._last_action_resolution = None
             return session_result
 
         # Phase 4: adjudicate the command against the current world state.
         adjudication = self._adjudicate_command(command)
-        if isinstance(adjudication, CommandResult):
-            return adjudication
+        if adjudication.is_blocked:
+            turn = self._build_blocked_resolution_turn(normalized_action, adjudication)
+            self._last_action_resolution = turn
+            return turn.to_command_result()
 
         # Phase 5: execute the canonical command.
         result = self._execute_command(command)
         if result.should_quit:
+            turn = self._build_final_resolution_turn(
+                command=command,
+                normalized_action=normalized_action,
+                adjudication=adjudication,
+                check=None,
+                consequence_summary=ActionConsequenceSummary(),
+                result=result,
+            )
+            self._last_action_resolution = turn
             return result
 
         # Phase 6: update session-local dialogue state and fold in any talk-side plot progress.
         result = self._apply_talk_after_effects(command, result)
 
-        # Phase 7: apply deterministic world consequences.
-        result = self._apply_consequences_phase(command, result, adjudication)
+        # Phase 7: apply deterministic post-resolution consequences.
+        result, check_outcome, consequence_summary = self._apply_post_resolution_consequences_phase(command, result, adjudication)
 
         # Phase 8: advance NPC schedules after world time has settled.
         result = self._apply_npc_updates_phase(command, result)
@@ -80,13 +111,29 @@ class GameSession:
         result = self._apply_plot_progression_phase(command, result)
 
         # Phase 10: render the final response for the player.
-        return self._render_response(command, result)
+        final_result = self._render_response(command, result)
+        turn = self._build_final_resolution_turn(
+            command=command,
+            normalized_action=normalized_action,
+            adjudication=adjudication,
+            check=check_outcome,
+            consequence_summary=consequence_summary,
+            result=final_result,
+        )
+        self._last_action_resolution = turn
+        return final_result
 
     def get_world_state(self) -> WorldState:
         return self._world_state
 
     def get_last_interpreted_input(self) -> InterpretedInput | None:
         return self._last_interpreted_input
+
+    def get_last_normalized_action(self) -> NormalizedActionInput | None:
+        return self._last_normalized_action
+
+    def get_last_action_resolution(self) -> ActionResolutionTurn | None:
+        return self._last_action_resolution
 
     def get_conversation_focus_npc_id(self) -> str | None:
         return self._conversation_context.focus_npc_id
@@ -96,22 +143,120 @@ class GameSession:
 
     def _interpret_input(self, raw_input: str) -> InterpretedInput:
         self._conversation_context.sync_with_world(self._world_state)
-        return self._input_interpreter.interpret(raw_input, self._world_state, self._conversation_context.focus_npc_id)
+        return self._input_interpreter.interpret(
+            raw_input,
+            self._world_state,
+            self._conversation_context.focus_npc_id,
+            self._conversation_context.stale_focus_npc_id,
+            self._conversation_context.stale_focus_reason,
+        )
 
-    def _normalize_command(self, raw_input: str, interpretation: InterpretedInput) -> Command:
-        command_input = interpretation.canonical_command if not interpretation.fallback_to_parser else raw_input
-        command = parse_command(command_input)
-        if isinstance(command, TalkCommand) and self._conversation_context.focus_npc_id not in (None, command.npc_id):
+    def _normalize_action(self, raw_input: str, interpretation: InterpretedInput) -> NormalizedActionInput:
+        if interpretation.failure_reason is not None:
+            if interpretation.normalized_intent == "talk":
+                self._conversation_context.reset()
+            return NormalizedActionInput(
+                raw_input=raw_input,
+                command_text=None,
+                command=None,
+                source=NormalizationSource.FAILED,
+                interpretation=interpretation,
+                failure_reason=interpretation.failure_reason,
+            )
+
+        if interpretation.fallback_to_parser:
+            if not self._looks_like_canonical_command(raw_input):
+                return NormalizedActionInput(
+                    raw_input=raw_input,
+                    command_text=None,
+                    command=None,
+                    source=NormalizationSource.FAILED,
+                    failure_reason=f"Unsupported freeform input: {interpretation.match_reason}.",
+                )
+
+            command_text = self._normalize_whitespace(raw_input)
+            try:
+                command = parse_command(command_text)
+            except CommandParseError as exc:
+                return NormalizedActionInput(
+                    raw_input=raw_input,
+                    command_text=command_text,
+                    command=None,
+                    source=NormalizationSource.FAILED,
+                    failure_reason=f"Invalid canonical command: {exc}",
+                )
+
+            if isinstance(command, TalkCommand):
+                return self._finalize_talk_normalization(raw_input, command_text, command, None, NormalizationSource.DIRECT_COMMAND)
+            return NormalizedActionInput(
+                raw_input=raw_input,
+                command_text=command_text,
+                command=command,
+                source=NormalizationSource.DIRECT_COMMAND,
+            )
+
+        command_text = interpretation.canonical_command
+        assert command_text is not None
+        try:
+            command = parse_command(command_text)
+        except CommandParseError as exc:
+            return NormalizedActionInput(
+                raw_input=raw_input,
+                command_text=command_text,
+                command=None,
+                source=NormalizationSource.FAILED,
+                interpretation=interpretation,
+                failure_reason=f"Normalized interpretation could not be parsed: {exc}",
+            )
+
+        if isinstance(command, TalkCommand):
+            return self._finalize_talk_normalization(raw_input, command_text, command, interpretation, NormalizationSource.INTERPRETED)
+
+        return NormalizedActionInput(
+            raw_input=raw_input,
+            command_text=command_text,
+            command=command,
+            source=NormalizationSource.INTERPRETED,
+            interpretation=interpretation,
+        )
+
+    def _normalize_whitespace(self, raw_input: str) -> str:
+        return " ".join(raw_input.strip().split())
+
+    def _looks_like_canonical_command(self, raw_input: str) -> bool:
+        normalized_input = self._normalize_whitespace(raw_input)
+        if not normalized_input:
+            return False
+        keyword = normalized_input.split(" ", 1)[0].lower()
+        return keyword in {"look", "status", "help", "investigate", "save", "load", "quit", "move", "wait", "talk"}
+
+    def _finalize_talk_normalization(
+        self,
+        raw_input: str,
+        command_text: str,
+        command: Command,
+        interpretation: InterpretedInput | None,
+        source: NormalizationSource,
+    ) -> NormalizedActionInput:
+        assert isinstance(command, TalkCommand)
+        if self._conversation_context.focus_npc_id not in (None, command.npc_id):
             self._conversation_context.clear()
-        if isinstance(command, TalkCommand) and interpretation.dialogue_metadata is not None:
+        if interpretation is not None and interpretation.dialogue_metadata is not None:
             command = replace(
                 command,
                 dialogue_metadata=interpretation.dialogue_metadata,
                 conversation_stance=self._conversation_context.stance,
             )
-        elif isinstance(command, TalkCommand):
+        else:
             command = replace(command, conversation_stance=self._conversation_context.stance)
-        return command
+
+        return NormalizedActionInput(
+            raw_input=raw_input,
+            command_text=command_text,
+            command=command,
+            source=source,
+            interpretation=interpretation,
+        )
 
     def _handle_session_command(self, command: Command) -> CommandResult | None:
         if isinstance(command, SaveCommand):
@@ -120,7 +265,7 @@ class GameSession:
             return CommandResult(output_text=f"Game saved to {self._save_path.as_posix()}.")
 
         if isinstance(command, LoadCommand):
-            self._conversation_context.clear()
+            self._conversation_context.clear("Talk is blocked: the current conversation was reset when the save was loaded.")
             if not self._save_path.exists():
                 return CommandResult(output_text=f"No save file found at {self._save_path.as_posix()}.")
             self._world_state = load_world_state(self._save_path)
@@ -128,13 +273,63 @@ class GameSession:
 
         return None
 
-    def _adjudicate_command(self, command: Command) -> AdjudicationDecision | CommandResult:
+    def _build_blocked_resolution_turn(
+        self,
+        normalized_action: NormalizedActionInput,
+        adjudication: ActionAdjudicationOutcome,
+    ) -> ActionResolutionTurn:
+        assert adjudication.blocked_feedback is not None
+        return ActionResolutionTurn(
+            normalized_action=normalized_action,
+            adjudication=adjudication,
+            check=None,
+            consequence_summary=ActionConsequenceSummary(),
+            turn_kind=TurnOutcomeKind.BLOCKED,
+            canonical_action_text=normalized_action.canonical_command_text,
+            normalization_source=normalized_action.source,
+            block_reason=adjudication.block_reason,
+            check_kind=None,
+            applied_effects=(),
+            world_state_mutated=False,
+            output_text=adjudication.blocked_feedback,
+            should_quit=False,
+            render_scene=False,
+            conversation_focus_npc_id=None,
+            conversation_stance=None,
+        )
+
+    def _build_final_resolution_turn(
+        self,
+        command: Command,
+        normalized_action: NormalizedActionInput,
+        adjudication: ActionAdjudicationOutcome,
+        check: ActionCheckOutcome | None,
+        consequence_summary: ActionConsequenceSummary,
+        result: CommandResult,
+    ) -> ActionResolutionTurn:
+        turn_kind = self._classify_turn_kind(command, adjudication, consequence_summary)
+        return ActionResolutionTurn(
+            normalized_action=normalized_action,
+            adjudication=adjudication,
+            check=check,
+            consequence_summary=consequence_summary,
+            turn_kind=turn_kind,
+            canonical_action_text=normalized_action.canonical_command_text,
+            normalization_source=normalized_action.source,
+            block_reason=adjudication.block_reason,
+            check_kind=check.kind if check is not None else None,
+            applied_effects=consequence_summary.applied_effects,
+            world_state_mutated=turn_kind is TurnOutcomeKind.STATEFUL_ACTION,
+            output_text=result.output_text,
+            should_quit=result.should_quit,
+            render_scene=result.render_scene,
+            conversation_focus_npc_id=result.conversation_focus_npc_id,
+            conversation_stance=result.conversation_stance,
+        )
+
+    def _adjudicate_command(self, command: Command) -> ActionAdjudicationOutcome:
         adjudication = adjudicate_command(self._world_state, command)
-        if isinstance(command, InvestigateCommand) and not adjudication.requires_roll:
-            return CommandResult(
-                output_text=adjudication.blocked_feedback or "Investigate is blocked.",
-            )
-        return adjudication
+        return adjudication_outcome_from_decision(adjudication)
 
     def _execute_command(self, command: Command) -> CommandResult:
         return execute_command(self._world_state, command)
@@ -148,47 +343,49 @@ class GameSession:
             self._conversation_context.stance = result.conversation_stance
         return result
 
-    def _apply_consequences_phase(
+    def _apply_post_resolution_consequences_phase(
         self,
         command: Command,
         result: CommandResult,
-        adjudication: AdjudicationDecision,
-    ) -> CommandResult:
+        adjudication: ActionAdjudicationOutcome,
+    ) -> tuple[CommandResult, ActionCheckOutcome | None, ActionConsequenceSummary]:
         if not result.render_scene or not adjudication.requires_roll:
-            return result
+            return result, None, ActionConsequenceSummary()
 
-        roll_result = self._resolve_roll(command, adjudication)
-        apply_consequences(self._world_state, command, roll_result=roll_result)
-        return result
+        check_outcome = self._resolve_check(command, adjudication)
+        consequence_summary = apply_post_resolution_consequences(
+            self._world_state,
+            command,
+            adjudication,
+            check_outcome,
+        )
+        return result, check_outcome, consequence_summary
 
-    def _resolve_roll(self, command: Command, adjudication: AdjudicationDecision):
-        seed = self._derive_roll_seed(command)
-        assert adjudication.roll_pool is not None
-        assert adjudication.difficulty is not None
-        plot_id = load_adv1_plot_investigation_rules().plot_id
-        roll_result = roll_dice(adjudication.roll_pool, adjudication.difficulty, seed=seed)
+    def _resolve_check(self, command: Command, adjudication: ActionAdjudicationOutcome) -> ActionCheckOutcome:
+        assert adjudication.check_spec is not None
+        check_resolution = resolve_deterministic_check(adjudication.check_spec)
         self._world_state.append_event(
             EventLogEntry(
                 timestamp=self._world_state.current_time,
                 description=(
-                    f"Rolled {roll_result.pool} dice vs difficulty {roll_result.difficulty}: "
-                    f"{roll_result.individual_rolls} -> {roll_result.successes} successes."
+                    f"Rolled {check_resolution.kind.value} check: {check_resolution.roll_pool} dice vs difficulty {check_resolution.difficulty}: "
+                    f"{check_resolution.individual_rolls} -> {check_resolution.successes} successes."
                 ),
                 involved_entities=[
                     self._world_state.player.id,
-                    plot_id,
                     self._world_state.player.location_id or "",
+                    check_resolution.kind.value,
                 ],
             )
         )
-        return roll_result
+        return ActionCheckOutcome.from_resolution(check_resolution)
 
     def _apply_npc_updates_phase(self, command: Command, result: CommandResult) -> CommandResult:
         if not result.render_scene or not isinstance(command, (MoveCommand, WaitCommand)):
             return result
 
-        self._conversation_context.clear()
         update_npcs_for_current_time(self._world_state)
+        self._conversation_context.sync_with_world(self._world_state)
         return result
 
     def _apply_plot_progression_phase(self, command: Command, result: CommandResult) -> CommandResult:
@@ -206,6 +403,18 @@ class GameSession:
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
         )
+
+    def _classify_turn_kind(
+        self,
+        command: Command,
+        adjudication: ActionAdjudicationOutcome,
+        consequence_summary: ActionConsequenceSummary,
+    ) -> TurnOutcomeKind:
+        if adjudication.is_blocked:
+            return TurnOutcomeKind.BLOCKED
+        if adjudication.requires_roll or consequence_summary.has_applied_effects or isinstance(command, (MoveCommand, WaitCommand, TalkCommand, InvestigateCommand)):
+            return TurnOutcomeKind.STATEFUL_ACTION
+        return TurnOutcomeKind.NON_STATEFUL_ACTION
 
     def _render_response(self, command: Command, result: CommandResult) -> CommandResult:
         if not result.render_scene:
@@ -235,11 +444,6 @@ class GameSession:
         except Exception:
             self._scene_provider = self._fallback_scene_provider
             return self._fallback_scene_provider.render_scene(self._world_state)
-
-    def _derive_roll_seed(self, command: Command) -> str:
-        command_name = command.__class__.__name__.removesuffix("Command").lower()
-        player_id = self._world_state.player.id
-        return f"{self._world_state.current_time}|{command_name}|{player_id}"
 
     def _build_resolution_epilogue(self) -> str:
         plot_id = load_adv1_plot_investigation_rules().plot_id

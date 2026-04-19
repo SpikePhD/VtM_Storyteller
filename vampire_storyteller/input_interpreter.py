@@ -1,10 +1,20 @@
 from __future__ import annotations
 
 import re
+from enum import Enum
 from dataclasses import dataclass
 
 from .command_models import DialogueAct, DialogueMetadata
 from .world_state import WorldState
+
+
+class DialogueTargetResolutionState(str, Enum):
+    RESOLVED = "resolved"
+    AMBIGUOUS = "ambiguous"
+    ABSENT = "absent"
+    UNKNOWN = "unknown"
+    STALE_FOCUS = "stale_focus"
+    NO_ACTIVE_FOCUS = "no_active_focus"
 
 
 @dataclass(frozen=True, slots=True)
@@ -18,6 +28,7 @@ class InterpretedInput:
     fallback_to_parser: bool
     no_active_conversation: bool = False
     dialogue_metadata: DialogueMetadata | None = None
+    failure_reason: str | None = None
 
 
 class InputInterpreter:
@@ -25,10 +36,28 @@ class InputInterpreter:
         "why",
         "what do you mean",
         "go on",
+        "continue",
+        "carry on",
+        "keep going",
+        "turn back",
         "can you explain",
         "i don't believe you",
         "i do not believe you",
         "that sounds wrong",
+    )
+
+    _FOCUSED_CONTINUATION_PHRASES = (
+        "back to her",
+        "back to him",
+        "back to them",
+        "back to you",
+        "continue",
+        "carry on",
+        "keep going",
+        "go on",
+        "turn back to her",
+        "turn back to him",
+        "turn back to them",
     )
 
     _LOW_INTENSITY_OBSERVATION_PHRASES = (
@@ -59,8 +88,10 @@ class InputInterpreter:
     _SPEECH_VERB_PHRASES = (
         "speak to",
         "speak with",
+        "speak",
         "talk to",
         "talk with",
+        "talk",
         "ask",
         "accuse",
         "persuade",
@@ -75,18 +106,23 @@ class InputInterpreter:
         raw_input: str,
         world_state: WorldState,
         conversation_focus_npc_id: str | None = None,
+        stale_conversation_focus_npc_id: str | None = None,
+        stale_conversation_focus_reason: str | None = None,
     ) -> InterpretedInput:
         normalized_text = self._normalize_text(raw_input)
         if not normalized_text:
             return self._fallback("input was empty after normalization")
 
-        talk_result = self._interpret_talk(raw_input, normalized_text, world_state)
+        talk_result = self._interpret_talk(
+            raw_input,
+            normalized_text,
+            world_state,
+            conversation_focus_npc_id,
+            stale_conversation_focus_npc_id,
+            stale_conversation_focus_reason,
+        )
         if talk_result is not None:
             return talk_result
-
-        focused_talk_result = self._interpret_focused_talk(raw_input, normalized_text, world_state, conversation_focus_npc_id)
-        if focused_talk_result is not None:
-            return focused_talk_result
 
         unfocused_follow_up_result = self._interpret_unfocused_follow_up(normalized_text)
         if unfocused_follow_up_result is not None:
@@ -176,34 +212,87 @@ class InputInterpreter:
             fallback_to_parser=False,
         )
 
-    def _interpret_talk(self, raw_input: str, normalized_text: str, world_state: WorldState) -> InterpretedInput | None:
-        npc_match = self._match_npc(normalized_text, world_state)
-        if npc_match is None:
+    def _interpret_talk(
+        self,
+        raw_input: str,
+        normalized_text: str,
+        world_state: WorldState,
+        conversation_focus_npc_id: str | None,
+        stale_conversation_focus_npc_id: str | None,
+        stale_conversation_focus_reason: str | None,
+    ) -> InterpretedInput | None:
+        if self._looks_like_canonical_talk_command(raw_input):
             return None
 
-        speech_text = self._extract_speech_text(raw_input, npc_match["matched_text"])
-        normalized_speech_text = self._normalize_text(speech_text)
-        dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, speech_text, normalized_speech_text)
-        direct_address = self._looks_like_direct_address(raw_input, npc_match["matched_text"])
+        npc_matches = self._match_npc_candidates(normalized_text, world_state)
+        has_talk_cue = bool(npc_matches) or self._looks_like_dialogue_entry(normalized_text, raw_input)
 
-        if not self._contains_any(normalized_text, self._SPEECH_VERB_PHRASES) and not direct_address:
+        if not has_talk_cue:
             return None
 
-        metadata = DialogueMetadata(
-            utterance_text=raw_input.strip(),
-            speech_text=speech_text,
-            dialogue_act=dialogue_act,
-        )
-        return InterpretedInput(
-            normalized_intent="talk",
-            target_text=npc_match["matched_text"],
-            target_reference=npc_match["npc_id"],
-            canonical_command=f"talk {npc_match['npc_id']}",
-            confidence=0.95 if dialogue_act is not DialogueAct.UNKNOWN else 0.8,
-            match_reason=f"speech text matched NPC '{npc_match['matched_text']}' and classified as {dialogue_act.value}",
-            fallback_to_parser=False,
-            dialogue_metadata=metadata,
-        )
+        if len(npc_matches) > 1:
+            return self._failure(
+                match_reason="dialogue target matched more than one present NPC",
+                failure_reason=self._build_ambiguous_target_message(npc_matches),
+            )
+
+        if len(npc_matches) == 1:
+            npc_match = npc_matches[0]
+            npc = world_state.npcs.get(npc_match["npc_id"])
+            if npc is None:
+                return self._failure(
+                    match_reason="dialogue target matched an NPC that is no longer available",
+                    failure_reason="Talk is blocked: the selected NPC is no longer available.",
+                )
+
+            if npc.location_id != world_state.player.location_id:
+                location = world_state.locations.get(world_state.player.location_id or "")
+                location_name = location.name if location is not None else (world_state.player.location_id or "unknown location")
+                return self._failure(
+                    match_reason=f"dialogue target matched NPC '{npc_match['matched_text']}' but they are absent",
+                    failure_reason=f"Talk is blocked: {npc.name} is not present at {location_name}.",
+                )
+
+            speech_text = self._extract_speech_text(raw_input, npc_match["matched_text"])
+            return self._build_talk_result(raw_input, normalized_text, npc, speech_text, npc_match["matched_text"])
+
+        if self._looks_like_follow_up(normalized_text):
+            if conversation_focus_npc_id is not None:
+                focused_npc = world_state.npcs.get(conversation_focus_npc_id)
+                if focused_npc is not None and focused_npc.location_id == world_state.player.location_id:
+                    return self._build_talk_result(
+                        raw_input,
+                        normalized_text,
+                        focused_npc,
+                        raw_input.strip(),
+                        focused_npc.name,
+                    )
+
+            if stale_conversation_focus_npc_id is not None:
+                return self._failure(
+                    match_reason="follow-up dialogue matched a stale conversation focus",
+                    failure_reason=stale_conversation_focus_reason
+                    or "Talk is blocked: the previous conversation focus is no longer valid.",
+                )
+
+            return InterpretedInput(
+                normalized_intent="conversation_continuation_without_focus",
+                target_text=None,
+                target_reference=None,
+                canonical_command=None,
+                confidence=0.7,
+                match_reason="follow-up dialogue was attempted without an active conversation focus",
+                fallback_to_parser=False,
+                no_active_conversation=True,
+            )
+
+        if self._contains_any(normalized_text, self._SPEECH_VERB_PHRASES) or "?" in raw_input:
+            return self._failure(
+                match_reason="dialogue text referenced an unknown or absent target",
+                failure_reason="Talk is blocked: I could not identify a valid NPC to address.",
+            )
+
+        return None
 
     def _interpret_focused_talk(
         self,
@@ -211,33 +300,33 @@ class InputInterpreter:
         normalized_text: str,
         world_state: WorldState,
         conversation_focus_npc_id: str | None,
+        stale_conversation_focus_npc_id: str | None,
+        stale_conversation_focus_reason: str | None,
     ) -> InterpretedInput | None:
-        if conversation_focus_npc_id is None:
+        if not self._looks_like_follow_up(normalized_text):
             return None
 
-        focused_npc = world_state.npcs.get(conversation_focus_npc_id)
-        if focused_npc is None or focused_npc.location_id != world_state.player.location_id:
-            return None
+        if conversation_focus_npc_id is not None:
+            focused_npc = world_state.npcs.get(conversation_focus_npc_id)
+            if focused_npc is not None and focused_npc.location_id == world_state.player.location_id:
+                return self._build_talk_result(raw_input, normalized_text, focused_npc, raw_input.strip(), focused_npc.name)
 
-        if not self._contains_any(normalized_text, self._FOCUSED_FOLLOW_UP_PHRASES):
-            return None
+        if stale_conversation_focus_npc_id is not None:
+            return self._failure(
+                match_reason="follow-up dialogue matched a stale conversation focus",
+                failure_reason=stale_conversation_focus_reason
+                or "Talk is blocked: the previous conversation focus is no longer valid.",
+            )
 
-        speech_text = raw_input.strip()
-        dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, speech_text, self._normalize_text(speech_text))
-        metadata = DialogueMetadata(
-            utterance_text=raw_input.strip(),
-            speech_text=speech_text,
-            dialogue_act=dialogue_act,
-        )
         return InterpretedInput(
-            normalized_intent="talk",
-            target_text=focused_npc.name,
-            target_reference=focused_npc.id,
-            canonical_command=f"talk {focused_npc.id}",
-            confidence=0.72 if dialogue_act is not DialogueAct.UNKNOWN else 0.64,
-            match_reason=f"focused follow-up matched NPC '{focused_npc.name}' and classified as {dialogue_act.value}",
+            normalized_intent="conversation_continuation_without_focus",
+            target_text=None,
+            target_reference=None,
+            canonical_command=None,
+            confidence=0.7,
+            match_reason="follow-up dialogue was attempted without an active conversation focus",
             fallback_to_parser=False,
-            dialogue_metadata=metadata,
+            no_active_conversation=True,
         )
 
     def _interpret_unfocused_follow_up(self, normalized_text: str) -> InterpretedInput | None:
@@ -379,19 +468,21 @@ class InputInterpreter:
                 }
         return best_match
 
-    def _match_npc(self, normalized_text: str, world_state: WorldState) -> dict[str, str] | None:
-        best_match: dict[str, str] | None = None
+    def _match_npc_candidates(self, normalized_text: str, world_state: WorldState) -> list[dict[str, str]]:
+        matches: list[dict[str, str]] = []
         for npc in world_state.npcs.values():
             aliases = self._npc_aliases(npc.name)
             match = self._match_alias(normalized_text, aliases)
             if match is None:
                 continue
-            if best_match is None or len(match["matched_text"].split()) > len(best_match["matched_text"].split()):
-                best_match = {
+            matches.append(
+                {
                     "npc_id": npc.id,
+                    "npc_name": npc.name,
                     "matched_text": match["matched_text"],
                 }
-        return best_match
+            )
+        return sorted(matches, key=lambda item: (-len(item["matched_text"].split()), item["npc_name"], item["npc_id"]))
 
     def _match_alias(self, normalized_text: str, aliases: list[str]) -> dict[str, str] | None:
         for alias in sorted({alias for alias in aliases if alias}, key=lambda value: (-len(value.split()), -len(value))):
@@ -462,6 +553,68 @@ class InputInterpreter:
     def _looks_like_direct_address(self, raw_input: str, matched_text: str) -> bool:
         pattern = rf"^\s*{re.escape(matched_text)}\s*[,!:.-]"
         return re.match(pattern, raw_input, flags=re.IGNORECASE) is not None
+
+    def _looks_like_dialogue_entry(self, normalized_text: str, raw_input: str) -> bool:
+        if self._contains_any(normalized_text, self._SPEECH_VERB_PHRASES):
+            return True
+        if "?" in raw_input:
+            return True
+        if self._contains_any(normalized_text, self._FOCUSED_FOLLOW_UP_PHRASES):
+            return True
+        if self._contains_any(normalized_text, self._FOCUSED_CONTINUATION_PHRASES):
+            return True
+        return False
+
+    def _looks_like_follow_up(self, normalized_text: str) -> bool:
+        return self._contains_any(normalized_text, self._FOCUSED_FOLLOW_UP_PHRASES) or self._contains_any(
+            normalized_text, self._FOCUSED_CONTINUATION_PHRASES
+        )
+
+    def _looks_like_canonical_talk_command(self, raw_input: str) -> bool:
+        tokens = raw_input.strip().split()
+        return 0 < len(tokens) <= 2 and tokens[0].lower() == "talk"
+
+    def _build_talk_result(
+        self,
+        raw_input: str,
+        normalized_text: str,
+        npc,
+        speech_text: str,
+        matched_text: str,
+    ) -> InterpretedInput:
+        normalized_speech_text = self._normalize_text(speech_text)
+        dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, speech_text, normalized_speech_text)
+        metadata = DialogueMetadata(
+            utterance_text=raw_input.strip(),
+            speech_text=speech_text,
+            dialogue_act=dialogue_act,
+        )
+        return InterpretedInput(
+            normalized_intent="talk",
+            target_text=matched_text,
+            target_reference=npc.id,
+            canonical_command=f"talk {npc.id}",
+            confidence=0.95 if dialogue_act is not DialogueAct.UNKNOWN else 0.8,
+            match_reason=f"speech text matched NPC '{matched_text}' and classified as {dialogue_act.value}",
+            fallback_to_parser=False,
+            dialogue_metadata=metadata,
+        )
+
+    def _build_ambiguous_target_message(self, npc_matches: list[dict[str, str]]) -> str:
+        npc_names = ", ".join(sorted({match["npc_name"] for match in npc_matches}))
+        return f"Talk is blocked: the target is ambiguous between {npc_names}."
+
+    def _failure(self, match_reason: str, failure_reason: str) -> InterpretedInput:
+        return InterpretedInput(
+            normalized_intent="talk",
+            target_text=None,
+            target_reference=None,
+            canonical_command=None,
+            confidence=0.0,
+            match_reason=match_reason,
+            fallback_to_parser=False,
+            failure_reason=failure_reason,
+        )
 
     def _contains_any(self, normalized_text: str, phrases: tuple[str, ...]) -> bool:
         return any(self._contains_phrase(normalized_text, phrase) for phrase in phrases)

@@ -2,16 +2,17 @@ from __future__ import annotations
 
 import unittest
 
+from vampire_storyteller.action_resolution import ActionAdjudicationOutcome, ActionCheckOutcome, ActionResolutionKind
 from vampire_storyteller.command_models import InvestigateCommand, MoveCommand, WaitCommand
 from vampire_storyteller.command_parser import parse_command
-from vampire_storyteller.consequence_engine import apply_consequences
+from vampire_storyteller.consequence_engine import apply_consequences, apply_post_resolution_consequences
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.map_engine import move_player
 from vampire_storyteller.plot_engine import advance_plots
 from vampire_storyteller.sample_world import build_sample_world
 from vampire_storyteller.actions import wait_action
 from vampire_storyteller.exceptions import CommandParseError
-from vampire_storyteller.dice_engine import DiceRollResult
+from vampire_storyteller.dice_engine import DeterministicCheckKind, DeterministicCheckResolution, DiceRollResult
 from unittest.mock import patch
 
 
@@ -100,22 +101,60 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertEqual(world.plots["plot_1"].stage, "lead_confirmed")
         self.assertEqual(world.event_log[-1].description, "Investigation at North Dockside failed to resolve 'Missing Ledger'.")
 
+    def test_post_resolution_consequences_return_structured_summary(self) -> None:
+        world = build_sample_world()
+        move_player(world, "loc_church")
+        advance_plots(world, MoveCommand(destination_id="loc_church"))
+        wait_action(world, 60)
+        advance_plots(world, WaitCommand(minutes=60))
+        move_player(world, "loc_dock")
+
+        summary = apply_post_resolution_consequences(
+            world,
+            InvestigateCommand(),
+            ActionAdjudicationOutcome(
+                resolution_kind=ActionResolutionKind.ROLL_GATED,
+                reason="test roll gating",
+                roll_pool=3,
+                difficulty=6,
+            ),
+            ActionCheckOutcome(
+                kind=DeterministicCheckKind.INVESTIGATION,
+                seed="2026-04-09T23:23:00+02:00|investigate|player_1",
+                roll_pool=3,
+                difficulty=6,
+                individual_rolls=[7, 2, 9],
+                successes=2,
+                is_success=True,
+            ),
+        )
+
+        self.assertEqual(summary.messages, ("Plot 'Missing Ledger' resolved at North Dockside.",))
+        self.assertIn("investigate_resolution_success", summary.applied_effects)
+        self.assertIn("plot_resolution_updated", summary.applied_effects)
+        self.assertIn("trust_adjustments_applied", summary.applied_effects)
+        self.assertIn("closing_beat_logged", summary.applied_effects)
+        self.assertFalse(world.plots["plot_1"].active)
+        self.assertEqual(world.plots["plot_1"].stage, "resolved")
+
     def test_session_flow_resolves_hook_and_renders_resolution_state(self) -> None:
         session = GameSession()
 
         session.process_input("move loc_church")
         session.process_input("wait 60")
         session.process_input("move loc_dock")
-        with patch("vampire_storyteller.game_session.roll_dice") as mock_roll:
-            mock_roll.return_value = DiceRollResult(
-                pool=3,
+        with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
+            mock_resolve.return_value = DeterministicCheckResolution(
+                kind=DeterministicCheckKind.INVESTIGATION,
+                seed="2026-04-09T23:23:00+02:00|investigate|player_1",
+                roll_pool=3,
                 difficulty=6,
                 individual_rolls=[7, 2, 9],
                 successes=2,
                 is_success=True,
             )
             result = session.process_input("investigate")
-            mock_roll.assert_called_once_with(3, 4, seed="2026-04-09T23:23:00+02:00|investigate|player_1")
+            mock_resolve.assert_called_once()
 
         world = session.get_world_state()
         self.assertFalse(world.plots["plot_1"].active)
@@ -126,7 +165,7 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
         self.assertIn("Active Plots: None", result.output_text)
         self.assertIn("Recent Events:", result.output_text)
-        self.assertIn("Rolled 3 dice vs difficulty 6", result.output_text)
+        self.assertIn("Rolled investigation check: 3 dice vs difficulty 6", result.output_text)
         self.assertEqual(world.plots["plot_1"].resolution_summary, "Plot 'Missing Ledger' resolved at North Dockside.")
 
     def test_session_flow_failure_keeps_plot_active_and_logs_roll(self) -> None:
@@ -135,22 +174,24 @@ class ConsequenceEngineTests(unittest.TestCase):
         session.process_input("move loc_church")
         session.process_input("wait 60")
         session.process_input("move loc_dock")
-        with patch("vampire_storyteller.game_session.roll_dice") as mock_roll:
-            mock_roll.return_value = DiceRollResult(
-                pool=3,
+        with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
+            mock_resolve.return_value = DeterministicCheckResolution(
+                kind=DeterministicCheckKind.INVESTIGATION,
+                seed="2026-04-09T23:23:00+02:00|investigate|player_1",
+                roll_pool=3,
                 difficulty=6,
                 individual_rolls=[2, 4, 5],
                 successes=0,
                 is_success=False,
             )
             result = session.process_input("investigate")
-            mock_roll.assert_called_once_with(3, 4, seed="2026-04-09T23:23:00+02:00|investigate|player_1")
+            mock_resolve.assert_called_once()
 
         world = session.get_world_state()
         self.assertTrue(world.plots["plot_1"].active)
         self.assertEqual(world.plots["plot_1"].stage, "lead_confirmed")
         self.assertIn("Investigation at North Dockside failed to resolve 'Missing Ledger'.", result.output_text)
-        self.assertIn("Rolled 3 dice vs difficulty 6", result.output_text)
+        self.assertIn("Rolled investigation check: 3 dice vs difficulty 6", result.output_text)
         self.assertIn("Active Plots: Missing Ledger [lead_confirmed]", result.output_text)
 
 

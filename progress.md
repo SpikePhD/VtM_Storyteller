@@ -1,5 +1,160 @@
 # Progress
 
+## Task 055 - Add End-to-End Regression Matrix for the Rules Resolution Loop
+
+- Status: implemented
+- Goal: protect the full deterministic rules loop with representative end-to-end regression coverage
+- Files changed:
+  - `tests/test_rules_resolution_matrix.py`
+  - `progress.md`
+- What was implemented:
+  - Added a focused regression matrix that exercises direct command, interpreted freeform, blocked investigate, automatic look, roll-gated investigate, and persistence-sensitive save/load flows
+  - Asserted the structured turn outcome on each representative path instead of relying on prose alone
+  - Kept the change test-focused without altering gameplay code
+- Acceptance criteria checklist:
+  - [x] The M2 rules loop is protected end to end
+  - [x] Representative paths are covered with stable assertions
+  - [x] Tests assert structured truth, not only prose
+  - [x] SPI-11 through SPI-16 contracts remain intact
+- Notes:
+  - This is intentionally narrow and does not refactor the underlying rules pipeline
+
+## Task 054 - Emit Structured Turn Outcomes for UI and Narrative Consumers
+
+- Status: implemented
+- Goal: expose a richer completed-turn record that downstream consumers can read without scraping prose
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_action_resolution_contract.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Added explicit turn outcome metadata for canonical action text, normalization source, turn category, block reason, check kind, applied consequence effects, and world-state mutation
+  - Kept the nested action-resolution, adjudication, check, and consequence structures intact for existing callers
+  - Threaded the richer structured fields through the session turn record for blocked, direct, interpreted, and state-changing paths
+  - Added regression coverage for direct-command, interpreted-talk, blocked-investigate, and successful-investigate turn shapes
+- Acceptance criteria checklist:
+  - [x] The structured turn record is materially more useful than after SPI-15
+  - [x] Downstream code can reason about turn results without scraping prose
+  - [x] Tests cover the richer outcome shape on representative paths
+  - [x] SPI-11 through SPI-15 contracts remain intact
+- Notes:
+  - This stays intentionally narrow and does not replace the existing nested contract; it extends it
+
+## Task 053 - Centralize Consequence Application After Action Resolution
+
+- Status: implemented
+- Goal: route post-resolution consequence handling through one explicit, auditable entry path
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/consequence_engine.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_action_resolution_contract.py`
+  - `tests/test_consequence_engine.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What is being implemented:
+  - Added structured consequence summaries with explicit applied-effect markers
+  - Moved investigate consequence application behind a single consequence entrypoint in `consequence_engine`
+  - Updated `GameSession` to call the centralized post-resolution consequence layer after check resolution
+  - Added coverage for structured consequence summaries and the centralized apply path
+- Acceptance criteria checklist:
+- [x] Post-resolution consequence handling is more centralized and auditable
+- [x] Investigate consequences flow through the clearer consequence layer
+- [x] The action-resolution summary reflects the new consequence centralization
+- [x] Tests cover the central consequence path
+- Notes:
+  - This intentionally stays narrow and does not absorb unrelated world-reactivity systems
+
+## Task 052 - Fix SPI-14 Consequence Engine Test Regression
+
+- Status: implemented
+- Goal: update stale consequence-engine test patch targets after the deterministic check refactor
+- Files changed:
+  - `tests/test_consequence_engine.py`
+  - `progress.md`
+- What is being implemented:
+  - Swapped the old `game_session.roll_dice` patch target for the new shared deterministic check resolver in the consequence-engine session-flow tests
+  - Kept the existing gameplay and consequence behavior unchanged
+- Acceptance criteria checklist:
+- [x] `tests.test_consequence_engine` passes cleanly on top of SPI-14
+- [x] No production behavior changes are introduced
+- Notes:
+  - This is a follow-up regression cleanup only
+
+## Task 051 - Generalize Deterministic Dice and Check Resolution
+
+- Status: in progress
+- Goal: move investigate-centered roll handling into a reusable deterministic check engine with explicit check kinds and structured results
+- Files changed:
+  - `vampire_storyteller/dice_engine.py`
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/adjudication_engine.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_action_resolution_contract.py`
+  - `tests/test_dice_engine.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What is being implemented:
+  - Introduced reusable deterministic check specifications and resolved check results in the dice layer
+  - Threaded check specifications through the action-resolution contract so adjudication can hand off explicit check context
+  - Moved investigate resolution onto the shared check engine instead of keeping a session-local roll special case
+  - Added a second generic check-kind proof in unit tests to show the engine is broader than investigate alone
+- Acceptance criteria checklist:
+  - [ ] Deterministic check execution is reusable
+  - [ ] Check inputs and outputs are explicit and structured
+  - [ ] Investigate uses the generalized path
+  - [ ] Tests cover more than one check kind through the shared engine
+- Notes:
+  - This stays intentionally narrow and does not broaden into consequence centralization or new gameplay systems
+
+## Task 050 - Build Reusable Adjudication Framework for Player Actions
+
+- Status: in progress
+- Goal: turn adjudication into a reusable shared rule gate for supported gameplay actions while preserving the approved SPI-11 and SPI-12 contracts
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/adjudication_engine.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_adjudication_engine.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What is being implemented:
+  - Expanded adjudication into a common entry path that classifies supported commands as blocked, automatic, or roll-gated before execution
+  - Added structured block reasons for invalid destinations, missing targets, prerequisite failures, and unsupported context
+  - Kept investigate roll-gating intact while making the shared gate reusable for other supported commands
+  - Added focused regression coverage for automatic, blocked, and roll-gated adjudication outcomes
+- Acceptance criteria checklist:
+  - [ ] Supported actions pass through one common adjudication framework
+  - [ ] Blocked, automatic, and roll-gated classifications are explicit
+  - [ ] Current supported gameplay behavior remains stable
+  - [ ] Tests cover representative adjudication outcomes across multiple actions
+- Notes:
+  - This stays intentionally narrow and keeps parser, normalization, and dice scope unchanged
+
+## Task 049 - Define Canonical Action and Resolution Contract
+
+- Status: implemented
+- Goal: establish one explicit internal action-resolution contract for the supported deterministic gameplay loop without changing player-visible behavior
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_action_resolution_contract.py`
+  - `progress.md`
+- What was implemented:
+  - Extended the SPI-11 action-resolution contract with explicit normalization source metadata and normalization failure reasons
+  - Preserved the canonical turn structure while making the normalized action record richer for downstream inspection
+  - Kept supported gameplay behavior stable and left adjudication / dice behavior unchanged
+  - Exposed the final structured turn resolution alongside the existing `CommandResult` return path
+- Acceptance criteria checklist:
+  - [x] Supported gameplay actions pass through one common internal action-resolution contract
+  - [x] Blocked, automatic, and roll-gated outcomes are explicit
+  - [x] The contract is visible in code and covered by focused tests
+  - [x] Current deterministic behavior still works
+- Notes:
+  - This work stays intentionally narrow and keeps the M1 command boundary intact
+
 ## Current Interaction Model
 
 The current backend interaction path is now:
