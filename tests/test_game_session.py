@@ -4,7 +4,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from vampire_storyteller.action_resolution import NormalizationSource
+from vampire_storyteller.action_resolution import ActionBlockReason, NormalizationSource
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
@@ -51,6 +51,20 @@ class GameSessionTests(unittest.TestCase):
         world = session.get_world_state()
         self.assertEqual(world.player.location_id, "loc_church")
         self.assertEqual(world.current_time, "2026-04-09T22:08:00+02:00")
+
+    def test_move_to_invalid_destination_returns_explicit_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("move loc_missing")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("Move is blocked", result.output_text)
+        self.assertIn("loc_missing", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertTrue(turn.adjudication.is_blocked)
+        self.assertEqual(turn.adjudication.block_reason, ActionBlockReason.INVALID_DESTINATION)
 
     def test_wait_updates_hunger_and_time(self) -> None:
         session = GameSession()

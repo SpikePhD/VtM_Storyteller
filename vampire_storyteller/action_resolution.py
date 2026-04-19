@@ -3,7 +3,6 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from .adjudication_engine import AdjudicationDecision
 from .command_models import Command, ConversationStance
 from .command_result import CommandResult
 from .dice_engine import DiceRollResult
@@ -20,6 +19,32 @@ class NormalizationSource(str, Enum):
     INTERPRETED = "interpreted"
     DIRECT_COMMAND = "direct_command"
     FAILED = "failed"
+
+
+class ActionBlockReason(str, Enum):
+    INVALID_DESTINATION = "invalid_destination"
+    UNSUPPORTED_CONTEXT = "unsupported_context"
+    TARGET_NOT_PRESENT = "target_not_present"
+    PREREQUISITE_NOT_MET = "prerequisite_not_met"
+    TARGET_INACTIVE = "target_inactive"
+
+
+@dataclass(frozen=True, slots=True)
+class AdjudicationDecision:
+    resolution_kind: ActionResolutionKind
+    reason: str
+    blocked_feedback: str | None = None
+    block_reason: ActionBlockReason | None = None
+    roll_pool: int | None = None
+    difficulty: int | None = None
+
+    @property
+    def requires_roll(self) -> bool:
+        return self.resolution_kind is ActionResolutionKind.ROLL_GATED
+
+    @property
+    def is_blocked(self) -> bool:
+        return self.resolution_kind is ActionResolutionKind.BLOCKED
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,12 +78,56 @@ class ActionAdjudicationOutcome:
     resolution_kind: ActionResolutionKind
     reason: str
     blocked_feedback: str | None = None
+    block_reason: ActionBlockReason | None = None
     roll_pool: int | None = None
     difficulty: int | None = None
 
     @property
     def requires_roll(self) -> bool:
         return self.resolution_kind is ActionResolutionKind.ROLL_GATED
+
+    @property
+    def is_blocked(self) -> bool:
+        return self.resolution_kind is ActionResolutionKind.BLOCKED
+
+    @property
+    def is_check_gated(self) -> bool:
+        return self.resolution_kind is ActionResolutionKind.ROLL_GATED
+
+    @classmethod
+    def blocked(
+        cls,
+        reason: str,
+        blocked_feedback: str,
+        block_reason: ActionBlockReason,
+    ) -> "ActionAdjudicationOutcome":
+        return cls(
+            resolution_kind=ActionResolutionKind.BLOCKED,
+            reason=reason,
+            blocked_feedback=blocked_feedback,
+            block_reason=block_reason,
+        )
+
+    @classmethod
+    def automatic(cls, reason: str) -> "ActionAdjudicationOutcome":
+        return cls(
+            resolution_kind=ActionResolutionKind.AUTOMATIC,
+            reason=reason,
+        )
+
+    @classmethod
+    def check_gated(
+        cls,
+        reason: str,
+        roll_pool: int,
+        difficulty: int,
+    ) -> "ActionAdjudicationOutcome":
+        return cls(
+            resolution_kind=ActionResolutionKind.ROLL_GATED,
+            reason=reason,
+            roll_pool=roll_pool,
+            difficulty=difficulty,
+        )
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,17 +183,11 @@ class ActionResolutionTurn:
 
 
 def adjudication_outcome_from_decision(decision: AdjudicationDecision) -> ActionAdjudicationOutcome:
-    if decision.requires_roll:
-        resolution_kind = ActionResolutionKind.ROLL_GATED
-    elif decision.blocked_feedback is not None:
-        resolution_kind = ActionResolutionKind.BLOCKED
-    else:
-        resolution_kind = ActionResolutionKind.AUTOMATIC
-
     return ActionAdjudicationOutcome(
-        resolution_kind=resolution_kind,
+        resolution_kind=decision.resolution_kind,
         reason=decision.reason,
         blocked_feedback=decision.blocked_feedback,
+        block_reason=decision.block_reason,
         roll_pool=decision.roll_pool,
         difficulty=decision.difficulty,
     )

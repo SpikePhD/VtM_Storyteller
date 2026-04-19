@@ -7,7 +7,6 @@ from .action_resolution import (
     ActionAdjudicationOutcome,
     ActionCheckOutcome,
     ActionConsequenceSummary,
-    ActionResolutionKind,
     ActionResolutionTurn,
     NormalizationSource,
     NormalizedActionInput,
@@ -79,7 +78,7 @@ class GameSession:
 
         # Phase 4: adjudicate the command against the current world state.
         adjudication = self._adjudicate_command(command)
-        if adjudication.resolution_kind is ActionResolutionKind.BLOCKED:
+        if adjudication.is_blocked:
             turn = self._build_blocked_resolution_turn(normalized_action, adjudication)
             self._last_action_resolution = turn
             return turn.to_command_result()

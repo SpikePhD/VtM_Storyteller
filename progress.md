@@ -1,5 +1,29 @@
 # Progress
 
+## Task 050 - Build Reusable Adjudication Framework for Player Actions
+
+- Status: in progress
+- Goal: turn adjudication into a reusable shared rule gate for supported gameplay actions while preserving the approved SPI-11 and SPI-12 contracts
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/adjudication_engine.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_adjudication_engine.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What is being implemented:
+  - Expanded adjudication into a common entry path that classifies supported commands as blocked, automatic, or roll-gated before execution
+  - Added structured block reasons for invalid destinations, missing targets, prerequisite failures, and unsupported context
+  - Kept investigate roll-gating intact while making the shared gate reusable for other supported commands
+  - Added focused regression coverage for automatic, blocked, and roll-gated adjudication outcomes
+- Acceptance criteria checklist:
+  - [ ] Supported actions pass through one common adjudication framework
+  - [ ] Blocked, automatic, and roll-gated classifications are explicit
+  - [ ] Current supported gameplay behavior remains stable
+  - [ ] Tests cover representative adjudication outcomes across multiple actions
+- Notes:
+  - This stays intentionally narrow and keeps parser, normalization, and dice scope unchanged
+
 ## Task 049 - Define Canonical Action and Resolution Contract
 
 - Status: implemented
