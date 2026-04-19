@@ -9,14 +9,29 @@ from .world_state import WorldState
 @dataclass
 class ConversationContext:
     focus_npc_id: str | None = None
+    stale_focus_npc_id: str | None = None
+    stale_focus_reason: str | None = None
     stance: ConversationStance = ConversationStance.NEUTRAL
 
-    def clear(self) -> None:
+    def clear(self, reason: str | None = None) -> None:
+        if self.focus_npc_id is not None:
+            self.stale_focus_npc_id = self.focus_npc_id
+            self.stale_focus_reason = reason
+        elif reason is not None:
+            self.stale_focus_reason = reason
         self.focus_npc_id = None
+        self.stance = ConversationStance.NEUTRAL
+
+    def reset(self) -> None:
+        self.focus_npc_id = None
+        self.stale_focus_npc_id = None
+        self.stale_focus_reason = None
         self.stance = ConversationStance.NEUTRAL
 
     def set_focus(self, npc_id: str, stance: ConversationStance = ConversationStance.NEUTRAL) -> None:
         self.focus_npc_id = npc_id
+        self.stale_focus_npc_id = None
+        self.stale_focus_reason = None
         self.stance = stance
 
     def replace_focus(self, npc_id: str) -> None:
@@ -26,5 +41,13 @@ class ConversationContext:
         if self.focus_npc_id is None:
             return
         focused_npc = world_state.npcs.get(self.focus_npc_id)
-        if focused_npc is None or focused_npc.location_id != world_state.player.location_id:
-            self.clear()
+        if focused_npc is None:
+            self.clear("Talk is blocked: the previous conversation target is no longer available.")
+            return
+
+        if focused_npc.location_id != world_state.player.location_id:
+            location = world_state.locations.get(world_state.player.location_id or "")
+            location_name = location.name if location is not None else (world_state.player.location_id or "unknown location")
+            self.clear(
+                f"Talk is blocked: {focused_npc.name} is not present at {location_name}, so that conversation cannot continue."
+            )

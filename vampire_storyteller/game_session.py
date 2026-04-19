@@ -143,9 +143,27 @@ class GameSession:
 
     def _interpret_input(self, raw_input: str) -> InterpretedInput:
         self._conversation_context.sync_with_world(self._world_state)
-        return self._input_interpreter.interpret(raw_input, self._world_state, self._conversation_context.focus_npc_id)
+        return self._input_interpreter.interpret(
+            raw_input,
+            self._world_state,
+            self._conversation_context.focus_npc_id,
+            self._conversation_context.stale_focus_npc_id,
+            self._conversation_context.stale_focus_reason,
+        )
 
     def _normalize_action(self, raw_input: str, interpretation: InterpretedInput) -> NormalizedActionInput:
+        if interpretation.failure_reason is not None:
+            if interpretation.normalized_intent == "talk":
+                self._conversation_context.reset()
+            return NormalizedActionInput(
+                raw_input=raw_input,
+                command_text=None,
+                command=None,
+                source=NormalizationSource.FAILED,
+                interpretation=interpretation,
+                failure_reason=interpretation.failure_reason,
+            )
+
         if interpretation.fallback_to_parser:
             if not self._looks_like_canonical_command(raw_input):
                 return NormalizedActionInput(
@@ -247,7 +265,7 @@ class GameSession:
             return CommandResult(output_text=f"Game saved to {self._save_path.as_posix()}.")
 
         if isinstance(command, LoadCommand):
-            self._conversation_context.clear()
+            self._conversation_context.clear("Talk is blocked: the current conversation was reset when the save was loaded.")
             if not self._save_path.exists():
                 return CommandResult(output_text=f"No save file found at {self._save_path.as_posix()}.")
             self._world_state = load_world_state(self._save_path)
@@ -366,8 +384,8 @@ class GameSession:
         if not result.render_scene or not isinstance(command, (MoveCommand, WaitCommand)):
             return result
 
-        self._conversation_context.clear()
         update_npcs_for_current_time(self._world_state)
+        self._conversation_context.sync_with_world(self._world_state)
         return result
 
     def _apply_plot_progression_phase(self, command: Command, result: CommandResult) -> CommandResult:

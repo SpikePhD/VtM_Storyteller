@@ -6,6 +6,7 @@ from vampire_storyteller.action_resolution import NormalizationSource
 from vampire_storyteller.command_models import DialogueAct
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.input_interpreter import InputInterpreter
+from vampire_storyteller.models import NPC
 from vampire_storyteller.sample_world import build_sample_world
 
 
@@ -96,6 +97,13 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.canonical_command, "talk npc_1")
 
+    def test_freeform_direct_address_maps_to_present_npc(self) -> None:
+        result = self.interpreter.interpret("Jonas, we need to speak.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+
     def test_freeform_talk_to_maps_to_talk(self) -> None:
         result = self.interpreter.interpret("I talk to Jonas.", self.world_state)
 
@@ -131,6 +139,50 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertTrue(result.fallback_to_parser)
         self.assertIsNone(result.canonical_command)
         self.assertEqual(result.confidence, 0.0)
+
+    def test_freeform_unknown_dialogue_target_returns_grounded_failure(self) -> None:
+        result = self.interpreter.interpret("Elena, we need to speak.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertIsNone(result.canonical_command)
+        self.assertIsNotNone(result.failure_reason)
+        self.assertIn("could not identify", result.failure_reason or "")
+
+    def test_freeform_ambiguous_dialogue_target_returns_grounded_failure(self) -> None:
+        world = build_sample_world()
+        world.npcs["npc_3"] = NPC(
+            id="npc_3",
+            name="Elena Vale",
+            role="Observer",
+            location_id="loc_cafe",
+            attitude_to_player="wary",
+            trust_level=0,
+            consumed_dialogue_hooks=[],
+            goals=[],
+            investigation_hint="",
+            schedule={},
+            traits={},
+        )
+        world.npcs["npc_4"] = NPC(
+            id="npc_4",
+            name="Elena Sera",
+            role="Observer",
+            location_id="loc_cafe",
+            attitude_to_player="wary",
+            trust_level=0,
+            consumed_dialogue_hooks=[],
+            goals=[],
+            investigation_hint="",
+            schedule={},
+            traits={},
+        )
+
+        result = self.interpreter.interpret("Elena, we need to speak.", world)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertIsNone(result.canonical_command)
+        self.assertIsNotNone(result.failure_reason)
+        self.assertIn("ambiguous", result.failure_reason or "")
 
     def test_game_session_accepts_freeform_input(self) -> None:
         session = GameSession()
@@ -193,6 +245,33 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.normalized_intent, "talk")
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
+
+    def test_pronoun_follow_up_reuses_valid_conversation_focus(self) -> None:
+        result = self.interpreter.interpret(
+            "I turn back to her and continue.",
+            self.world_state,
+            conversation_focus_npc_id="npc_1",
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        self.assertIn("continue", result.dialogue_metadata.utterance_text.lower())
+
+    def test_follow_up_against_stale_focus_returns_grounded_failure(self) -> None:
+        result = self.interpreter.interpret(
+            "Why?",
+            self.world_state,
+            stale_conversation_focus_npc_id="npc_1",
+            stale_conversation_focus_reason="Talk is blocked: Jonas Reed is no longer present at Saint Judith's Church.",
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertIsNone(result.canonical_command)
+        self.assertIsNotNone(result.failure_reason)
+        self.assertIn("no longer present", result.failure_reason or "")
 
     def test_follow_up_without_focus_falls_back(self) -> None:
         result = self.interpreter.interpret("Why?", self.world_state)

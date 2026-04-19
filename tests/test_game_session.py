@@ -183,6 +183,17 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
 
+    def test_pronoun_follow_up_reuses_conversation_focus(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, good evening.")
+        result = session.process_input("I turn back to her and continue.")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("Jonas Reed", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+
     def test_follow_up_unknownish_line_still_targets_focus(self) -> None:
         session = GameSession()
 
@@ -254,7 +265,8 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
         result = session.process_input("Why?")
 
-        self.assertEqual(result.output_text, "There is no active conversation to continue.")
+        self.assertIn("Talk is blocked", result.output_text)
+        self.assertIn("not present at Saint Judith's Church", result.output_text)
 
     def test_follow_up_without_focus_returns_deterministic_feedback(self) -> None:
         session = GameSession()
@@ -292,6 +304,19 @@ class GameSessionTests(unittest.TestCase):
             self.assertIsNone(session.get_conversation_focus_npc_id())
             self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
 
+    def test_follow_up_after_load_returns_stale_focus_feedback(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            save_path = Path(temp_dir) / "save.json"
+            session = GameSession(save_path=save_path)
+
+            session.process_input("talk npc_1")
+            session.process_input("save")
+            session.process_input("load")
+            result = session.process_input("Why?")
+
+            self.assertIn("current conversation was reset when the save was loaded", result.output_text)
+            self.assertFalse(result.render_scene)
+
     def test_explicit_other_npc_replaces_focus_when_available(self) -> None:
         session = GameSession()
 
@@ -303,6 +328,27 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("Sister Eliza", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_2")
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_2")
+
+    def test_explicit_retarget_to_present_npc_after_focus_reset(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        session.process_input("move loc_church")
+        result = session.process_input("Sister Eliza, we need to speak.")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertIn("Sister Eliza", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_2")
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_2")
+
+    def test_natural_dialogue_to_absent_npc_returns_grounded_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Sister Eliza, we need to speak.")
+
+        self.assertIn("Talk is blocked", result.output_text)
+        self.assertIn("not present at Blackthorn Cafe", result.output_text)
+        self.assertFalse(result.render_scene)
 
     def test_failed_explicit_retarget_clears_previous_focus_cleanly(self) -> None:
         session = GameSession()
