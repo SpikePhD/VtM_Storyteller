@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import unittest
 
+from vampire_storyteller.action_resolution import ActionAdjudicationOutcome, ActionCheckOutcome, ActionResolutionKind
 from vampire_storyteller.command_models import InvestigateCommand, MoveCommand, WaitCommand
 from vampire_storyteller.command_parser import parse_command
-from vampire_storyteller.consequence_engine import apply_consequences
+from vampire_storyteller.consequence_engine import apply_consequences, apply_post_resolution_consequences
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.map_engine import move_player
 from vampire_storyteller.plot_engine import advance_plots
@@ -99,6 +100,42 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertTrue(world.plots["plot_1"].active)
         self.assertEqual(world.plots["plot_1"].stage, "lead_confirmed")
         self.assertEqual(world.event_log[-1].description, "Investigation at North Dockside failed to resolve 'Missing Ledger'.")
+
+    def test_post_resolution_consequences_return_structured_summary(self) -> None:
+        world = build_sample_world()
+        move_player(world, "loc_church")
+        advance_plots(world, MoveCommand(destination_id="loc_church"))
+        wait_action(world, 60)
+        advance_plots(world, WaitCommand(minutes=60))
+        move_player(world, "loc_dock")
+
+        summary = apply_post_resolution_consequences(
+            world,
+            InvestigateCommand(),
+            ActionAdjudicationOutcome(
+                resolution_kind=ActionResolutionKind.ROLL_GATED,
+                reason="test roll gating",
+                roll_pool=3,
+                difficulty=6,
+            ),
+            ActionCheckOutcome(
+                kind=DeterministicCheckKind.INVESTIGATION,
+                seed="2026-04-09T23:23:00+02:00|investigate|player_1",
+                roll_pool=3,
+                difficulty=6,
+                individual_rolls=[7, 2, 9],
+                successes=2,
+                is_success=True,
+            ),
+        )
+
+        self.assertEqual(summary.messages, ("Plot 'Missing Ledger' resolved at North Dockside.",))
+        self.assertIn("investigate_resolution_success", summary.applied_effects)
+        self.assertIn("plot_resolution_updated", summary.applied_effects)
+        self.assertIn("trust_adjustments_applied", summary.applied_effects)
+        self.assertIn("closing_beat_logged", summary.applied_effects)
+        self.assertFalse(world.plots["plot_1"].active)
+        self.assertEqual(world.plots["plot_1"].stage, "resolved")
 
     def test_session_flow_resolves_hook_and_renders_resolution_state(self) -> None:
         session = GameSession()

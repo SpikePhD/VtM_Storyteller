@@ -162,10 +162,15 @@ class ActionCheckOutcome:
 @dataclass(frozen=True, slots=True)
 class ActionConsequenceSummary:
     messages: tuple[str, ...] = ()
+    applied_effects: tuple[str, ...] = ()
 
     @property
     def has_messages(self) -> bool:
         return bool(self.messages)
+
+    @property
+    def has_applied_effects(self) -> bool:
+        return bool(self.applied_effects)
 
 
 @dataclass(frozen=True, slots=True)

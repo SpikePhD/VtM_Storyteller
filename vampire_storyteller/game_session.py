@@ -19,7 +19,7 @@ from .command_models import Command, ConversationStance, InvestigateCommand, Loa
 from .exceptions import CommandParseError
 from .command_parser import parse_command
 from .command_result import CommandResult
-from .consequence_engine import apply_consequences
+from .consequence_engine import apply_post_resolution_consequences
 from .conversation_context import ConversationContext
 from .data_paths import ensure_adventure_directories, get_default_save_path
 from .dice_engine import resolve_deterministic_check
@@ -99,8 +99,8 @@ class GameSession:
         # Phase 6: update session-local dialogue state and fold in any talk-side plot progress.
         result = self._apply_talk_after_effects(command, result)
 
-        # Phase 7: apply deterministic world consequences.
-        result, check_outcome, consequence_summary = self._apply_consequences_phase(command, result, adjudication)
+        # Phase 7: apply deterministic post-resolution consequences.
+        result, check_outcome, consequence_summary = self._apply_post_resolution_consequences_phase(command, result, adjudication)
 
         # Phase 8: advance NPC schedules after world time has settled.
         result = self._apply_npc_updates_phase(command, result)
@@ -306,7 +306,7 @@ class GameSession:
             self._conversation_context.stance = result.conversation_stance
         return result
 
-    def _apply_consequences_phase(
+    def _apply_post_resolution_consequences_phase(
         self,
         command: Command,
         result: CommandResult,
@@ -316,8 +316,13 @@ class GameSession:
             return result, None, ActionConsequenceSummary()
 
         check_outcome = self._resolve_check(command, adjudication)
-        consequence_messages = apply_consequences(self._world_state, command, roll_result=check_outcome)
-        return result, check_outcome, ActionConsequenceSummary(messages=tuple(consequence_messages))
+        consequence_summary = apply_post_resolution_consequences(
+            self._world_state,
+            command,
+            adjudication,
+            check_outcome,
+        )
+        return result, check_outcome, consequence_summary
 
     def _resolve_check(self, command: Command, adjudication: ActionAdjudicationOutcome) -> ActionCheckOutcome:
         assert adjudication.check_spec is not None

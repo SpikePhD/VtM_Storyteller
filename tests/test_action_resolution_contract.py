@@ -75,6 +75,8 @@ class ActionResolutionContractTests(unittest.TestCase):
         assert turn.adjudication.check_spec is not None
         self.assertEqual(turn.adjudication.check_spec.kind, DeterministicCheckKind.INVESTIGATION)
         self.assertEqual(turn.consequence_summary.messages, ("Plot 'Missing Ledger' resolved at North Dockside.",))
+        self.assertIn("investigate_resolution_success", turn.consequence_summary.applied_effects)
+        self.assertIn("plot_resolution_updated", turn.consequence_summary.applied_effects)
         self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", turn.output_text)
         self.assertEqual(result.output_text, turn.output_text)
 

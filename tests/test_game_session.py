@@ -375,6 +375,8 @@ class GameSessionTests(unittest.TestCase):
         self.assertIsNotNone(turn.adjudication.check_spec)
         assert turn.adjudication.check_spec is not None
         self.assertEqual(turn.adjudication.check_spec.kind, DeterministicCheckKind.INVESTIGATION)
+        self.assertIn("investigate_resolution_success", turn.consequence_summary.applied_effects)
+        self.assertIn("plot_resolution_updated", turn.consequence_summary.applied_effects)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "resolved")
         self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
         self.assertIn("Learned: The ledger's path points back to a hidden broker operating through the dock.", result.output_text)

@@ -1,5 +1,30 @@
 # Progress
 
+## Task 053 - Centralize Consequence Application After Action Resolution
+
+- Status: implemented
+- Goal: route post-resolution consequence handling through one explicit, auditable entry path
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/consequence_engine.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_action_resolution_contract.py`
+  - `tests/test_consequence_engine.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What is being implemented:
+  - Added structured consequence summaries with explicit applied-effect markers
+  - Moved investigate consequence application behind a single consequence entrypoint in `consequence_engine`
+  - Updated `GameSession` to call the centralized post-resolution consequence layer after check resolution
+  - Added coverage for structured consequence summaries and the centralized apply path
+- Acceptance criteria checklist:
+- [x] Post-resolution consequence handling is more centralized and auditable
+- [x] Investigate consequences flow through the clearer consequence layer
+- [x] The action-resolution summary reflects the new consequence centralization
+- [x] Tests cover the central consequence path
+- Notes:
+  - This intentionally stays narrow and does not absorb unrelated world-reactivity systems
+
 ## Task 052 - Fix SPI-14 Consequence Engine Test Regression
 
 - Status: implemented
