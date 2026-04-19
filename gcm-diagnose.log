@@ -1,0 +1,174 @@
+﻿Diagnose log at 2026-04-19T11:17:36Z
+
+AppPath: C:\Users\lucac\AppData\Local\Programs\Git\mingw64\bin\git-credential-manager.exe
+InstallDir: C:\Users\lucac\AppData\Local\Programs\Git\mingw64\bin\
+Version: 2.7.3+5fa7116896c82164996a609accd1c5ad90fe730a
+
+------------
+Diagnostic: Environment
+Skipped: False
+Success: True
+Exception: None
+Log:
+OSType: Windows
+OSVersion: 10.0 (build 19045)
+Reading environment variables... OK
+ Variables:
+SystemDrive=C:
+GCM_GUI_PROMPT=False
+ProgramW6432=C:\Program Files
+windir=C:\Windows
+PROCESSOR_IDENTIFIER=Intel64 Family 6 Model 158 Stepping 9, GenuineIntel
+TMP=C:\Users\lucac\AppData\Local\Temp
+CODEX_INTERNAL_ORIGINATOR_OVERRIDE=Codex Desktop
+Path=C:\Users\lucac\.codex\tmp\arg0\codex-arg0u5ZtQm;C:\Windows\system32;C:\Windows;C:\Windows\System32\Wbem;C:\Windows\System32\WindowsPowerShell\v1.0\;C:\Windows\System32\OpenSSH\;C:\Program Files (x86)\NVIDIA Corporation\PhysX\Common;C:\Program Files\NVIDIA Corporation\NVIDIA App\NvDLISR;C:\Users\lucac\AppData\Local\Microsoft\WindowsApps;C:\Users\lucac\AppData\Local\Programs\Git\cmd;C:\Users\lucac\AppData\Local\OpenAI\Codex\bin;C:\Program Files\WindowsApps\OpenAI.Codex_26.415.4716.0_x64__2p2nqsd0c76g0\app\resources
+PROCESSOR_REVISION=9e09
+TEMP=C:\Users\lucac\AppData\Local\Temp
+USERPROFILE=C:\Users\lucac
+CommonProgramFiles(x86)=C:\Program Files (x86)\Common Files
+LOGONSERVER=\\ADA-PC
+USERNAME=lucac
+SystemRoot=C:\Windows
+ZSH_TMUX_AUTOSTARTED=true
+CODEX_THREAD_ID=019da568-bd45-7343-b6c1-dff64ef79bd5
+OneDrive=C:\Users\lucac\OneDrive
+PROCESSOR_ARCHITECTURE=AMD64
+CommonProgramFiles=C:\Program Files\Common Files
+RUST_LOG=warn
+CODEX_SHELL=1
+ProgramData=C:\ProgramData
+ZSH_TMUX_AUTOSTART=false
+HOMEPATH=\Users\lucac
+COMPUTERNAME=ADA-PC
+ALLUSERSPROFILE=C:\ProgramData
+CommonProgramW6432=C:\Program Files\Common Files
+SHELL=C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe
+DriverData=C:\Windows\System32\Drivers\DriverData
+HOMEDRIVE=C:
+DISABLE_AUTO_UPDATE=true
+GIT_TRACE2_PARENT_SID=dbf3c7de-0650-4e2b-b6da-fe4e594cab38
+NUMBER_OF_PROCESSORS=8
+OS=Windows_NT
+ProgramFiles=C:\Program Files
+ComSpec=C:\Windows\system32\cmd.exe
+PATHEXT=.COM;.EXE;.BAT;.CMD;.VBS;.VBE;.JS;.JSE;.WSF;.WSH;.MSC;.CPL
+ProgramFiles(x86)=C:\Program Files (x86)
+PSModulePath=C:\Users\lucac\Documents\WindowsPowerShell\Modules;C:\Program Files\WindowsPowerShell\Modules;C:\Windows\system32\WindowsPowerShell\v1.0\Modules
+APPDATA=C:\Users\lucac\AppData\Roaming
+USERDOMAIN=ADA-PC
+PROCESSOR_LEVEL=6
+LOCALAPPDATA=C:\Users\lucac\AppData\Local
+USERDOMAIN_ROAMINGPROFILE=ADA-PC
+PUBLIC=C:\Users\Public
+LOG_FORMAT=json
+
+
+------------
+Diagnostic: File system
+Skipped: False
+Success: True
+Exception: None
+Log:
+Temporary directory is 'C:\Users\lucac\AppData\Local\Temp\'...
+Checking basic file I/O...
+Writing to temporary file 'C:\Users\lucac\AppData\Local\Temp\48544a1e9e34e71b08382649'... OK
+Reading from temporary file 'C:\Users\lucac\AppData\Local\Temp\48544a1e9e34e71b08382649'... OK
+Deleting temporary file 'C:\Users\lucac\AppData\Local\Temp\48544a1e9e34e71b08382649'... OK
+Testing IFileSystem instance...
+UserHomePath: C:\Users\lucac
+UserDataDirectoryPath: C:\Users\lucac\.gcm
+GetCurrentDirectory(): C:\Users\lucac\Documents\Codex\VtM_Storyteller
+
+------------
+Diagnostic: Networking
+Skipped: False
+Success: True
+Exception: None
+Log:
+Checking networking and HTTP stack...
+Creating HTTP client... OK
+IsNetworkAvailable: True
+Sending HEAD request to http://example.com...Sending HEAD request to https://example.com... OK
+ OK
+Acquiring free TCP port... OK
+Testing local HTTP loopback connections...
+Creating new HTTP listener for http://localhost:59449/... OK
+Waiting for loopback connection... OK
+Writing response... OK
+Waiting for response data... OK
+Loopback connection data OK
+
+------------
+Diagnostic: Git
+Skipped: False
+Success: True
+Exception: None
+Log:
+Getting Git version... OK
+Git version is '2.53.0.windows.3'
+Locating current repository...Git repository at 'C:/Users/lucac/Documents/Codex/VtM_Storyteller/.git'
+ OK
+Listing all Git configuration... OK
+Git configuration:
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	diff.astextplain.textconv=astextplain
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	filter.lfs.clean=git-lfs clean -- %f
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	filter.lfs.smudge=git-lfs smudge -- %f
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	filter.lfs.process=git-lfs filter-process
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	filter.lfs.required=true
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	http.sslbackend=schannel
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	core.autocrlf=true
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	core.fscache=true
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	core.symlinks=false
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	pull.rebase=false
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	credential.helper=manager
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	credential.https://dev.azure.com.usehttppath=true
+file:C:/Users/lucac/AppData/Local/Programs/Git/etc/gitconfig	init.defaultbranch=master
+file:.git/config	core.repositoryformatversion=0
+file:.git/config	core.filemode=false
+file:.git/config	core.bare=false
+file:.git/config	core.logallrefupdates=true
+file:.git/config	core.symlinks=false
+file:.git/config	core.ignorecase=true
+file:.git/config	remote.origin.url=https://github.com/SpikePhD/VtM_Storyteller.git
+file:.git/config	remote.origin.fetch=+refs/heads/*:refs/remotes/origin/*
+file:.git/config	branch.codex/publish-current-work.remote=origin
+file:.git/config	branch.codex/publish-current-work.merge=refs/heads/codex/publish-current-work
+file:.git/config	user.name=Luca Castrati
+file:.git/config	user.email=lucacastrati@gmail.com
+
+
+------------
+Diagnostic: Credential storage
+Skipped: False
+Success: True
+Exception: None
+Log:
+ICredentialStore instance is of type: CredentialStore
+Writing test credential... OK
+Reading test credential... OK
+Deleting test credential... OK
+
+------------
+Diagnostic: Microsoft authentication (AAD/MSA)
+Skipped: False
+Success: True
+Exception: None
+Log:
+Broker is not enabled.
+Flow type is: Auto
+Gathering MSAL token cache data... OK
+CacheDirectory: C:\Users\lucac\AppData\Local\.IdentityService
+CacheFileName: msal.cache
+CacheFilePath: C:\Users\lucac\AppData\Local\.IdentityService\msal.cache
+Creating cache helper... OK
+Verifying MSAL token cache persistence... OK
+
+------------
+Diagnostic: GitHub API
+Skipped: False
+Success: True
+Exception: None
+Log:
+Using 'https://github.com/' as API target.
+Querying '/meta' endpoint... OK
+
