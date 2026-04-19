@@ -324,6 +324,34 @@ class AdventureLoaderTests(unittest.TestCase):
 
         self.assertIn("Required adventure file missing", str(ctx.exception))
 
+    def test_missing_required_plot_id_in_startup_world_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            plot_path = temp_root / "plots" / "plot_threads.json"
+            plot_data = json.loads(plot_path.read_text(encoding="utf-8"))
+            plot_data["plots"] = [plot for plot in plot_data["plots"] if plot["id"] != "plot_1"]
+            plot_path.write_text(json.dumps(plot_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_world_state(temp_root)
+
+        self.assertIn("must define plot 'plot_1'", str(ctx.exception))
+
+    def test_missing_connected_location_reference_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            location_path = temp_root / "locations" / "locations.json"
+            location_data = json.loads(location_path.read_text(encoding="utf-8"))
+            location_data["locations"][0]["connected_locations"].append("loc_missing")
+            location_path.write_text(json.dumps(location_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_world_state(temp_root)
+
+        self.assertIn("references missing connected location", str(ctx.exception))
+
     def test_missing_plot_outcome_trust_adjustments_field_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_root = Path(temp_dir) / "ADV1"

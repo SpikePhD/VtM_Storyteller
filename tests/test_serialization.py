@@ -118,6 +118,21 @@ class SerializationTests(unittest.TestCase):
 
         self.assertIn("story_flags is required", str(ctx.exception))
 
+    def test_missing_nested_required_field_in_saved_payload_fails_clearly(self) -> None:
+        world = build_sample_world()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "world.json"
+            save_world_state(world, path)
+            payload = json.loads(path.read_text(encoding="utf-8"))
+            del payload["player"]["stats"]
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+            with self.assertRaises(TypeError) as ctx:
+                load_world_state(path)
+
+        self.assertIn("stats is required", str(ctx.exception))
+
 
 if __name__ == "__main__":
     unittest.main()

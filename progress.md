@@ -25,6 +25,32 @@ Current dialogue metadata contract:
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
 
+## Task 048 - Add Baseline Regression Tests for Core Simulation
+
+- Status: implemented
+- Goal: strengthen the M1 regression suite with focused coverage for validated startup and strict save/load failure paths
+- Files changed:
+  - `tests/test_adventure_loader.py`
+  - `tests/test_serialization.py`
+  - `progress.md`
+- What was implemented:
+  - Added startup regression coverage for missing `plot_1` in the ADV1 world bootstrap
+  - Added startup regression coverage for broken location connectivity references
+  - Added a strict save/load regression for missing nested canonical player data
+  - Kept the suite small and targeted to the highest-value M1 assumptions
+- Acceptance criteria checklist:
+  - [x] Validated ADV1 startup path has stronger failure coverage
+  - [x] Strict WorldState roundtrip assumptions are protected by tests
+  - [x] Failure behavior for malformed or incomplete canonical data is explicit
+  - [x] No gameplay or architecture changes were needed
+- Assumptions:
+  - Regression tests are most valuable when they target loader validation and serialization strictness directly
+  - Nested canonical payload failures are worth protecting separately from top-level field failures
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - Future test additions should stay similarly narrow and focus on the M1 contracts already established
+
 ## Task 047 - Enforce Content-Logic Separation Between ADV1 Content and Engine Rules
 
 - Status: implemented
