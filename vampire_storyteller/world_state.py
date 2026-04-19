@@ -38,17 +38,27 @@ class WorldState:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> WorldState:
+        _require_mapping(data, "world state")
         return cls(
-            player=_player_from_dict(data["player"]),
-            npcs={npc_id: _npc_from_dict(npc_data) for npc_id, npc_data in data.get("npcs", {}).items()},
+            player=_player_from_dict(_require_mapping(_require_present_value(data, "player"), "player")),
+            npcs={
+                npc_id: _npc_from_dict(_require_mapping(npc_data, f"npc '{npc_id}'"))
+                for npc_id, npc_data in _require_mapping(_require_present_value(data, "npcs"), "npcs").items()
+            },
             locations={
                 location_id: _location_from_dict(location_data)
-                for location_id, location_data in data.get("locations", {}).items()
+                for location_id, location_data in _require_mapping(_require_present_value(data, "locations"), "locations").items()
             },
-            plots={plot_id: _plot_thread_from_dict(plot_data) for plot_id, plot_data in data.get("plots", {}).items()},
-            story_flags=[flag for flag in data.get("story_flags", []) if isinstance(flag, str) and flag],
-            current_time=data.get("current_time", ""),
-            event_log=[_event_log_entry_from_dict(entry) for entry in data.get("event_log", [])],
+            plots={
+                plot_id: _plot_thread_from_dict(_require_mapping(plot_data, f"plot '{plot_id}'"))
+                for plot_id, plot_data in _require_mapping(_require_present_value(data, "plots"), "plots").items()
+            },
+            story_flags=_require_string_list(_require_present_value(data, "story_flags"), "story_flags"),
+            current_time=_require_iso_datetime(_require_str(data, "current_time", "current_time")),
+            event_log=[
+                _event_log_entry_from_dict(_require_mapping(entry, f"event log entry {index}"))
+                for index, entry in enumerate(_require_list(_require_present_value(data, "event_log"), "event_log"))
+            ],
         )
 
 
@@ -122,79 +132,182 @@ def _event_log_entry_to_dict(entry: EventLogEntry) -> dict[str, Any]:
 
 def _player_from_dict(data: dict[str, Any]) -> Player:
     return Player(
-        id=data["id"],
-        name=data["name"],
-        clan=data["clan"],
-        profession=data["profession"],
-        hunger=data["hunger"],
-        health=data["health"],
-        willpower=data["willpower"],
-        humanity=data["humanity"],
-        inventory=list(data.get("inventory", [])),
-        location_id=data.get("location_id"),
-        stats=dict(data.get("stats", {})),
+        id=_require_str(data, "id"),
+        name=_require_str(data, "name"),
+        clan=_require_str(data, "clan"),
+        profession=_require_str(data, "profession"),
+        hunger=_require_int(data, "hunger"),
+        health=_require_int(data, "health"),
+        willpower=_require_int(data, "willpower"),
+        humanity=_require_int(data, "humanity"),
+        inventory=_require_string_list(_require_present_value(data, "inventory"), "inventory"),
+        location_id=_require_optional_str(data, "location_id"),
+        stats=_require_int_mapping(_require_present_value(data, "stats"), "stats"),
     )
 
 
 def _npc_from_dict(data: dict[str, Any]) -> NPC:
     return NPC(
-        id=data["id"],
-        name=data["name"],
-        role=data["role"],
-        location_id=data.get("location_id"),
-        attitude_to_player=data["attitude_to_player"],
-        trust_level=data.get("trust_level", 0),
-        consumed_dialogue_hooks=list(data.get("consumed_dialogue_hooks", [])),
-        goals=list(data.get("goals", [])),
-        investigation_hint=data.get("investigation_hint", ""),
-        schedule=dict(data.get("schedule", {})),
-        traits=dict(data.get("traits", {})),
+        id=_require_str(data, "id"),
+        name=_require_str(data, "name"),
+        role=_require_str(data, "role"),
+        location_id=_require_optional_str(data, "location_id"),
+        attitude_to_player=_require_str(data, "attitude_to_player"),
+        trust_level=_require_int(data, "trust_level"),
+        consumed_dialogue_hooks=_require_string_list(_require_present_value(data, "consumed_dialogue_hooks"), "consumed_dialogue_hooks"),
+        goals=_require_string_list(_require_present_value(data, "goals"), "goals"),
+        investigation_hint=_require_str(data, "investigation_hint", "investigation_hint"),
+        schedule=_require_str_mapping(_require_present_value(data, "schedule"), "schedule"),
+        traits=_require_str_mapping(_require_present_value(data, "traits"), "traits"),
     )
 
 
 def _location_from_dict(data: dict[str, Any]) -> Location:
     return Location(
-        id=data["id"],
-        name=data["name"],
-        type=data["type"],
-        connected_locations=list(data.get("connected_locations", [])),
-        travel_time=dict(data.get("travel_time", {})),
-        danger_level=data["danger_level"],
-        scene_hook=_optional_str(data, "scene_hook"),
-        notable_features=_optional_string_list(data, "notable_features"),
-        flavor_tags=_optional_string_list(data, "flavor_tags"),
+        id=_require_str(data, "id"),
+        name=_require_str(data, "name"),
+        type=_require_str(data, "type"),
+        connected_locations=_require_string_list(_require_present_value(data, "connected_locations"), "connected_locations"),
+        travel_time=_require_int_mapping(_require_present_value(data, "travel_time"), "travel_time"),
+        danger_level=_require_int(data, "danger_level"),
+        scene_hook=_require_present_str(data, "scene_hook"),
+        notable_features=_require_string_list(_require_present_value(data, "notable_features"), "notable_features"),
+        flavor_tags=_require_string_list(_require_present_value(data, "flavor_tags"), "flavor_tags"),
     )
 
 
 def _plot_thread_from_dict(data: dict[str, Any]) -> PlotThread:
     return PlotThread(
-        id=data["id"],
-        name=data["name"],
-        stage=data["stage"],
-        active=data["active"],
-        triggers=list(data.get("triggers", [])),
-        consequences=list(data.get("consequences", [])),
-        resolution_summary=_optional_str(data, "resolution_summary"),
-        learned_outcome=_optional_str(data, "learned_outcome"),
-        closing_beat=_optional_str(data, "closing_beat"),
+        id=_require_str(data, "id"),
+        name=_require_str(data, "name"),
+        stage=_require_str(data, "stage"),
+        active=_require_bool(data, "active"),
+        triggers=_require_string_list(_require_present_value(data, "triggers"), "triggers"),
+        consequences=_require_string_list(_require_present_value(data, "consequences"), "consequences"),
+        resolution_summary=_require_present_str(data, "resolution_summary"),
+        learned_outcome=_require_present_str(data, "learned_outcome"),
+        closing_beat=_require_present_str(data, "closing_beat"),
     )
 
 
 def _event_log_entry_from_dict(data: dict[str, Any]) -> EventLogEntry:
     return EventLogEntry(
-        timestamp=data["timestamp"],
-        description=data["description"],
-        involved_entities=list(data.get("involved_entities", [])),
+        timestamp=_require_iso_datetime(_require_str(data, "timestamp", "timestamp")),
+        description=_require_str(data, "description"),
+        involved_entities=_require_string_list(_require_present_value(data, "involved_entities"), "involved_entities"),
     )
 
 
-def _optional_str(data: dict[str, Any], field_name: str) -> str:
-    value = data.get(field_name, "")
-    return value if isinstance(value, str) else ""
+def _require_mapping(value: Any, label: str) -> dict[str, Any]:
+    if not isinstance(value, dict):
+        raise TypeError(f"{label} must be a JSON object.")
+    return value
 
 
-def _optional_string_list(data: dict[str, Any], field_name: str) -> list[str]:
-    value = data.get(field_name, [])
+def _require_list(value: Any, label: str) -> list[Any]:
     if not isinstance(value, list):
-        return []
-    return [entry for entry in value if isinstance(entry, str) and entry]
+        raise TypeError(f"{label} must be a JSON array.")
+    return value
+
+
+def _require_present_value(data: dict[str, Any], field_name: str) -> Any:
+    if field_name not in data:
+        raise TypeError(f"{field_name} is required.")
+    return data[field_name]
+
+
+def _require_str(data: dict[str, Any], field_name: str, label: str | None = None) -> str:
+    if field_name not in data:
+        raise TypeError(f"{label or field_name} is required.")
+    value = data[field_name]
+    if not isinstance(value, str) or not value:
+        raise TypeError(f"{label or field_name} must be a non-empty string.")
+    return value
+
+
+def _require_present_str(data: dict[str, Any], field_name: str) -> str:
+    if field_name not in data:
+        raise TypeError(f"{field_name} is required.")
+    value = data[field_name]
+    if not isinstance(value, str):
+        raise TypeError(f"{field_name} must be a string.")
+    return value
+
+
+def _require_optional_str(data: dict[str, Any], field_name: str) -> str | None:
+    if field_name not in data:
+        raise TypeError(f"{field_name} is required.")
+    value = data[field_name]
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TypeError(f"{field_name} must be a string or null.")
+    return value
+
+
+def _require_int(data: dict[str, Any], field_name: str) -> int:
+    if field_name not in data:
+        raise TypeError(f"{field_name} is required.")
+    value = data[field_name]
+    if not isinstance(value, int):
+        raise TypeError(f"{field_name} must be an integer.")
+    return value
+
+
+def _require_bool(data: dict[str, Any], field_name: str) -> bool:
+    if field_name not in data:
+        raise TypeError(f"{field_name} is required.")
+    value = data[field_name]
+    if not isinstance(value, bool):
+        raise TypeError(f"{field_name} must be a boolean.")
+    return value
+
+
+def _require_string_list(value: Any, label: str) -> list[str]:
+    if not isinstance(value, list):
+        raise TypeError(f"{label} must be a JSON array.")
+
+    validated: list[str] = []
+    for entry in value:
+        if not isinstance(entry, str):
+            raise TypeError(f"{label} must contain only strings.")
+        validated.append(entry)
+    return validated
+
+
+def _require_int_mapping(value: Any, label: str) -> dict[str, int]:
+    if not isinstance(value, dict):
+        raise TypeError(f"{label} must be a JSON object.")
+
+    validated: dict[str, int] = {}
+    for key, entry in value.items():
+        if not isinstance(key, str) or not key:
+            raise TypeError(f"{label} must use non-empty string keys.")
+        if not isinstance(entry, int):
+            raise TypeError(f"{label} must use integer values.")
+        validated[key] = entry
+    return validated
+
+
+def _require_str_mapping(value: Any, label: str) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise TypeError(f"{label} must be a JSON object.")
+
+    validated: dict[str, str] = {}
+    for key, entry in value.items():
+        if not isinstance(key, str) or not key:
+            raise TypeError(f"{label} must use non-empty string keys.")
+        if not isinstance(entry, str):
+            raise TypeError(f"{label} must use string values.")
+        validated[key] = entry
+    return validated
+
+
+def _require_iso_datetime(value: str) -> str:
+    from datetime import datetime
+
+    try:
+        datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise TypeError(f"current_time must be a valid ISO datetime.") from exc
+    return value

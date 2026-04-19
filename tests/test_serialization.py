@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -12,6 +13,19 @@ from vampire_storyteller.sample_world import build_sample_world
 class SerializationTests(unittest.TestCase):
     def test_world_state_saves_and_loads_successfully(self) -> None:
         world = build_sample_world()
+        world.player.inventory.append("old_map")
+        world.player.stats["resolve"] = 5
+        world.npcs["npc_1"].trust_level = 2
+        world.npcs["npc_1"].consumed_dialogue_hooks = ["jonas_hook_trust_0"]
+        world.npcs["npc_1"].goals.append("Trust Mara with the dock lead")
+        world.npcs["npc_1"].schedule["late"] = "loc_dock"
+        world.locations["loc_cafe"].scene_hook = "A quieter clue."
+        world.locations["loc_cafe"].notable_features.append("back corner")
+        world.plots["plot_1"].resolution_summary = "Plot 'Missing Ledger' resolved at North Dockside."
+        world.plots["plot_1"].learned_outcome = "The ledger's path points back to a hidden broker operating through the dock."
+        world.plots["plot_1"].closing_beat = "Mara leaves North Dockside with the ledger matter settled."
+        world.story_flags = ["jonas_shared_dock_lead"]
+        world.current_time = "2026-04-09T22:10:00+02:00"
         world.append_event(
             EventLogEntry(
                 timestamp="2026-04-09T22:10:00+02:00",
@@ -25,18 +39,14 @@ class SerializationTests(unittest.TestCase):
             save_world_state(world, path)
             loaded_world = load_world_state(path)
 
-        self.assertEqual(loaded_world.player.id, world.player.id)
-        self.assertEqual(loaded_world.player.name, world.player.name)
-        self.assertEqual(loaded_world.player.location_id, world.player.location_id)
-        self.assertEqual(loaded_world.current_time, world.current_time)
-        self.assertEqual(loaded_world.story_flags, world.story_flags)
-        self.assertEqual(loaded_world.npcs["npc_1"].goals, world.npcs["npc_1"].goals)
-        self.assertEqual(loaded_world.npcs["npc_1"].investigation_hint, world.npcs["npc_1"].investigation_hint)
-        self.assertEqual(loaded_world.npcs["npc_1"].trust_level, world.npcs["npc_1"].trust_level)
-        self.assertEqual(loaded_world.npcs["npc_1"].consumed_dialogue_hooks, world.npcs["npc_1"].consumed_dialogue_hooks)
-        self.assertEqual(loaded_world.locations["loc_cafe"].scene_hook, world.locations["loc_cafe"].scene_hook)
-        self.assertEqual(loaded_world.locations["loc_cafe"].notable_features, world.locations["loc_cafe"].notable_features)
-        self.assertEqual(loaded_world.locations["loc_cafe"].flavor_tags, world.locations["loc_cafe"].flavor_tags)
+        self.assertEqual(loaded_world, world)
+        self.assertEqual(loaded_world.to_dict(), world.to_dict())
+        self.assertEqual(loaded_world.player.stats["resolve"], 5)
+        self.assertEqual(loaded_world.npcs["npc_1"].trust_level, 2)
+        self.assertEqual(loaded_world.npcs["npc_1"].consumed_dialogue_hooks, ["jonas_hook_trust_0"])
+        self.assertEqual(loaded_world.locations["loc_cafe"].scene_hook, "A quieter clue.")
+        self.assertEqual(loaded_world.plots["plot_1"].closing_beat, "Mara leaves North Dockside with the ledger matter settled.")
+        self.assertEqual(loaded_world.story_flags, ["jonas_shared_dock_lead"])
 
     def test_event_log_round_trip_works(self) -> None:
         world = build_sample_world()
@@ -91,6 +101,22 @@ class SerializationTests(unittest.TestCase):
         self.assertEqual(loaded_world.story_flags, ["jonas_shared_dock_lead"])
         self.assertIn("plot_2", loaded_world.plots)
         self.assertFalse(loaded_world.plots["plot_2"].active)
+
+    def test_missing_required_field_in_saved_payload_fails_clearly(self) -> None:
+        world = build_sample_world()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "world.json"
+            save_world_state(world, path)
+            saved_data = path.read_text(encoding="utf-8")
+            payload = json.loads(saved_data)
+            del payload["story_flags"]
+            path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+            with self.assertRaises(TypeError) as ctx:
+                load_world_state(path)
+
+        self.assertIn("story_flags is required", str(ctx.exception))
 
 
 if __name__ == "__main__":

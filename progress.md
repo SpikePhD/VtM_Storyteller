@@ -25,6 +25,32 @@ Current dialogue metadata contract:
 
 This is intentionally small. It establishes the boundary for future conversational work without changing gameplay logic or introducing an LLM-dependent dialogue system.
 
+## Task 046 - Implement Full Save/Load Roundtrip for WorldState
+
+- Status: implemented
+- Goal: make save/load preserve the complete gameplay-relevant `WorldState` without silent loss or drift
+- Files changed:
+  - `vampire_storyteller/world_state.py`
+  - `tests/test_serialization.py`
+  - `progress.md`
+- What was implemented:
+  - Hardened `WorldState.from_dict()` to require canonical fields instead of backfilling permissive defaults
+  - Validated saved player, NPC, location, plot, story-flag, current-time, and event-log payloads during load
+  - Added roundtrip coverage that compares a fully populated world before and after save/load
+  - Added a failing regression test for missing required saved data
+- Acceptance criteria checklist:
+  - [x] Save/load preserves gameplay-critical world state
+  - [x] Corrupt or incomplete saves fail clearly
+  - [x] Valid saves still restore a playable session
+  - [x] Tests cover the roundtrip and failure path
+- Assumptions:
+  - Runtime-only session orchestration state should still reset on load
+  - Canonical save data should be strict because valid saves are produced by the game itself
+- Deviations/issues:
+  - None
+- Notes for next task:
+  - If future save versioning is added, it should extend the strict loader rather than reintroduce silent defaults
+
 ## Task 045 - Implement Validated Adventure Loaders for ADV1
 
 - Status: implemented
