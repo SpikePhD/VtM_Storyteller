@@ -1,5 +1,28 @@
 # Progress
 
+## Task 049 - Harden Intent Interpretation and Action Normalization
+
+- Status: implemented
+- Goal: make raw player input normalize deterministically into canonical gameplay actions or explicit failures without widening the parser or adjudication boundaries
+- Files changed:
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_input_interpreter.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What was implemented:
+  - Added a structured normalized-action record that distinguishes interpreted actions, direct parser-boundary commands, and explicit failures
+  - Kept supported freeform talk, movement, waiting, observation, and investigate flows stable while surfacing a clearer canonical command text
+  - Made unsupported freeform input and invalid direct commands fail deterministically with explicit feedback instead of uncaught parser exceptions
+  - Exposed the last normalized action through `GameSession` for focused inspection in tests and later SPI-13 work
+- Acceptance criteria checklist:
+  - [x] Supported freeform inputs normalize into canonical gameplay actions or explicit deterministic failures
+  - [x] Normalized action data is richer and more trustworthy than in SPI-11
+  - [x] Downstream adjudication/execution no longer needs to infer as much from raw input
+  - [x] Current gameplay behavior remains stable for already-supported flows
+- Notes:
+  - This stays deliberately narrow and does not change the adjudication model or broaden the dice system
+
 ## Current Interaction Model
 
 The current backend interaction path is now:

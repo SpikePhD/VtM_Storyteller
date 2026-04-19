@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import replace
 from pathlib import Path
 
+from .action_resolution import NormalizationSource, NormalizedActionInput
 from .adjudication_engine import AdjudicationDecision, adjudicate_command
 from .command_dispatcher import execute_command
 from .command_models import Command, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
+from .exceptions import CommandParseError
 from .command_parser import parse_command
 from .command_result import CommandResult
 from .consequence_engine import apply_consequences
@@ -36,6 +38,7 @@ class GameSession:
         self._fallback_scene_provider = DeterministicSceneNarrativeProvider()
         self._input_interpreter = InputInterpreter()
         self._last_interpreted_input: InterpretedInput | None = None
+        self._last_normalized_action: NormalizedActionInput | None = None
         self._conversation_context = ConversationContext()
         self._save_path = Path(save_path) if save_path is not None else get_default_save_path()
 
@@ -47,10 +50,16 @@ class GameSession:
         interpretation = self._interpret_input(raw_input)
         self._last_interpreted_input = interpretation
         if interpretation.no_active_conversation:
+            self._last_normalized_action = None
             return CommandResult(output_text="There is no active conversation to continue.")
 
         # Phase 2: normalize to the canonical structured command.
-        command = self._normalize_command(raw_input, interpretation)
+        normalized_action = self._normalize_action(raw_input, interpretation)
+        self._last_normalized_action = normalized_action
+        if not normalized_action.is_success:
+            return CommandResult(output_text=normalized_action.failure_reason or "I could not normalize that input into a supported action.")
+        command = normalized_action.command
+        assert command is not None
 
         # Phase 3: handle session-level commands that do not enter the world pipeline.
         session_result = self._handle_session_command(command)
@@ -88,6 +97,9 @@ class GameSession:
     def get_last_interpreted_input(self) -> InterpretedInput | None:
         return self._last_interpreted_input
 
+    def get_last_normalized_action(self) -> NormalizedActionInput | None:
+        return self._last_normalized_action
+
     def get_conversation_focus_npc_id(self) -> str | None:
         return self._conversation_context.focus_npc_id
 
@@ -98,20 +110,104 @@ class GameSession:
         self._conversation_context.sync_with_world(self._world_state)
         return self._input_interpreter.interpret(raw_input, self._world_state, self._conversation_context.focus_npc_id)
 
-    def _normalize_command(self, raw_input: str, interpretation: InterpretedInput) -> Command:
-        command_input = interpretation.canonical_command if not interpretation.fallback_to_parser else raw_input
-        command = parse_command(command_input)
-        if isinstance(command, TalkCommand) and self._conversation_context.focus_npc_id not in (None, command.npc_id):
+    def _normalize_action(self, raw_input: str, interpretation: InterpretedInput) -> NormalizedActionInput:
+        if interpretation.fallback_to_parser:
+            if not self._looks_like_canonical_command(raw_input):
+                return NormalizedActionInput(
+                    raw_input=raw_input,
+                    canonical_command_text=None,
+                    command=None,
+                    source=NormalizationSource.FAILED,
+                    failure_reason=f"Unsupported freeform input: {interpretation.match_reason}.",
+                )
+
+            command_input = self._normalize_whitespace(raw_input)
+            try:
+                command = parse_command(command_input)
+            except CommandParseError as exc:
+                return NormalizedActionInput(
+                    raw_input=raw_input,
+                    canonical_command_text=command_input,
+                    command=None,
+                    source=NormalizationSource.FAILED,
+                    failure_reason=f"Invalid canonical command: {exc}",
+                )
+            return NormalizedActionInput(
+                raw_input=raw_input,
+                canonical_command_text=command_input,
+                command=command,
+                source=NormalizationSource.DIRECT_COMMAND,
+            ) if not isinstance(command, TalkCommand) else self._finalize_talk_normalization(
+                raw_input=raw_input,
+                command_input=command_input,
+                command=command,
+                interpretation=None,
+                source=NormalizationSource.DIRECT_COMMAND,
+            )
+
+        command_input = interpretation.canonical_command
+        assert command_input is not None
+        try:
+            command = parse_command(command_input)
+        except CommandParseError as exc:
+            return NormalizedActionInput(
+                raw_input=raw_input,
+                canonical_command_text=command_input,
+                command=None,
+                source=NormalizationSource.FAILED,
+                interpretation=interpretation,
+                failure_reason=f"Normalized interpretation could not be parsed: {exc}",
+            )
+        return NormalizedActionInput(
+            raw_input=raw_input,
+            canonical_command_text=command_input,
+            command=command,
+            source=NormalizationSource.INTERPRETED,
+            interpretation=interpretation,
+        ) if not isinstance(command, TalkCommand) else self._finalize_talk_normalization(
+            raw_input=raw_input,
+            command_input=command_input,
+            command=command,
+            interpretation=interpretation,
+            source=NormalizationSource.INTERPRETED,
+        )
+
+    def _normalize_whitespace(self, raw_input: str) -> str:
+        return " ".join(raw_input.strip().split())
+
+    def _looks_like_canonical_command(self, raw_input: str) -> bool:
+        normalized_input = self._normalize_whitespace(raw_input)
+        if not normalized_input:
+            return False
+        keyword = normalized_input.split(" ", 1)[0].lower()
+        return keyword in {"look", "status", "help", "investigate", "save", "load", "quit", "move", "wait", "talk"}
+
+    def _finalize_talk_normalization(
+        self,
+        raw_input: str,
+        command_input: str,
+        command: Command,
+        interpretation: InterpretedInput | None,
+        source: NormalizationSource,
+    ) -> NormalizedActionInput:
+        assert isinstance(command, TalkCommand)
+        if self._conversation_context.focus_npc_id not in (None, command.npc_id):
             self._conversation_context.clear()
-        if isinstance(command, TalkCommand) and interpretation.dialogue_metadata is not None:
+        if interpretation is not None and interpretation.dialogue_metadata is not None:
             command = replace(
                 command,
                 dialogue_metadata=interpretation.dialogue_metadata,
                 conversation_stance=self._conversation_context.stance,
             )
-        elif isinstance(command, TalkCommand):
-            command = replace(command, conversation_stance=self._conversation_context.stance)
-        return command
+        command = replace(command, conversation_stance=self._conversation_context.stance)
+
+        return NormalizedActionInput(
+            raw_input=raw_input,
+            canonical_command_text=command_input,
+            command=command,
+            source=source,
+            interpretation=interpretation,
+        )
 
     def _handle_session_command(self, command: Command) -> CommandResult | None:
         if isinstance(command, SaveCommand):

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import unittest
 
+from vampire_storyteller.action_resolution import NormalizationSource
 from vampire_storyteller.command_models import DialogueAct
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.input_interpreter import InputInterpreter
@@ -135,21 +136,31 @@ class InputInterpreterTests(unittest.TestCase):
         session = GameSession()
 
         result = session.process_input("I head to the church.")
+        normalized = session.get_last_normalized_action()
 
         self.assertTrue(result.render_scene)
         self.assertEqual(session.get_world_state().player.location_id, "loc_church")
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized.source, NormalizationSource.INTERPRETED)
+        self.assertEqual(normalized.canonical_command_text, "move loc_church")
 
     def test_game_session_preserves_dialogue_metadata(self) -> None:
         session = GameSession()
 
         session.process_input("Jonas, I need you to trust me.")
         interpreted = session.get_last_interpreted_input()
+        normalized = session.get_last_normalized_action()
 
         self.assertIsNotNone(interpreted)
         self.assertIsNotNone(interpreted.dialogue_metadata)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.PERSUADE)
         self.assertEqual(interpreted.dialogue_metadata.utterance_text, "Jonas, I need you to trust me.")
+        self.assertIsNotNone(normalized)
+        assert normalized is not None
+        self.assertEqual(normalized.source, NormalizationSource.INTERPRETED)
+        self.assertEqual(normalized.canonical_command_text, "talk npc_1")
 
     def test_follow_up_uses_conversation_focus(self) -> None:
         result = self.interpreter.interpret("Why?", self.world_state, conversation_focus_npc_id="npc_1")
