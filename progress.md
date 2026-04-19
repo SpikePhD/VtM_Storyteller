@@ -1,5 +1,24 @@
 # Progress
 
+## Task 055 - Add End-to-End Regression Matrix for the Rules Resolution Loop
+
+- Status: implemented
+- Goal: protect the full deterministic rules loop with representative end-to-end regression coverage
+- Files changed:
+  - `tests/test_rules_resolution_matrix.py`
+  - `progress.md`
+- What was implemented:
+  - Added a focused regression matrix that exercises direct command, interpreted freeform, blocked investigate, automatic look, roll-gated investigate, and persistence-sensitive save/load flows
+  - Asserted the structured turn outcome on each representative path instead of relying on prose alone
+  - Kept the change test-focused without altering gameplay code
+- Acceptance criteria checklist:
+  - [x] The M2 rules loop is protected end to end
+  - [x] Representative paths are covered with stable assertions
+  - [x] Tests assert structured truth, not only prose
+  - [x] SPI-11 through SPI-16 contracts remain intact
+- Notes:
+  - This is intentionally narrow and does not refactor the underlying rules pipeline
+
 ## Task 054 - Emit Structured Turn Outcomes for UI and Narrative Consumers
 
 - Status: implemented
