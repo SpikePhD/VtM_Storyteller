@@ -23,6 +23,7 @@ from .command_result import CommandResult
 from .consequence_engine import apply_post_resolution_consequences
 from .conversation_context import ConversationContext
 from .data_paths import ensure_adventure_directories, get_default_save_path
+from .dialogue_intent_adapter import DialogueIntentAdapter, NullDialogueIntentAdapter
 from .dice_engine import resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
@@ -39,12 +40,14 @@ class GameSession:
         self,
         world_state: WorldState | None = None,
         scene_provider: SceneNarrativeProvider | None = None,
+        dialogue_intent_adapter: DialogueIntentAdapter | None = None,
         save_path: str | Path | None = None,
     ) -> None:
         self._world_state = world_state if world_state is not None else build_sample_world()
         self._scene_provider = scene_provider if scene_provider is not None else DeterministicSceneNarrativeProvider()
         self._fallback_scene_provider = DeterministicSceneNarrativeProvider()
         self._input_interpreter = InputInterpreter()
+        self._dialogue_intent_adapter = dialogue_intent_adapter if dialogue_intent_adapter is not None else NullDialogueIntentAdapter()
         self._last_interpreted_input: InterpretedInput | None = None
         self._last_normalized_action: NormalizedActionInput | None = None
         self._last_action_resolution: ActionResolutionTurn | None = None
@@ -149,6 +152,7 @@ class GameSession:
             self._conversation_context.focus_npc_id,
             self._conversation_context.stale_focus_npc_id,
             self._conversation_context.stale_focus_reason,
+            self._dialogue_intent_adapter,
         )
 
     def _normalize_action(self, raw_input: str, interpretation: InterpretedInput) -> NormalizedActionInput:

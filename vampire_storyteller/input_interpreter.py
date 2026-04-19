@@ -5,6 +5,7 @@ from enum import Enum
 from dataclasses import dataclass
 
 from .command_models import DialogueAct, DialogueMetadata
+from .dialogue_intent_adapter import DialogueIntentAdapter, DialogueIntentProposal, build_dialogue_intent_context, is_pronoun_like_target
 from .world_state import WorldState
 
 
@@ -108,6 +109,7 @@ class InputInterpreter:
         conversation_focus_npc_id: str | None = None,
         stale_conversation_focus_npc_id: str | None = None,
         stale_conversation_focus_reason: str | None = None,
+        dialogue_intent_adapter: DialogueIntentAdapter | None = None,
     ) -> InterpretedInput:
         normalized_text = self._normalize_text(raw_input)
         if not normalized_text:
@@ -120,6 +122,7 @@ class InputInterpreter:
             conversation_focus_npc_id,
             stale_conversation_focus_npc_id,
             stale_conversation_focus_reason,
+            dialogue_intent_adapter,
         )
         if talk_result is not None:
             return talk_result
@@ -220,6 +223,7 @@ class InputInterpreter:
         conversation_focus_npc_id: str | None,
         stale_conversation_focus_npc_id: str | None,
         stale_conversation_focus_reason: str | None,
+        dialogue_intent_adapter: DialogueIntentAdapter | None,
     ) -> InterpretedInput | None:
         if self._looks_like_canonical_talk_command(raw_input):
             return None
@@ -255,6 +259,15 @@ class InputInterpreter:
 
             speech_text = self._extract_speech_text(raw_input, npc_match["matched_text"])
             return self._build_talk_result(raw_input, normalized_text, npc, speech_text, npc_match["matched_text"])
+
+        adapter_result = self._interpret_dialogue_intent_proposal(
+            raw_input,
+            world_state,
+            conversation_focus_npc_id,
+            dialogue_intent_adapter,
+        )
+        if adapter_result is not None:
+            return adapter_result
 
         if self._looks_like_follow_up(normalized_text):
             if conversation_focus_npc_id is not None:
@@ -574,6 +587,83 @@ class InputInterpreter:
         tokens = raw_input.strip().split()
         return 0 < len(tokens) <= 2 and tokens[0].lower() == "talk"
 
+    def _interpret_dialogue_intent_proposal(
+        self,
+        raw_input: str,
+        world_state: WorldState,
+        conversation_focus_npc_id: str | None,
+        dialogue_intent_adapter: DialogueIntentAdapter | None,
+    ) -> InterpretedInput | None:
+        if dialogue_intent_adapter is None:
+            return None
+
+        proposal = dialogue_intent_adapter.propose_dialogue_intent(
+            build_dialogue_intent_context(world_state, raw_input, conversation_focus_npc_id)
+        )
+        if proposal is None:
+            return None
+
+        resolved_npc = self._resolve_adapter_target(
+            proposal,
+            world_state,
+            conversation_focus_npc_id,
+        )
+        if resolved_npc is None:
+            return None
+
+        speech_text = self._extract_speech_text(raw_input, resolved_npc.name)
+        dialogue_act = self._coerce_dialogue_act(proposal.dialogue_act)
+        metadata = DialogueMetadata(
+            utterance_text=raw_input.strip(),
+            speech_text=speech_text,
+            dialogue_act=dialogue_act,
+            topic=proposal.topic,
+            tone=proposal.tone,
+        )
+        return InterpretedInput(
+            normalized_intent="talk",
+            target_text=proposal.target_npc_text,
+            target_reference=resolved_npc.id,
+            canonical_command=f"talk {resolved_npc.id}",
+            confidence=0.88 if dialogue_act is not DialogueAct.UNKNOWN else 0.76,
+            match_reason=f"dialogue intent adapter grounded target '{proposal.target_npc_text}' as {resolved_npc.name}",
+            fallback_to_parser=False,
+            dialogue_metadata=metadata,
+        )
+
+    def _resolve_adapter_target(
+        self,
+        proposal: DialogueIntentProposal,
+        world_state: WorldState,
+        conversation_focus_npc_id: str | None,
+    ):
+        normalized_target = self._normalize_text(proposal.target_npc_text)
+        if not normalized_target:
+            return None
+
+        if is_pronoun_like_target(normalized_target):
+            if conversation_focus_npc_id is None:
+                return None
+            focused_npc = world_state.npcs.get(conversation_focus_npc_id)
+            if focused_npc is None or focused_npc.location_id != world_state.player.location_id:
+                return None
+            return focused_npc
+
+        matches = self._match_npc_candidates(normalized_target, world_state)
+        if len(matches) != 1:
+            return None
+
+        resolved_npc = world_state.npcs.get(matches[0]["npc_id"])
+        if resolved_npc is None or resolved_npc.location_id != world_state.player.location_id:
+            return None
+        return resolved_npc
+
+    def _coerce_dialogue_act(self, dialogue_act: str) -> DialogueAct:
+        try:
+            return DialogueAct(dialogue_act)
+        except ValueError:
+            return DialogueAct.UNKNOWN
+
     def _build_talk_result(
         self,
         raw_input: str,
@@ -581,13 +671,19 @@ class InputInterpreter:
         npc,
         speech_text: str,
         matched_text: str,
+        dialogue_act: DialogueAct | None = None,
+        topic: str | None = None,
+        tone: str | None = None,
     ) -> InterpretedInput:
         normalized_speech_text = self._normalize_text(speech_text)
-        dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, speech_text, normalized_speech_text)
+        if dialogue_act is None:
+            dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, speech_text, normalized_speech_text)
         metadata = DialogueMetadata(
             utterance_text=raw_input.strip(),
             speech_text=speech_text,
             dialogue_act=dialogue_act,
+            topic=topic,
+            tone=tone,
         )
         return InterpretedInput(
             normalized_intent="talk",

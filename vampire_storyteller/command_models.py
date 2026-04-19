@@ -23,6 +23,8 @@ class DialogueMetadata:
     utterance_text: str
     speech_text: str
     dialogue_act: DialogueAct
+    topic: str | None = None
+    tone: str | None = None
 
 
 @dataclass(frozen=True)

@@ -19,6 +19,7 @@ class AppConfig:
     openai_api_key: str | None
     openai_model: str
     use_openai_scene_provider: bool
+    use_openai_dialogue_intent_adapter: bool
 
 
 def load_config(
@@ -33,11 +34,13 @@ def load_config(
     merged_runtime_config = {**runtime_config, **local_runtime_config}
     openai_model = _coerce_str(merged_runtime_config.get("openai_model"), DEFAULT_OPENAI_MODEL)
     use_openai_scene_provider = _coerce_bool(merged_runtime_config.get("use_openai_scene_provider"), False)
+    use_openai_dialogue_intent_adapter = _coerce_bool(merged_runtime_config.get("use_openai_dialogue_intent_adapter"), False)
     openai_api_key = os.getenv("OPENAI_API_KEY") or secret_values.get("OPENAI_API_KEY") or None
     return AppConfig(
         openai_api_key=openai_api_key,
         openai_model=openai_model,
         use_openai_scene_provider=use_openai_scene_provider,
+        use_openai_dialogue_intent_adapter=use_openai_dialogue_intent_adapter,
     )
 
 

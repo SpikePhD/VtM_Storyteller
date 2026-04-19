@@ -4,9 +4,10 @@ import unittest
 from unittest.mock import Mock, patch
 
 from vampire_storyteller.config import AppConfig
-from vampire_storyteller.cli import build_scene_provider
+from vampire_storyteller.cli import build_dialogue_intent_adapter, build_scene_provider
 from vampire_storyteller.context_builder import build_scene_snapshot, snapshot_to_footer_text
 from vampire_storyteller.narrative_provider import DeterministicSceneNarrativeProvider
+from vampire_storyteller.dialogue_intent_adapter import NullDialogueIntentAdapter, OpenAIDialogueIntentAdapter
 from vampire_storyteller.openai_narrative_provider import OpenAISceneNarrativeProvider
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.sample_world import build_sample_world
@@ -77,6 +78,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
                 openai_api_key=None,
                 openai_model="gpt-4.1-mini",
                 use_openai_scene_provider=False,
+                use_openai_dialogue_intent_adapter=False,
             )
         )
 
@@ -89,6 +91,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
                 openai_api_key=None,
                 openai_model="gpt-4.1-mini",
                 use_openai_scene_provider=True,
+                use_openai_dialogue_intent_adapter=False,
             )
         )
 
@@ -99,12 +102,13 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
     def test_shared_provider_helper_uses_openai_model_from_runtime_config(self) -> None:
         with patch("vampire_storyteller.cli.OpenAISceneNarrativeProvider") as mock_provider_ctor:
             provider, notice = build_scene_provider(
-                AppConfig(
-                    openai_api_key="test-key",
-                    openai_model="gpt-4.1-mini",
-                    use_openai_scene_provider=True,
-                )
+            AppConfig(
+                openai_api_key="test-key",
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=True,
+                use_openai_dialogue_intent_adapter=False,
             )
+        )
 
         self.assertIsNone(notice)
         mock_provider_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
@@ -126,6 +130,48 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
 
         self.assertEqual(provider.render_scene(world), provider.render_scene(world))
         self.assertNotIn("---", provider.render_scene(world))
+
+    def test_session_uses_deterministic_dialogue_adapter_when_openai_not_selected(self) -> None:
+        adapter, notice = build_dialogue_intent_adapter(
+            AppConfig(
+                openai_api_key=None,
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=False,
+                use_openai_dialogue_intent_adapter=False,
+            )
+        )
+
+        self.assertIsInstance(adapter, NullDialogueIntentAdapter)
+        self.assertIsNone(notice)
+
+    def test_missing_api_key_with_dialogue_adapter_opt_in_falls_back_safely(self) -> None:
+        adapter, notice = build_dialogue_intent_adapter(
+            AppConfig(
+                openai_api_key=None,
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=False,
+                use_openai_dialogue_intent_adapter=True,
+            )
+        )
+
+        self.assertIsInstance(adapter, NullDialogueIntentAdapter)
+        self.assertIsNotNone(notice)
+        self.assertIn("OPENAI_API_KEY is missing", notice)
+
+    def test_shared_dialogue_adapter_helper_uses_openai_model_from_runtime_config(self) -> None:
+        with patch("vampire_storyteller.cli.OpenAIDialogueIntentAdapter") as mock_adapter_ctor:
+            adapter, notice = build_dialogue_intent_adapter(
+                AppConfig(
+                    openai_api_key="test-key",
+                    openai_model="gpt-4.1-mini",
+                    use_openai_scene_provider=False,
+                    use_openai_dialogue_intent_adapter=True,
+                )
+            )
+
+        self.assertIsNone(notice)
+        mock_adapter_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
+        self.assertIs(adapter, mock_adapter_ctor.return_value)
 
 
 if __name__ == "__main__":
