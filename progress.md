@@ -1,5 +1,31 @@
 # Progress
 
+## Task 051 - Generalize Deterministic Dice and Check Resolution
+
+- Status: in progress
+- Goal: move investigate-centered roll handling into a reusable deterministic check engine with explicit check kinds and structured results
+- Files changed:
+  - `vampire_storyteller/dice_engine.py`
+  - `vampire_storyteller/action_resolution.py`
+  - `vampire_storyteller/adjudication_engine.py`
+  - `vampire_storyteller/game_session.py`
+  - `tests/test_action_resolution_contract.py`
+  - `tests/test_dice_engine.py`
+  - `tests/test_game_session.py`
+  - `progress.md`
+- What is being implemented:
+  - Introduced reusable deterministic check specifications and resolved check results in the dice layer
+  - Threaded check specifications through the action-resolution contract so adjudication can hand off explicit check context
+  - Moved investigate resolution onto the shared check engine instead of keeping a session-local roll special case
+  - Added a second generic check-kind proof in unit tests to show the engine is broader than investigate alone
+- Acceptance criteria checklist:
+  - [ ] Deterministic check execution is reusable
+  - [ ] Check inputs and outputs are explicit and structured
+  - [ ] Investigate uses the generalized path
+  - [ ] Tests cover more than one check kind through the shared engine
+- Notes:
+  - This stays intentionally narrow and does not broaden into consequence centralization or new gameplay systems
+
 ## Task 050 - Build Reusable Adjudication Framework for Player Actions
 
 - Status: in progress

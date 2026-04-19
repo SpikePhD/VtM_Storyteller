@@ -22,7 +22,7 @@ from .command_result import CommandResult
 from .consequence_engine import apply_consequences
 from .conversation_context import ConversationContext
 from .data_paths import ensure_adventure_directories, get_default_save_path
-from .dice_engine import roll_dice
+from .dice_engine import resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
 from .narrative_provider import DeterministicSceneNarrativeProvider, SceneNarrativeProvider
@@ -315,31 +315,28 @@ class GameSession:
         if not result.render_scene or not adjudication.requires_roll:
             return result, None, ActionConsequenceSummary()
 
-        roll_result = self._resolve_roll(command, adjudication)
-        consequence_messages = apply_consequences(self._world_state, command, roll_result=roll_result)
-        return result, roll_result, ActionConsequenceSummary(messages=tuple(consequence_messages))
+        check_outcome = self._resolve_check(command, adjudication)
+        consequence_messages = apply_consequences(self._world_state, command, roll_result=check_outcome)
+        return result, check_outcome, ActionConsequenceSummary(messages=tuple(consequence_messages))
 
-    def _resolve_roll(self, command: Command, adjudication: ActionAdjudicationOutcome) -> ActionCheckOutcome:
-        seed = self._derive_roll_seed(command)
-        assert adjudication.roll_pool is not None
-        assert adjudication.difficulty is not None
-        plot_id = load_adv1_plot_investigation_rules().plot_id
-        roll_result = roll_dice(adjudication.roll_pool, adjudication.difficulty, seed=seed)
+    def _resolve_check(self, command: Command, adjudication: ActionAdjudicationOutcome) -> ActionCheckOutcome:
+        assert adjudication.check_spec is not None
+        check_resolution = resolve_deterministic_check(adjudication.check_spec)
         self._world_state.append_event(
             EventLogEntry(
                 timestamp=self._world_state.current_time,
                 description=(
-                    f"Rolled {roll_result.pool} dice vs difficulty {roll_result.difficulty}: "
-                    f"{roll_result.individual_rolls} -> {roll_result.successes} successes."
+                    f"Rolled {check_resolution.kind.value} check: {check_resolution.roll_pool} dice vs difficulty {check_resolution.difficulty}: "
+                    f"{check_resolution.individual_rolls} -> {check_resolution.successes} successes."
                 ),
                 involved_entities=[
                     self._world_state.player.id,
-                    plot_id,
                     self._world_state.player.location_id or "",
+                    check_resolution.kind.value,
                 ],
             )
         )
-        return ActionCheckOutcome.from_roll_result(seed, roll_result)
+        return ActionCheckOutcome.from_resolution(check_resolution)
 
     def _apply_npc_updates_phase(self, command: Command, result: CommandResult) -> CommandResult:
         if not result.render_scene or not isinstance(command, (MoveCommand, WaitCommand)):
@@ -393,11 +390,6 @@ class GameSession:
         except Exception:
             self._scene_provider = self._fallback_scene_provider
             return self._fallback_scene_provider.render_scene(self._world_state)
-
-    def _derive_roll_seed(self, command: Command) -> str:
-        command_name = command.__class__.__name__.removesuffix("Command").lower()
-        player_id = self._world_state.player.id
-        return f"{self._world_state.current_time}|{command_name}|{player_id}"
 
     def _build_resolution_epilogue(self) -> str:
         plot_id = load_adv1_plot_investigation_rules().plot_id

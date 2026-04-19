@@ -5,7 +5,11 @@ from enum import Enum
 
 from .command_models import Command, ConversationStance
 from .command_result import CommandResult
-from .dice_engine import DiceRollResult
+from .dice_engine import (
+    DeterministicCheckKind,
+    DeterministicCheckResolution,
+    DeterministicCheckSpecification,
+)
 from .input_interpreter import InterpretedInput
 
 
@@ -35,6 +39,7 @@ class AdjudicationDecision:
     reason: str
     blocked_feedback: str | None = None
     block_reason: ActionBlockReason | None = None
+    check_spec: DeterministicCheckSpecification | None = None
     roll_pool: int | None = None
     difficulty: int | None = None
 
@@ -79,6 +84,7 @@ class ActionAdjudicationOutcome:
     reason: str
     blocked_feedback: str | None = None
     block_reason: ActionBlockReason | None = None
+    check_spec: DeterministicCheckSpecification | None = None
     roll_pool: int | None = None
     difficulty: int | None = None
 
@@ -119,19 +125,20 @@ class ActionAdjudicationOutcome:
     def check_gated(
         cls,
         reason: str,
-        roll_pool: int,
-        difficulty: int,
+        check_spec: DeterministicCheckSpecification,
     ) -> "ActionAdjudicationOutcome":
         return cls(
             resolution_kind=ActionResolutionKind.ROLL_GATED,
             reason=reason,
-            roll_pool=roll_pool,
-            difficulty=difficulty,
+            check_spec=check_spec,
+            roll_pool=check_spec.roll_pool,
+            difficulty=check_spec.difficulty,
         )
 
 
 @dataclass(frozen=True, slots=True)
 class ActionCheckOutcome:
+    kind: DeterministicCheckKind
     seed: str
     roll_pool: int
     difficulty: int
@@ -140,14 +147,15 @@ class ActionCheckOutcome:
     is_success: bool
 
     @classmethod
-    def from_roll_result(cls, seed: str, roll_result: DiceRollResult) -> "ActionCheckOutcome":
+    def from_resolution(cls, check_resolution: DeterministicCheckResolution) -> "ActionCheckOutcome":
         return cls(
-            seed=seed,
-            roll_pool=roll_result.pool,
-            difficulty=roll_result.difficulty,
-            individual_rolls=list(roll_result.individual_rolls),
-            successes=roll_result.successes,
-            is_success=roll_result.is_success,
+            kind=check_resolution.kind,
+            seed=check_resolution.seed,
+            roll_pool=check_resolution.roll_pool,
+            difficulty=check_resolution.difficulty,
+            individual_rolls=list(check_resolution.individual_rolls),
+            successes=check_resolution.successes,
+            is_success=check_resolution.is_success,
         )
 
 
@@ -188,6 +196,7 @@ def adjudication_outcome_from_decision(decision: AdjudicationDecision) -> Action
         reason=decision.reason,
         blocked_feedback=decision.blocked_feedback,
         block_reason=decision.block_reason,
+        check_spec=decision.check_spec,
         roll_pool=decision.roll_pool,
         difficulty=decision.difficulty,
     )

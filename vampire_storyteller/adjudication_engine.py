@@ -3,6 +3,7 @@ from __future__ import annotations
 from .action_resolution import AdjudicationDecision, ActionBlockReason, ActionResolutionKind
 from .adventure_loader import PlotInvestigationRules, load_adv1_plot_investigation_rules
 from .command_models import Command, HelpCommand, InvestigateCommand, LoadCommand, LookCommand, MoveCommand, QuitCommand, SaveCommand, StatusCommand, TalkCommand, WaitCommand
+from .dice_engine import DeterministicCheckKind, DeterministicCheckSpecification
 from .world_state import WorldState
 
 
@@ -38,12 +39,13 @@ def _blocked_decision(reason: str, blocked_feedback: str, block_reason: ActionBl
     )
 
 
-def _check_gated_decision(reason: str, roll_pool: int, difficulty: int) -> AdjudicationDecision:
+def _check_gated_decision_with_spec(reason: str, check_spec: DeterministicCheckSpecification) -> AdjudicationDecision:
     return AdjudicationDecision(
         resolution_kind=ActionResolutionKind.ROLL_GATED,
         reason=reason,
-        roll_pool=roll_pool,
-        difficulty=difficulty,
+        check_spec=check_spec,
+        roll_pool=check_spec.roll_pool,
+        difficulty=check_spec.difficulty,
     )
 
 
@@ -140,13 +142,25 @@ def _adjudicate_investigate(world_state: WorldState, command: InvestigateCommand
         )
 
     if rules.requires_roll:
-        return _check_gated_decision(
+        return _check_gated_decision_with_spec(
             reason=f"investigate at {rules.location_id} with {rules.required_stage} requires a roll",
-            roll_pool=rules.roll_pool,
-            difficulty=rules.difficulty,
+            check_spec=_investigation_check_spec(world_state, rules),
         )
 
     return _automatic_decision("investigate does not require a roll in the current state")
+
+
+def _investigation_check_spec(world_state: WorldState, rules: PlotInvestigationRules) -> DeterministicCheckSpecification:
+    return DeterministicCheckSpecification(
+        kind=DeterministicCheckKind.INVESTIGATION,
+        seed_parts=(
+            world_state.current_time,
+            "investigate",
+            world_state.player.id,
+        ),
+        roll_pool=rules.roll_pool,
+        difficulty=rules.difficulty,
+    )
 
 
 def _investigation_requires_roll(world_state: WorldState, rules: PlotInvestigationRules) -> bool:

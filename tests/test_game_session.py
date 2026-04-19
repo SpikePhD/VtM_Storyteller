@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from vampire_storyteller.action_resolution import ActionBlockReason, NormalizationSource
+from vampire_storyteller.dice_engine import DeterministicCheckKind
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
@@ -363,8 +364,17 @@ class GameSessionTests(unittest.TestCase):
         session.process_input("wait 60")
         session.process_input("move loc_dock")
         result = session.process_input("investigate")
+        turn = session.get_last_action_resolution()
 
         self.assertTrue(result.render_scene)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.check)
+        assert turn.check is not None
+        self.assertEqual(turn.check.kind, DeterministicCheckKind.INVESTIGATION)
+        self.assertIsNotNone(turn.adjudication.check_spec)
+        assert turn.adjudication.check_spec is not None
+        self.assertEqual(turn.adjudication.check_spec.kind, DeterministicCheckKind.INVESTIGATION)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "resolved")
         self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
         self.assertIn("Learned: The ledger's path points back to a hidden broker operating through the dock.", result.output_text)
