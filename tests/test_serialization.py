@@ -8,6 +8,7 @@ from pathlib import Path
 from vampire_storyteller.models import EventLogEntry
 from vampire_storyteller.serialization import load_world_state, save_world_state
 from vampire_storyteller.sample_world import build_sample_world
+from vampire_storyteller.social_models import TopicSensitivity
 
 
 class SerializationTests(unittest.TestCase):
@@ -16,6 +17,8 @@ class SerializationTests(unittest.TestCase):
         world.player.inventory.append("old_map")
         world.player.stats["resolve"] = 5
         world.npcs["npc_1"].trust_level = 2
+        world.npcs["npc_1"].social_state.trust = 2
+        world.npcs["npc_1"].social_state.topic_sensitivity["dock"] = TopicSensitivity.GUARDED
         world.npcs["npc_1"].consumed_dialogue_hooks = ["jonas_hook_trust_0"]
         world.npcs["npc_1"].goals.append("Trust Mara with the dock lead")
         world.npcs["npc_1"].schedule["late"] = "loc_dock"
@@ -43,6 +46,8 @@ class SerializationTests(unittest.TestCase):
         self.assertEqual(loaded_world.to_dict(), world.to_dict())
         self.assertEqual(loaded_world.player.stats["resolve"], 5)
         self.assertEqual(loaded_world.npcs["npc_1"].trust_level, 2)
+        self.assertEqual(loaded_world.npcs["npc_1"].social_state.trust, 2)
+        self.assertEqual(loaded_world.npcs["npc_1"].social_state.topic_sensitivity["dock"], TopicSensitivity.GUARDED)
         self.assertEqual(loaded_world.npcs["npc_1"].consumed_dialogue_hooks, ["jonas_hook_trust_0"])
         self.assertEqual(loaded_world.locations["loc_cafe"].scene_hook, "A quieter clue.")
         self.assertEqual(loaded_world.plots["plot_1"].closing_beat, "Mara leaves North Dockside with the ledger matter settled.")

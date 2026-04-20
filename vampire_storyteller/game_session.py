@@ -38,6 +38,7 @@ from .npc_engine import update_npcs_for_current_time
 from .plot_engine import advance_plots
 from .sample_world import build_sample_world
 from .serialization import load_world_state, save_world_state
+from .social_models import SocialCheckResult, SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from .world_state import WorldState
 
 
@@ -100,6 +101,12 @@ class GameSession:
                     consequence_summary=consequence_summary,
                     result=self._render_talk_result(command, result, dialogue_adjudication, check_outcome, consequence_summary),
                     dialogue_adjudication=dialogue_adjudication,
+                    social_outcome=self._finalize_social_outcome_packet(
+                        dialogue_adjudication,
+                        result.conversation_stance or dialogue_adjudication.conversation_stance,
+                        check_outcome,
+                        consequence_summary,
+                    ),
                 )
                 self._last_action_resolution = turn
                 return turn.to_command_result()
@@ -127,7 +134,10 @@ class GameSession:
             return turn.to_command_result()
 
         # Phase 5: execute the canonical command.
-        result = self._execute_command(command)
+        if isinstance(command, TalkCommand) and dialogue_adjudication is not None:
+            result = self._execute_talk_command(command, dialogue_adjudication.social_outcome)
+        else:
+            result = self._execute_command(command)
         if result.should_quit:
             turn = self._build_final_resolution_turn(
                 command=command,
@@ -137,6 +147,7 @@ class GameSession:
                 consequence_summary=ActionConsequenceSummary(),
                 result=result,
                 dialogue_adjudication=dialogue_adjudication,
+                social_outcome=dialogue_adjudication.social_outcome if dialogue_adjudication is not None else None,
             )
             self._last_action_resolution = turn
             return result
@@ -164,6 +175,7 @@ class GameSession:
             consequence_summary=consequence_summary,
             result=final_result,
             dialogue_adjudication=dialogue_adjudication,
+            social_outcome=dialogue_adjudication.social_outcome if dialogue_adjudication is not None else None,
         )
         self._last_action_resolution = turn
         return final_result
@@ -353,6 +365,7 @@ class GameSession:
             conversation_focus_npc_id=None,
             conversation_stance=None,
             dialogue_adjudication=dialogue_adjudication,
+            social_outcome=dialogue_adjudication.social_outcome if dialogue_adjudication is not None else None,
         )
 
     def _build_final_resolution_turn(
@@ -364,6 +377,7 @@ class GameSession:
         consequence_summary: ActionConsequenceSummary,
         result: CommandResult,
         dialogue_adjudication: DialogueAdjudicationOutcome | None = None,
+        social_outcome: SocialOutcomePacket | None = None,
     ) -> ActionResolutionTurn:
         turn_kind = self._classify_turn_kind(command, adjudication, consequence_summary)
         return ActionResolutionTurn(
@@ -384,6 +398,7 @@ class GameSession:
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
             dialogue_adjudication=dialogue_adjudication,
+            social_outcome=social_outcome,
         )
 
     def _build_dialogue_adjudication_resolution_turn(
@@ -410,6 +425,12 @@ class GameSession:
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
             dialogue_adjudication=dialogue_adjudication,
+            social_outcome=self._finalize_social_outcome_packet(
+                dialogue_adjudication,
+                result.conversation_stance or dialogue_adjudication.conversation_stance,
+                None,
+                ActionConsequenceSummary(),
+            ),
         )
 
     def _adjudicate_command(self, command: Command) -> ActionAdjudicationOutcome:
@@ -433,6 +454,25 @@ class GameSession:
     def _execute_command(self, command: Command) -> CommandResult:
         return execute_command(self._world_state, command)
 
+    def _execute_talk_command(
+        self,
+        command: TalkCommand,
+        social_outcome: SocialOutcomePacket | None,
+    ) -> CommandResult:
+        talk_result = resolve_talk_result(
+            self._world_state,
+            command.npc_id,
+            command.dialogue_metadata,
+            command.conversation_stance,
+            active_subtopic=command.conversation_subtopic,
+            social_outcome=social_outcome,
+        )
+        return CommandResult(
+            output_text=talk_result.output_text,
+            conversation_focus_npc_id=talk_result.conversation_focus_npc_id,
+            conversation_stance=talk_result.conversation_stance,
+        )
+
     def _materialize_dialogue_adjudication_result(
         self,
         command: TalkCommand,
@@ -454,6 +494,7 @@ class GameSession:
             dialogue_adjudication.conversation_stance,
             self._resolve_next_conversation_subtopic(command, dialogue_adjudication),
         )
+        self._sync_npc_social_state(npc.id, dialogue_adjudication.conversation_stance)
         return CommandResult(
             output_text=output_text,
             conversation_focus_npc_id=npc.id,
@@ -485,6 +526,7 @@ class GameSession:
             command.conversation_stance,
             dialogue_adjudication.dialogue_domain,
             command.conversation_subtopic,
+            dialogue_adjudication.social_outcome,
         )
         if routed_result.conversation_focus_npc_id is not None and routed_result.conversation_stance is not None:
             self._conversation_context.set_focus(
@@ -492,6 +534,7 @@ class GameSession:
                 routed_result.conversation_stance,
                 self._resolve_next_conversation_subtopic(command, dialogue_adjudication),
             )
+            self._sync_npc_social_state(routed_result.conversation_focus_npc_id, routed_result.conversation_stance)
         return CommandResult(
             output_text=routed_result.output_text,
             conversation_focus_npc_id=routed_result.conversation_focus_npc_id,
@@ -572,7 +615,7 @@ class GameSession:
 
         if check_outcome.is_success:
             consequence_summary = self._apply_dialogue_persuade_success_consequences(command, dialogue_adjudication, check_outcome)
-            result = self._execute_command(command)
+            result = self._execute_talk_command(command, dialogue_adjudication.social_outcome)
             result = self._apply_talk_after_effects(command, result, dialogue_adjudication)
             result = self._append_consequence_summary_to_result(result, consequence_summary)
             return result, adjudication, check_outcome, consequence_summary
@@ -634,6 +677,8 @@ class GameSession:
             previous_stage = plot.stage
             if npc.trust_level < plot_rules.talk_minimum_trust_level:
                 npc.trust_level = plot_rules.talk_minimum_trust_level
+                npc.social_state.trust = npc.trust_level
+                npc.social_state.willingness_to_cooperate = max(npc.social_state.willingness_to_cooperate, 1)
                 applied_effects.append("dialogue_trust_adjusted")
             if plot_rules.talk_required_story_flag not in self._world_state.story_flags:
                 self._world_state.add_story_flag(plot_rules.talk_required_story_flag)
@@ -687,6 +732,7 @@ class GameSession:
             ConversationStance.GUARDED,
             self._resolve_next_conversation_subtopic(command, dialogue_adjudication),
         )
+        self._sync_npc_social_state(npc.id, ConversationStance.GUARDED)
         self._world_state.append_event(
             EventLogEntry(
                 timestamp=self._world_state.current_time,
@@ -761,7 +807,74 @@ class GameSession:
                 command,
                 dialogue_adjudication,
             )
+            if result.conversation_stance is not None:
+                self._sync_npc_social_state(result.conversation_focus_npc_id, result.conversation_stance)
         return result
+
+    def _sync_npc_social_state(self, npc_id: str, stance: ConversationStance) -> None:
+        npc = self._world_state.npcs.get(npc_id)
+        if npc is None:
+            return
+        npc.social_state.relationship_to_player = npc.attitude_to_player
+        npc.social_state.trust = npc.trust_level
+        npc.social_state.current_conversation_stance = stance
+
+    def _finalize_social_outcome_packet(
+        self,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+        final_stance: ConversationStance,
+        check: ActionCheckOutcome | None,
+        consequence_summary: ActionConsequenceSummary,
+    ) -> SocialOutcomePacket:
+        base_packet = dialogue_adjudication.social_outcome
+        assert base_packet is not None
+
+        check_result = None
+        if check is not None:
+            check_result = SocialCheckResult(
+                kind=check.kind.value,
+                seed=check.seed,
+                roll_pool=check.roll_pool,
+                difficulty=check.difficulty,
+                successes=check.successes,
+                is_success=check.is_success,
+            )
+
+        topic_result = base_packet.topic_result
+        outcome_kind = base_packet.outcome_kind
+        state_effects, plot_effects = self._split_social_effects(consequence_summary.applied_effects)
+
+        if check is not None:
+            if check.is_success:
+                topic_result = TopicResult.OPENED if dialogue_adjudication.topic_status is DialogueTopicStatus.PRODUCTIVE else TopicResult.PARTIAL
+                outcome_kind = SocialOutcomeKind.REVEAL if plot_effects else SocialOutcomeKind.COOPERATE
+            else:
+                topic_result = TopicResult.BLOCKED if dialogue_adjudication.topic_status is DialogueTopicStatus.REFUSED else TopicResult.PARTIAL
+                outcome_kind = SocialOutcomeKind.REFUSE
+
+        return SocialOutcomePacket(
+            outcome_kind=outcome_kind,
+            stance_shift=SocialStanceShift(
+                from_stance=base_packet.stance_shift.from_stance,
+                to_stance=final_stance,
+            ),
+            check_required=base_packet.check_required,
+            check_result=check_result,
+            topic_result=topic_result,
+            state_effects=state_effects,
+            plot_effects=plot_effects,
+            reason_code=base_packet.reason_code,
+        )
+
+    def _split_social_effects(self, applied_effects: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
+        plot_effects = tuple(
+            effect
+            for effect in applied_effects
+            if effect in {"dialogue_plot_progressed", "dialogue_story_flag_added"}
+        )
+        plot_effect_set = set(plot_effects)
+        state_effects = tuple(effect for effect in applied_effects if effect not in plot_effect_set)
+        return state_effects, plot_effects
 
     def _resolve_next_conversation_subtopic(
         self,

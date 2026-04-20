@@ -3,9 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from .command_models import ConversationStance, DialogueAct, DialogueMetadata, TalkCommand
 from .adventure_loader import load_adv1_plot_progression_rules
+from .command_models import ConversationStance, DialogueAct, DialogueMetadata, TalkCommand
 from .dialogue_domain import DialogueDomain, classify_dialogue_domain
+from .social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from .world_state import WorldState
 
 
@@ -33,6 +34,7 @@ class DialogueAdjudicationOutcome:
     explanation: str
     blocked_feedback: str | None = None
     conversation_stance: ConversationStance = ConversationStance.NEUTRAL
+    social_outcome: SocialOutcomePacket | None = None
 
     @property
     def is_allowed(self) -> bool:
@@ -62,6 +64,14 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             reason_code="talk_target_missing",
             explanation=f"Talk is blocked: no NPC with id '{command.npc_id}' exists.",
             blocked_feedback=f"Talk is blocked: no NPC with id '{command.npc_id}' exists.",
+            social_outcome=_build_social_outcome(
+                outcome_kind=SocialOutcomeKind.DISENGAGE,
+                previous_stance=command.conversation_stance,
+                next_stance=ConversationStance.NEUTRAL,
+                check_required=False,
+                topic_result=TopicResult.BLOCKED,
+                reason_code="talk_target_missing",
+            ),
         )
 
     player_location_id = world_state.player.location_id
@@ -74,6 +84,14 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             reason_code="talk_location_missing",
             explanation="Talk is blocked: player has no current location.",
             blocked_feedback="Talk is blocked: player has no current location.",
+            social_outcome=_build_social_outcome(
+                outcome_kind=SocialOutcomeKind.DISENGAGE,
+                previous_stance=command.conversation_stance,
+                next_stance=ConversationStance.NEUTRAL,
+                check_required=False,
+                topic_result=TopicResult.BLOCKED,
+                reason_code="talk_location_missing",
+            ),
         )
 
     if npc.location_id != player_location_id:
@@ -87,6 +105,14 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             reason_code="talk_target_absent",
             explanation=f"Talk is blocked: {npc.name} is not present at {location_name}.",
             blocked_feedback=f"Talk is blocked: {npc.name} is not present at {location_name}.",
+            social_outcome=_build_social_outcome(
+                outcome_kind=SocialOutcomeKind.DISENGAGE,
+                previous_stance=command.conversation_stance,
+                next_stance=ConversationStance.NEUTRAL,
+                check_required=False,
+                topic_result=TopicResult.BLOCKED,
+                reason_code="talk_target_absent",
+            ),
         )
 
     metadata = command.dialogue_metadata
@@ -111,6 +137,14 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             reason_code=f"{dialogue_act.value}_guarded",
             explanation=f"{npc.name} stays guarded in response to the {dialogue_act.value}.",
             conversation_stance=ConversationStance.GUARDED,
+            social_outcome=_build_social_outcome(
+                outcome_kind=SocialOutcomeKind.THREATEN if dialogue_act is DialogueAct.THREATEN else SocialOutcomeKind.REFUSE,
+                previous_stance=command.conversation_stance,
+                next_stance=ConversationStance.GUARDED,
+                check_required=False,
+                topic_result=TopicResult.BLOCKED,
+                reason_code=f"{dialogue_act.value}_guarded",
+            ),
         )
 
     if dialogue_act is DialogueAct.PERSUADE and dialogue_domain is DialogueDomain.LEAD_PRESSURE:
@@ -122,6 +156,14 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             reason_code="persuade_check_required",
             explanation=f"{npc.name} can continue the conversation, but persuasion should route to a future social check.",
             conversation_stance=ConversationStance.NEUTRAL,
+            social_outcome=_build_social_outcome(
+                outcome_kind=SocialOutcomeKind.COOPERATE,
+                previous_stance=command.conversation_stance,
+                next_stance=ConversationStance.NEUTRAL,
+                check_required=True,
+                topic_result=TopicResult.PARTIAL,
+                reason_code="persuade_check_required",
+            ),
         )
 
     if dialogue_act in (DialogueAct.GREET, DialogueAct.ASK):
@@ -133,6 +175,14 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             reason_code=f"{dialogue_act.value}_allowed",
             explanation=f"{npc.name} can continue the conversation normally.",
             conversation_stance=ConversationStance.NEUTRAL,
+            social_outcome=_build_social_outcome(
+                outcome_kind=SocialOutcomeKind.REVEAL if topic_status is DialogueTopicStatus.PRODUCTIVE else SocialOutcomeKind.COOPERATE,
+                previous_stance=command.conversation_stance,
+                next_stance=ConversationStance.NEUTRAL,
+                check_required=False,
+                topic_result=TopicResult.OPENED if topic_status is DialogueTopicStatus.PRODUCTIVE else TopicResult.UNCHANGED,
+                reason_code=f"{dialogue_act.value}_allowed",
+            ),
         )
 
     if command.conversation_stance is ConversationStance.GUARDED:
@@ -144,6 +194,14 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             reason_code="guarded_stance",
             explanation=f"{npc.name} is already in a guarded conversation stance.",
             conversation_stance=ConversationStance.GUARDED,
+            social_outcome=_build_social_outcome(
+                outcome_kind=SocialOutcomeKind.REFUSE,
+                previous_stance=command.conversation_stance,
+                next_stance=ConversationStance.GUARDED,
+                check_required=False,
+                topic_result=TopicResult.BLOCKED,
+                reason_code="guarded_stance",
+            ),
         )
 
     return DialogueAdjudicationOutcome(
@@ -154,7 +212,67 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
         reason_code="dialogue_fallback_allowed",
         explanation=f"{npc.name} can continue the conversation.",
         conversation_stance=ConversationStance.NEUTRAL,
+        social_outcome=_build_social_outcome(
+            outcome_kind=_fallback_outcome_kind(dialogue_domain),
+            previous_stance=command.conversation_stance,
+            next_stance=ConversationStance.NEUTRAL,
+            check_required=False,
+            topic_result=_fallback_topic_result(dialogue_domain, topic_status),
+            reason_code="dialogue_fallback_allowed",
+        ),
     )
+
+
+def _build_social_outcome(
+    *,
+    outcome_kind: SocialOutcomeKind,
+    previous_stance: ConversationStance,
+    next_stance: ConversationStance,
+    check_required: bool,
+    topic_result: TopicResult,
+    reason_code: str,
+) -> SocialOutcomePacket:
+    return SocialOutcomePacket(
+        outcome_kind=outcome_kind,
+        stance_shift=SocialStanceShift(from_stance=previous_stance, to_stance=next_stance),
+        check_required=check_required,
+        check_result=None,
+        topic_result=topic_result,
+        state_effects=(),
+        plot_effects=(),
+        reason_code=reason_code,
+    )
+
+
+def _fallback_outcome_kind(dialogue_domain: DialogueDomain) -> SocialOutcomeKind:
+    if dialogue_domain is DialogueDomain.TRAVEL_PROPOSAL:
+        return SocialOutcomeKind.DEFLECT
+    if dialogue_domain in {
+        DialogueDomain.OFF_TOPIC_REQUEST,
+        DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE,
+    }:
+        return SocialOutcomeKind.REFUSE
+    if dialogue_domain is DialogueDomain.UNKNOWN_MISC:
+        return SocialOutcomeKind.DEFLECT
+    if dialogue_domain is DialogueDomain.LEAD_TOPIC:
+        return SocialOutcomeKind.REVEAL
+    return SocialOutcomeKind.COOPERATE
+
+
+def _fallback_topic_result(
+    dialogue_domain: DialogueDomain,
+    topic_status: DialogueTopicStatus,
+) -> TopicResult:
+    if dialogue_domain in {
+        DialogueDomain.OFF_TOPIC_REQUEST,
+        DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE,
+    }:
+        return TopicResult.BLOCKED
+    if dialogue_domain is DialogueDomain.TRAVEL_PROPOSAL:
+        return TopicResult.PARTIAL
+    if topic_status is DialogueTopicStatus.PRODUCTIVE:
+        return TopicResult.OPENED
+    return TopicResult.UNCHANGED
 
 
 def _classify_topic_status(

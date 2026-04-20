@@ -8,6 +8,7 @@ from typing import Any
 
 from .data_paths import ADVENTURE_ID, get_adventure_root
 from .models import Location, NPC, Player, PlotThread
+from .social_models import NPCSocialState
 from .world_state import WorldState
 
 
@@ -440,16 +441,23 @@ def _player_from_dict(data: dict[str, Any]) -> Player:
 
 
 def _npc_from_dict(data: dict[str, Any]) -> NPC:
+    attitude_to_player = _require_str(data, "attitude_to_player")
+    trust_level = _require_int(data, "trust_level") if "trust_level" in data else 0
     return NPC(
         id=_require_str(data, "id"),
         name=_require_str(data, "name"),
         role=_require_str(data, "role"),
         location_id=data.get("location_id"),
-        attitude_to_player=_require_str(data, "attitude_to_player"),
+        attitude_to_player=attitude_to_player,
+        trust_level=trust_level,
         goals=_require_string_list(data, "goals"),
         investigation_hint=_require_str(data, "investigation_hint"),
         schedule=dict(data.get("schedule", {})),
         traits=dict(data.get("traits", {})),
+        social_state=NPCSocialState(
+            relationship_to_player=attitude_to_player,
+            trust=trust_level,
+        ),
     )
 
 
@@ -480,6 +488,10 @@ def _npc_from_definition(definition: Adv1NpcDefinition) -> NPC:
         investigation_hint=definition.investigation_hint,
         schedule=dict(definition.schedule),
         traits=dict(definition.traits),
+        social_state=NPCSocialState(
+            relationship_to_player=definition.attitude_to_player,
+            trust=definition.trust_level,
+        ),
     )
 
 

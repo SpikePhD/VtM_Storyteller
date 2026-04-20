@@ -11,6 +11,7 @@ from .command_models import ConversationStance, DialogueAct, DialogueMetadata
 from .dialogue_adjudication import DialogueTopicStatus
 from .dialogue_domain import DialogueDomain, classify_dialogue_domain
 from .dialogue_subtopic import DialogueSubtopic, detect_dialogue_subtopic
+from .social_models import SocialOutcomePacket
 from .world_state import WorldState
 
 
@@ -19,6 +20,7 @@ class DialogueResolutionResult:
     output_text: str
     conversation_focus_npc_id: str | None
     conversation_stance: ConversationStance
+    social_outcome: SocialOutcomePacket | None = None
 
 
 def resolve_talk(
@@ -37,6 +39,7 @@ def resolve_talk_result(
     conversation_stance: ConversationStance = ConversationStance.NEUTRAL,
     dialogue_domain: DialogueDomain | None = None,
     active_subtopic: DialogueSubtopic | None = None,
+    social_outcome: SocialOutcomePacket | None = None,
 ) -> DialogueResolutionResult:
     npc = world_state.npcs.get(npc_id)
     if npc is None:
@@ -44,6 +47,7 @@ def resolve_talk_result(
             output_text=f"Talk is blocked: no NPC with id '{npc_id}' exists.",
             conversation_focus_npc_id=None,
             conversation_stance=conversation_stance,
+            social_outcome=social_outcome,
         )
 
     if npc.location_id != world_state.player.location_id:
@@ -53,6 +57,7 @@ def resolve_talk_result(
             output_text=f"Talk is blocked: {npc.name} is not present at {location_name}.",
             conversation_focus_npc_id=None,
             conversation_stance=conversation_stance,
+            social_outcome=social_outcome,
         )
 
     plot_rules = load_adv1_plot_progression_rules()
@@ -85,6 +90,7 @@ def resolve_talk_result(
             output_text=_render_dialogue_text(response_text, npc.name, dialogue_metadata),
             conversation_focus_npc_id=npc_id,
             conversation_stance=next_stance,
+            social_outcome=social_outcome,
         )
 
     fallback = _find_dialogue_fallback(hooks, npc, current_stage, plot_rules.plot_id)
@@ -94,12 +100,14 @@ def resolve_talk_result(
             output_text=_render_dialogue_text(f"Talk is blocked: {fallback}", npc.name, dialogue_metadata),
             conversation_focus_npc_id=npc_id,
             conversation_stance=next_stance,
+            social_outcome=social_outcome,
         )
 
     return DialogueResolutionResult(
         output_text=f"{npc.name} has nothing useful to say right now.",
         conversation_focus_npc_id=npc_id,
         conversation_stance=conversation_stance,
+        social_outcome=social_outcome,
     )
 
 
@@ -283,6 +291,7 @@ def _adjust_npc_trust(world_state: WorldState, npc_id: str, delta: int) -> None:
     if npc is None:
         return
     npc.trust_level = max(0, npc.trust_level + delta)
+    npc.social_state.trust = npc.trust_level
 
 
 def _mark_dialogue_hook_consumed(world_state: WorldState, npc_id: str, hook_id: str) -> None:

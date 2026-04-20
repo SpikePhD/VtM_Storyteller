@@ -11,6 +11,7 @@ from vampire_storyteller.dialogue_adjudication import (
 from vampire_storyteller.dialogue_domain import DialogueDomain
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.sample_world import build_sample_world
+from vampire_storyteller.social_models import SocialOutcomeKind, TopicResult, TopicSensitivity
 
 
 class DialogueAdjudicationTests(unittest.TestCase):
@@ -92,6 +93,11 @@ class DialogueAdjudicationTests(unittest.TestCase):
         self.assertTrue(outcome.check_required)
         self.assertEqual(outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
         self.assertEqual(outcome.dialogue_domain, DialogueDomain.LEAD_PRESSURE)
+        self.assertIsNotNone(outcome.social_outcome)
+        assert outcome.social_outcome is not None
+        self.assertEqual(outcome.social_outcome.outcome_kind, SocialOutcomeKind.COOPERATE)
+        self.assertEqual(outcome.social_outcome.topic_result, TopicResult.PARTIAL)
+        self.assertTrue(outcome.social_outcome.check_required)
 
     def test_taxi_money_support_request_stays_off_topic_even_with_dock_reference(self) -> None:
         world = build_sample_world()
@@ -111,6 +117,28 @@ class DialogueAdjudicationTests(unittest.TestCase):
         self.assertEqual(outcome.topic_status, DialogueTopicStatus.AVAILABLE)
         self.assertTrue(outcome.is_allowed)
         self.assertFalse(outcome.check_required)
+        self.assertIsNotNone(outcome.social_outcome)
+        assert outcome.social_outcome is not None
+        self.assertEqual(outcome.social_outcome.outcome_kind, SocialOutcomeKind.REFUSE)
+        self.assertEqual(outcome.social_outcome.topic_result, TopicResult.BLOCKED)
+
+    def test_npc_social_state_can_be_created_serialized_and_attached_cleanly(self) -> None:
+        world = build_sample_world()
+        npc = world.npcs["npc_1"]
+
+        npc.social_state.relationship_to_player = "guarded"
+        npc.social_state.trust = 3
+        npc.social_state.hostility = 1
+        npc.social_state.fear = 2
+        npc.social_state.respect = 4
+        npc.social_state.willingness_to_cooperate = 5
+        npc.social_state.topic_sensitivity["dock"] = TopicSensitivity.GUARDED
+
+        payload = world.to_dict()
+
+        self.assertIn("social_state", payload["npcs"]["npc_1"])
+        self.assertEqual(payload["npcs"]["npc_1"]["social_state"]["trust"], 3)
+        self.assertEqual(payload["npcs"]["npc_1"]["social_state"]["topic_sensitivity"]["dock"], "guarded")
 
     def test_session_records_dialogue_adjudication_on_talk_turn(self) -> None:
         session = GameSession()
@@ -127,6 +155,10 @@ class DialogueAdjudicationTests(unittest.TestCase):
         self.assertEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.AVAILABLE)
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
         self.assertEqual(turn.dialogue_adjudication.conversation_stance, ConversationStance.NEUTRAL)
+        self.assertIsNotNone(turn.social_outcome)
+        assert turn.social_outcome is not None
+        self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.COOPERATE)
+        self.assertEqual(turn.social_outcome.topic_result, TopicResult.UNCHANGED)
 
 
 if __name__ == "__main__":

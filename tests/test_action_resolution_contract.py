@@ -7,6 +7,7 @@ from vampire_storyteller.action_resolution import ActionBlockReason, ActionResol
 from vampire_storyteller.dice_engine import DeterministicCheckKind, DeterministicCheckResolution
 from vampire_storyteller.dialogue_adjudication import DialogueAdjudicationResolutionKind
 from vampire_storyteller.game_session import GameSession
+from vampire_storyteller.social_models import SocialOutcomeKind, TopicResult
 
 
 class ActionResolutionContractTests(unittest.TestCase):
@@ -119,12 +120,36 @@ class ActionResolutionContractTests(unittest.TestCase):
         assert turn.dialogue_adjudication is not None
         self.assertEqual(turn.dialogue_adjudication.resolution_kind, DialogueAdjudicationResolutionKind.ESCALATED)
         self.assertTrue(turn.dialogue_adjudication.check_required)
+        self.assertIsNotNone(turn.social_outcome)
+        assert turn.social_outcome is not None
+        self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
+        self.assertEqual(turn.social_outcome.topic_result, TopicResult.OPENED)
+        self.assertIsNotNone(turn.social_outcome.check_result)
+        assert turn.social_outcome.check_result is not None
+        self.assertTrue(turn.social_outcome.check_result.is_success)
+        self.assertIn("dialogue_social_check_success", turn.social_outcome.state_effects)
+        self.assertIn("dialogue_plot_progressed", turn.social_outcome.plot_effects)
         self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
         self.assertTrue(turn.world_state_mutated)
         self.assertIn("dialogue_social_check_success", turn.consequence_summary.applied_effects)
         self.assertIn("points toward the waterline", result.output_text)
         self.assertIn("broker used the dock to move papers", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+
+    def test_refusal_path_populates_structured_social_outcome_packet(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Jonas, I don't believe you.")
+        turn = session.get_last_action_resolution()
+
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIn("stays guarded", result.output_text)
+        self.assertIsNotNone(turn.social_outcome)
+        assert turn.social_outcome is not None
+        self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.REFUSE)
+        self.assertEqual(turn.social_outcome.topic_result, TopicResult.BLOCKED)
+        self.assertTrue(turn.social_outcome.stance_shift.changed)
 
 
 if __name__ == "__main__":

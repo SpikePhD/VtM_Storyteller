@@ -3,7 +3,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from .command_models import ConversationStance
 from .models import EventLogEntry, Location, NPC, Player, PlotThread
+from .social_models import NPCSocialState, TopicSensitivity
 
 
 @dataclass
@@ -91,6 +93,7 @@ def _npc_to_dict(npc: NPC) -> dict[str, Any]:
         "investigation_hint": npc.investigation_hint,
         "schedule": dict(npc.schedule),
         "traits": dict(npc.traits),
+        "social_state": _npc_social_state_to_dict(npc.social_state),
     }
 
 
@@ -147,18 +150,21 @@ def _player_from_dict(data: dict[str, Any]) -> Player:
 
 
 def _npc_from_dict(data: dict[str, Any]) -> NPC:
+    attitude_to_player = _require_str(data, "attitude_to_player")
+    trust_level = _require_int(data, "trust_level")
     return NPC(
         id=_require_str(data, "id"),
         name=_require_str(data, "name"),
         role=_require_str(data, "role"),
         location_id=_require_optional_str(data, "location_id"),
-        attitude_to_player=_require_str(data, "attitude_to_player"),
-        trust_level=_require_int(data, "trust_level"),
+        attitude_to_player=attitude_to_player,
+        trust_level=trust_level,
         consumed_dialogue_hooks=_require_string_list(_require_present_value(data, "consumed_dialogue_hooks"), "consumed_dialogue_hooks"),
         goals=_require_string_list(_require_present_value(data, "goals"), "goals"),
         investigation_hint=_require_str(data, "investigation_hint", "investigation_hint"),
         schedule=_require_str_mapping(_require_present_value(data, "schedule"), "schedule"),
         traits=_require_str_mapping(_require_present_value(data, "traits"), "traits"),
+        social_state=_npc_social_state_from_dict(data.get("social_state"), attitude_to_player, trust_level),
     )
 
 
@@ -195,6 +201,59 @@ def _event_log_entry_from_dict(data: dict[str, Any]) -> EventLogEntry:
         timestamp=_require_iso_datetime(_require_str(data, "timestamp", "timestamp")),
         description=_require_str(data, "description"),
         involved_entities=_require_string_list(_require_present_value(data, "involved_entities"), "involved_entities"),
+    )
+
+
+def _npc_social_state_to_dict(social_state: NPCSocialState) -> dict[str, Any]:
+    return {
+        "relationship_to_player": social_state.relationship_to_player,
+        "trust": social_state.trust,
+        "hostility": social_state.hostility,
+        "fear": social_state.fear,
+        "respect": social_state.respect,
+        "willingness_to_cooperate": social_state.willingness_to_cooperate,
+        "current_conversation_stance": social_state.current_conversation_stance.value,
+        "topic_sensitivity": {topic: sensitivity.value for topic, sensitivity in social_state.topic_sensitivity.items()},
+    }
+
+
+def _npc_social_state_from_dict(
+    data: Any,
+    attitude_to_player: str,
+    trust_level: int,
+) -> NPCSocialState:
+    if data is None:
+        return NPCSocialState(
+            relationship_to_player=attitude_to_player,
+            trust=trust_level,
+        )
+    if not isinstance(data, dict):
+        raise TypeError("social_state must be a JSON object.")
+
+    topic_sensitivity_raw = data.get("topic_sensitivity", {})
+    if not isinstance(topic_sensitivity_raw, dict):
+        raise TypeError("topic_sensitivity must be a JSON object.")
+    topic_sensitivity: dict[str, TopicSensitivity] = {}
+    for topic, sensitivity in topic_sensitivity_raw.items():
+        if not isinstance(topic, str) or not topic:
+            raise TypeError("topic_sensitivity must use non-empty string keys.")
+        if not isinstance(sensitivity, str):
+            raise TypeError("topic_sensitivity must use string values.")
+        topic_sensitivity[topic] = TopicSensitivity(sensitivity)
+
+    stance_value = data.get("current_conversation_stance", "neutral")
+    if not isinstance(stance_value, str):
+        raise TypeError("current_conversation_stance must be a string.")
+
+    return NPCSocialState(
+        relationship_to_player=_require_social_str(data, "relationship_to_player", attitude_to_player),
+        trust=_require_social_int(data, "trust", trust_level),
+        hostility=_require_social_int(data, "hostility", 0),
+        fear=_require_social_int(data, "fear", 0),
+        respect=_require_social_int(data, "respect", 0),
+        willingness_to_cooperate=_require_social_int(data, "willingness_to_cooperate", 0),
+        current_conversation_stance=ConversationStance(stance_value),
+        topic_sensitivity=topic_sensitivity,
     )
 
 
@@ -301,6 +360,20 @@ def _require_str_mapping(value: Any, label: str) -> dict[str, str]:
             raise TypeError(f"{label} must use string values.")
         validated[key] = entry
     return validated
+
+
+def _require_social_str(data: dict[str, Any], field_name: str, default: str) -> str:
+    value = data.get(field_name, default)
+    if not isinstance(value, str) or not value:
+        raise TypeError(f"{field_name} must be a non-empty string.")
+    return value
+
+
+def _require_social_int(data: dict[str, Any], field_name: str, default: int) -> int:
+    value = data.get(field_name, default)
+    if not isinstance(value, int):
+        raise TypeError(f"{field_name} must be an integer.")
+    return value
 
 
 def _require_iso_datetime(value: str) -> str:

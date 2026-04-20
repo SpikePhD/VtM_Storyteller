@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from .social_models import NPCSocialState
+
 
 @dataclass
 class Player:
@@ -31,6 +33,13 @@ class NPC:
     investigation_hint: str = ""
     schedule: dict[str, str] = field(default_factory=dict)
     traits: dict[str, str] = field(default_factory=dict)
+    social_state: NPCSocialState = field(default_factory=NPCSocialState)
+
+    def __post_init__(self) -> None:
+        if not self.social_state.relationship_to_player:
+            self.social_state.relationship_to_player = self.attitude_to_player
+        if self.social_state.trust == 0 and self.trust_level != 0:
+            self.social_state.trust = self.trust_level
 
 
 @dataclass

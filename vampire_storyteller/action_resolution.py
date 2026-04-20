@@ -12,6 +12,7 @@ from .dice_engine import (
 )
 from .dialogue_adjudication import DialogueAdjudicationOutcome
 from .input_interpreter import InterpretedInput
+from .social_models import SocialOutcomePacket
 
 
 class ActionResolutionKind(str, Enum):
@@ -200,6 +201,7 @@ class ActionResolutionTurn:
     conversation_focus_npc_id: str | None
     conversation_stance: ConversationStance | None
     dialogue_adjudication: DialogueAdjudicationOutcome | None = None
+    social_outcome: SocialOutcomePacket | None = None
 
     def to_command_result(self) -> CommandResult:
         return CommandResult(
