@@ -5,6 +5,7 @@ from enum import Enum
 
 from .command_models import ConversationStance, DialogueAct, DialogueMetadata, TalkCommand
 from .adventure_loader import load_adv1_plot_progression_rules
+from .dialogue_domain import DialogueDomain, classify_dialogue_domain
 from .world_state import WorldState
 
 
@@ -26,6 +27,7 @@ class DialogueTopicStatus(str, Enum):
 class DialogueAdjudicationOutcome:
     resolution_kind: DialogueAdjudicationResolutionKind
     topic_status: DialogueTopicStatus
+    dialogue_domain: DialogueDomain
     check_required: bool
     reason_code: str
     explanation: str
@@ -55,6 +57,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
         return DialogueAdjudicationOutcome(
             resolution_kind=DialogueAdjudicationResolutionKind.BLOCKED,
             topic_status=DialogueTopicStatus.UNKNOWN,
+            dialogue_domain=DialogueDomain.UNKNOWN_MISC,
             check_required=False,
             reason_code="talk_target_missing",
             explanation=f"Talk is blocked: no NPC with id '{command.npc_id}' exists.",
@@ -66,6 +69,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
         return DialogueAdjudicationOutcome(
             resolution_kind=DialogueAdjudicationResolutionKind.BLOCKED,
             topic_status=DialogueTopicStatus.UNKNOWN,
+            dialogue_domain=DialogueDomain.UNKNOWN_MISC,
             check_required=False,
             reason_code="talk_location_missing",
             explanation="Talk is blocked: player has no current location.",
@@ -78,6 +82,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
         return DialogueAdjudicationOutcome(
             resolution_kind=DialogueAdjudicationResolutionKind.BLOCKED,
             topic_status=DialogueTopicStatus.UNKNOWN,
+            dialogue_domain=DialogueDomain.UNKNOWN_MISC,
             check_required=False,
             reason_code="talk_target_absent",
             explanation=f"Talk is blocked: {npc.name} is not present at {location_name}.",
@@ -88,21 +93,30 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
     dialogue_act = metadata.dialogue_act if metadata is not None else DialogueAct.UNKNOWN
     topic = metadata.topic if metadata is not None else None
     topic_status = _classify_topic_status(world_state, command.npc_id, dialogue_act, topic, metadata)
+    dialogue_domain = classify_dialogue_domain(
+        world_state,
+        command.npc_id,
+        metadata,
+        topic_status,
+        command.conversation_stance,
+    )
 
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         return DialogueAdjudicationOutcome(
             resolution_kind=DialogueAdjudicationResolutionKind.GUARDED,
             topic_status=DialogueTopicStatus.REFUSED,
+            dialogue_domain=dialogue_domain,
             check_required=False,
             reason_code=f"{dialogue_act.value}_guarded",
             explanation=f"{npc.name} stays guarded in response to the {dialogue_act.value}.",
             conversation_stance=ConversationStance.GUARDED,
         )
 
-    if dialogue_act is DialogueAct.PERSUADE:
+    if dialogue_act is DialogueAct.PERSUADE and dialogue_domain is DialogueDomain.LEAD_PRESSURE:
         return DialogueAdjudicationOutcome(
             resolution_kind=DialogueAdjudicationResolutionKind.ESCALATED,
             topic_status=topic_status,
+            dialogue_domain=dialogue_domain,
             check_required=True,
             reason_code="persuade_check_required",
             explanation=f"{npc.name} can continue the conversation, but persuasion should route to a future social check.",
@@ -113,6 +127,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
         return DialogueAdjudicationOutcome(
             resolution_kind=DialogueAdjudicationResolutionKind.ALLOWED,
             topic_status=topic_status,
+            dialogue_domain=dialogue_domain,
             check_required=False,
             reason_code=f"{dialogue_act.value}_allowed",
             explanation=f"{npc.name} can continue the conversation normally.",
@@ -123,6 +138,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
         return DialogueAdjudicationOutcome(
             resolution_kind=DialogueAdjudicationResolutionKind.GUARDED,
             topic_status=topic_status,
+            dialogue_domain=dialogue_domain,
             check_required=False,
             reason_code="guarded_stance",
             explanation=f"{npc.name} is already in a guarded conversation stance.",
@@ -132,6 +148,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
     return DialogueAdjudicationOutcome(
         resolution_kind=DialogueAdjudicationResolutionKind.ALLOWED,
         topic_status=topic_status,
+        dialogue_domain=dialogue_domain,
         check_required=False,
         reason_code="dialogue_fallback_allowed",
         explanation=f"{npc.name} can continue the conversation.",

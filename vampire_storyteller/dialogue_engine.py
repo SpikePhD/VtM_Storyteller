@@ -8,6 +8,8 @@ from .adventure_loader import (
     load_adv1_plot_progression_rules,
 )
 from .command_models import ConversationStance, DialogueAct, DialogueMetadata
+from .dialogue_adjudication import DialogueTopicStatus
+from .dialogue_domain import DialogueDomain, classify_dialogue_domain
 from .world_state import WorldState
 
 
@@ -32,6 +34,7 @@ def resolve_talk_result(
     npc_id: str,
     dialogue_metadata: DialogueMetadata | None,
     conversation_stance: ConversationStance = ConversationStance.NEUTRAL,
+    dialogue_domain: DialogueDomain | None = None,
 ) -> DialogueResolutionResult:
     npc = world_state.npcs.get(npc_id)
     if npc is None:
@@ -53,6 +56,16 @@ def resolve_talk_result(
     plot_rules = load_adv1_plot_progression_rules()
     plot = world_state.plots.get(plot_rules.plot_id)
     current_stage = plot.stage if plot is not None else ""
+    resolved_dialogue_domain = dialogue_domain or classify_dialogue_domain(
+        world_state,
+        npc_id,
+        dialogue_metadata,
+        DialogueTopicStatus.UNKNOWN,
+        conversation_stance,
+    )
+    routed_result = _resolve_domain_routed_dialogue(world_state, npc_id, dialogue_metadata, conversation_stance, resolved_dialogue_domain)
+    if routed_result is not None:
+        return routed_result
     hooks = load_adv1_dialogue_hook_definitions()
     dialogue_act = dialogue_metadata.dialogue_act if dialogue_metadata is not None else None
     hook = _find_dialogue_hook(hooks, npc, current_stage, dialogue_act, conversation_stance, plot_rules.plot_id)
@@ -85,6 +98,54 @@ def resolve_talk_result(
         conversation_focus_npc_id=npc_id,
         conversation_stance=conversation_stance,
     )
+
+
+def _resolve_domain_routed_dialogue(
+    world_state: WorldState,
+    npc_id: str,
+    dialogue_metadata: DialogueMetadata | None,
+    conversation_stance: ConversationStance,
+    dialogue_domain: DialogueDomain,
+) -> DialogueResolutionResult | None:
+    plot_rules = load_adv1_plot_progression_rules()
+    if npc_id != plot_rules.talk_npc_id:
+        return None
+
+    npc = world_state.npcs.get(npc_id)
+    if npc is None:
+        return None
+
+    if dialogue_domain is DialogueDomain.TRAVEL_PROPOSAL:
+        return DialogueResolutionResult(
+            output_text=f"{npc.name} shakes his head. 'No. If the dock matters, you go. Me showing my face there only makes noise.'",
+            conversation_focus_npc_id=npc_id,
+            conversation_stance=ConversationStance.NEUTRAL,
+        )
+
+    if dialogue_domain is DialogueDomain.OFF_TOPIC_REQUEST:
+        return DialogueResolutionResult(
+            output_text=f"{npc.name} keeps his distance. 'Not that. Ask someone else.'",
+            conversation_focus_npc_id=npc_id,
+            conversation_stance=ConversationStance.NEUTRAL,
+        )
+
+    if dialogue_domain is DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE:
+        return DialogueResolutionResult(
+            output_text=f"{npc.name}'s expression hardens. 'No. Keep this professional.'",
+            conversation_focus_npc_id=npc_id,
+            conversation_stance=ConversationStance.GUARDED,
+        )
+
+    if dialogue_domain is DialogueDomain.UNKNOWN_MISC:
+        lead_hint = " We are talking about the dock, or we are done." if "jonas_shared_dock_lead" in set(world_state.story_flags) else ""
+        next_stance = ConversationStance.GUARDED if conversation_stance is ConversationStance.GUARDED else ConversationStance.NEUTRAL
+        return DialogueResolutionResult(
+            output_text=f"{npc.name} keeps his answer short. 'Stay on point.{lead_hint}'",
+            conversation_focus_npc_id=npc_id,
+            conversation_stance=next_stance,
+        )
+
+    return None
 
 
 def _find_dialogue_hook(

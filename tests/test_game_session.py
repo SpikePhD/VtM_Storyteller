@@ -11,6 +11,7 @@ from vampire_storyteller.dice_engine import DeterministicCheckResolution
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
+from vampire_storyteller.dialogue_domain import DialogueDomain
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.narrative_provider import SceneNarrativeProvider
 from vampire_storyteller.world_state import WorldState
@@ -298,6 +299,7 @@ class GameSessionTests(unittest.TestCase):
         assert turn.dialogue_adjudication is not None
         self.assertTrue(turn.dialogue_adjudication.check_required)
         self.assertEqual(turn.dialogue_adjudication.reason_code, "persuade_check_required")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_PRESSURE)
         self.assertEqual(turn.adjudication.resolution_kind.name, "ROLL_GATED")
         self.assertIn("dialogue_social_check_success", turn.consequence_summary.applied_effects)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
@@ -331,10 +333,97 @@ class GameSessionTests(unittest.TestCase):
         assert turn.dialogue_adjudication is not None
         self.assertTrue(turn.dialogue_adjudication.check_required)
         self.assertEqual(turn.dialogue_adjudication.reason_code, "persuade_check_required")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_PRESSURE)
         self.assertIn("dialogue_social_check_failure", turn.consequence_summary.applied_effects)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
+
+    def test_jonas_dock_question_still_uses_productive_lead_path(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Jonas, what happened at the dock?")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("dock is the only place worth checking tonight", result.output_text)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+
+    def test_jonas_sex_request_does_not_reuse_dock_lead_or_advance_plot(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Jonas let us have sex")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("Keep this professional", result.output_text)
+        self.assertNotIn("dock is the only place worth checking tonight", result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE)
+
+    def test_jonas_blood_request_does_not_reuse_dock_lead_or_advance_plot(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Jonas I need blood")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("Ask someone else", result.output_text)
+        self.assertNotIn("dock is the only place worth checking tonight", result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.OFF_TOPIC_REQUEST)
+
+    def test_jonas_travel_proposal_uses_distinct_logistics_response_without_plot_progress(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Jonas do you want to come with me to the docks?")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("If the dock matters, you go", result.output_text)
+        self.assertNotIn("dock is the only place worth checking tonight", result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+
+    def test_jonas_tell_me_more_after_productive_success_stays_coherent(self) -> None:
+        session = GameSession()
+
+        first_result = session.process_input("talk npc_1")
+        second_result = session.process_input("talk npc_1")
+        follow_up_result = session.process_input("Jonas, please tell me more")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("keeps his voice low", first_result.output_text)
+        self.assertIn("loosens his shoulders", second_result.output_text)
+        self.assertIn("points toward the waterline", follow_up_result.output_text)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
 
     def test_move_clears_conversation_focus(self) -> None:
         session = GameSession()
