@@ -425,6 +425,60 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
 
+    def test_guarded_blood_request_still_uses_off_topic_refusal(self) -> None:
+        session = GameSession()
+
+        session.process_input("I don't believe you.")
+        result = session.process_input("Jonas I need blood")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("Ask someone else", result.output_text)
+        self.assertNotIn("stays guarded and keeps the conversation tight", result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.OFF_TOPIC_REQUEST)
+
+    def test_guarded_travel_request_still_uses_logistics_response(self) -> None:
+        session = GameSession()
+
+        session.process_input("I don't believe you.")
+        result = session.process_input("Jonas do you want to come with me to the docks?")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("If the dock matters, you go", result.output_text)
+        self.assertNotIn("stays guarded and keeps the conversation tight", result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+
+    def test_guarded_provocative_line_keeps_its_specific_guarded_refusal(self) -> None:
+        session = GameSession()
+
+        session.process_input("I don't believe you.")
+        result = session.process_input("Jonas let us have sex")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("Keep this professional", result.output_text)
+        self.assertNotIn("stays guarded and keeps the conversation tight", result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE)
+
     def test_move_clears_conversation_focus(self) -> None:
         session = GameSession()
 

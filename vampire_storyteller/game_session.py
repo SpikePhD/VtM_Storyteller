@@ -25,6 +25,8 @@ from .consequence_engine import apply_post_resolution_consequences
 from .conversation_context import ConversationContext
 from .data_paths import ensure_adventure_directories, get_default_save_path
 from .dialogue_adjudication import DialogueAdjudicationOutcome, DialogueTopicStatus, adjudicate_dialogue_talk
+from .dialogue_domain import DialogueDomain
+from .dialogue_engine import resolve_talk_result
 from .dialogue_intent_adapter import DialogueIntentAdapter, NullDialogueIntentAdapter
 from .dice_engine import DeterministicCheckKind, DeterministicCheckSpecification, resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
@@ -97,7 +99,10 @@ class GameSession:
                 self._last_action_resolution = turn
                 return result
             if not dialogue_adjudication.is_allowed:
-                result = self._materialize_dialogue_adjudication_result(command, dialogue_adjudication)
+                if self._should_materialize_domain_routed_dialogue(dialogue_adjudication):
+                    result = self._materialize_dialogue_domain_result(command, dialogue_adjudication)
+                else:
+                    result = self._materialize_dialogue_adjudication_result(command, dialogue_adjudication)
                 turn = self._build_dialogue_adjudication_resolution_turn(normalized_action, dialogue_adjudication, result)
                 self._last_action_resolution = turn
                 return result
@@ -433,6 +438,39 @@ class GameSession:
             output_text=output_text,
             conversation_focus_npc_id=npc.id,
             conversation_stance=dialogue_adjudication.conversation_stance,
+        )
+
+    def _should_materialize_domain_routed_dialogue(
+        self,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+    ) -> bool:
+        if not dialogue_adjudication.is_guarded:
+            return False
+        return dialogue_adjudication.dialogue_domain in {
+            DialogueDomain.OFF_TOPIC_REQUEST,
+            DialogueDomain.TRAVEL_PROPOSAL,
+            DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE,
+            DialogueDomain.UNKNOWN_MISC,
+        }
+
+    def _materialize_dialogue_domain_result(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+    ) -> CommandResult:
+        routed_result = resolve_talk_result(
+            self._world_state,
+            command.npc_id,
+            command.dialogue_metadata,
+            command.conversation_stance,
+            dialogue_adjudication.dialogue_domain,
+        )
+        if routed_result.conversation_focus_npc_id is not None and routed_result.conversation_stance is not None:
+            self._conversation_context.set_focus(routed_result.conversation_focus_npc_id, routed_result.conversation_stance)
+        return CommandResult(
+            output_text=routed_result.output_text,
+            conversation_focus_npc_id=routed_result.conversation_focus_npc_id,
+            conversation_stance=routed_result.conversation_stance,
         )
 
     def _resolve_escalated_persuade_dialogue(
