@@ -132,6 +132,35 @@ class Adv1DialogueHookDefinition:
     blocked_text: str
 
 
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueSocialTopicDefinition:
+    topic: str
+    topic_status: str
+    persuade_check_required: bool
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueSocialStageDefinition:
+    plot_id: str
+    plot_stage: str
+    required_story_flags: list[str]
+    topic_definitions: dict[str, Adv1DialogueSocialTopicDefinition]
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueSocialNpcDefinition:
+    npc_id: str
+    baseline_stance: str
+    baseline_cooperation: str
+    guarded_dialogue_acts: list[str]
+    stage_definitions: list[Adv1DialogueSocialStageDefinition]
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueSocialState:
+    npc_definitions: dict[str, Adv1DialogueSocialNpcDefinition]
+
+
 def load_adv1_world_state(adventure_root: Path | None = None) -> WorldState:
     root = get_adventure_root() if adventure_root is None else Path(adventure_root)
     load_adv1_adventure_metadata(root)
@@ -242,6 +271,25 @@ def load_adv1_dialogue_hook_definitions(adventure_root: Path | None = None) -> l
             raise AdventureContentError("Adventure dialogue hook entries must be JSON objects.")
         definitions.append(_dialogue_hook_definition_from_dict(hook_data))
     return definitions
+
+
+def load_adv1_dialogue_social_state(adventure_root: Path | None = None) -> Adv1DialogueSocialState:
+    root = get_adventure_root() if adventure_root is None else Path(adventure_root)
+    data = _read_json(root / "npcs" / "social_state.json")
+    npc_entries = data.get("npcs")
+    if not isinstance(npc_entries, list):
+        raise AdventureContentError("Adventure field 'npcs' must be a JSON array.")
+
+    definitions: dict[str, Adv1DialogueSocialNpcDefinition] = {}
+    for npc_data in npc_entries:
+        if not isinstance(npc_data, dict):
+            raise AdventureContentError("Adventure NPC social-state entries must be JSON objects.")
+        definition = _dialogue_social_npc_definition_from_dict(npc_data)
+        if definition.npc_id in definitions:
+            raise AdventureContentError(f"Adventure NPC social-state entries must not duplicate npc_id '{definition.npc_id}'.")
+        definitions[definition.npc_id] = definition
+
+    return Adv1DialogueSocialState(npc_definitions=definitions)
 
 
 def load_adv1_npc_definitions(adventure_root: Path | None = None) -> list[Adv1NpcDefinition]:
@@ -479,6 +527,61 @@ def _npc_definition_from_dict(data: dict[str, Any]) -> Adv1NpcDefinition:
         investigation_hint=_require_str(data, "investigation_hint"),
         traits=_require_string_mapping(data, "traits"),
         schedule=_require_string_mapping(data, "schedule"),
+    )
+
+
+def _dialogue_social_npc_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueSocialNpcDefinition:
+    stage_entries = data.get("stage_definitions")
+    if not isinstance(stage_entries, list) or not stage_entries:
+        raise AdventureContentError("Adventure field 'stage_definitions' must be a non-empty JSON array.")
+
+    stage_definitions: list[Adv1DialogueSocialStageDefinition] = []
+    for stage_data in stage_entries:
+        if not isinstance(stage_data, dict):
+            raise AdventureContentError("Adventure stage definitions must be JSON objects.")
+        stage_definitions.append(_dialogue_social_stage_definition_from_dict(stage_data))
+
+    return Adv1DialogueSocialNpcDefinition(
+        npc_id=_require_str(data, "npc_id"),
+        baseline_stance=_require_str(data, "baseline_stance"),
+        baseline_cooperation=_require_str(data, "baseline_cooperation"),
+        guarded_dialogue_acts=_require_string_list(data, "guarded_dialogue_acts"),
+        stage_definitions=stage_definitions,
+    )
+
+
+def _dialogue_social_stage_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueSocialStageDefinition:
+    topic_entries = data.get("topic_definitions")
+    if not isinstance(topic_entries, list) or not topic_entries:
+        raise AdventureContentError("Adventure field 'topic_definitions' must be a non-empty JSON array.")
+
+    topic_definitions: dict[str, Adv1DialogueSocialTopicDefinition] = {}
+    for topic_data in topic_entries:
+        if not isinstance(topic_data, dict):
+            raise AdventureContentError("Adventure topic definitions must be JSON objects.")
+        topic_definition = _dialogue_social_topic_definition_from_dict(topic_data)
+        if topic_definition.topic in topic_definitions:
+            raise AdventureContentError(f"Adventure topic definitions must not duplicate topic '{topic_definition.topic}'.")
+        topic_definitions[topic_definition.topic] = topic_definition
+
+    return Adv1DialogueSocialStageDefinition(
+        plot_id=_require_str(data, "plot_id"),
+        plot_stage=_require_str(data, "plot_stage"),
+        required_story_flags=_require_string_list(data, "required_story_flags"),
+        topic_definitions=topic_definitions,
+    )
+
+
+def _dialogue_social_topic_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueSocialTopicDefinition:
+    topic_status = _require_str(data, "topic_status")
+    if topic_status not in {"productive", "available", "refused"}:
+        raise AdventureContentError(
+            "Adventure field 'topic_status' must be one of 'productive', 'available', or 'refused'."
+        )
+    return Adv1DialogueSocialTopicDefinition(
+        topic=_require_str(data, "topic"),
+        topic_status=topic_status,
+        persuade_check_required=_require_bool(data, "persuade_check_required"),
     )
 
 

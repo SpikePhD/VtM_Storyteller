@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from .adventure_loader import Adv1DialogueSocialNpcDefinition, Adv1DialogueSocialTopicDefinition
 from .command_models import ConversationStance, DialogueAct
 from .dialogue_domain import DialogueDomain
 from .social_models import NPCSocialState, SocialOutcomeKind, TopicResult, TopicSensitivity
@@ -27,12 +28,24 @@ def evaluate_topic_openness(
     dialogue_act: DialogueAct,
     dialogue_domain: DialogueDomain,
     current_stance: ConversationStance,
+    authored_npc_rule: Adv1DialogueSocialNpcDefinition | None = None,
+    plot_id: str | None = None,
+    plot_stage: str | None = None,
+    story_flags: set[str] | None = None,
 ) -> SocialResolutionEvaluation:
     topic_key = _normalize_topic(topic)
     topic_sensitivity = _resolve_topic_sensitivity(social_state, topic_key)
     openness_score = _calculate_openness_score(social_state, topic_sensitivity, dialogue_act, dialogue_domain, current_stance)
+    authored_topic = _resolve_authored_topic_definition(
+        authored_npc_rule,
+        plot_id,
+        plot_stage,
+        story_flags or set(),
+        topic_key,
+    )
+    guarded_acts = set(authored_npc_rule.guarded_dialogue_acts) if authored_npc_rule is not None else set()
 
-    if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
+    if dialogue_act.value in guarded_acts or dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         outcome_kind = SocialOutcomeKind.THREATEN if dialogue_act is DialogueAct.THREATEN else SocialOutcomeKind.REFUSE
         return SocialResolutionEvaluation(
             topic_key=topic_key,
@@ -61,6 +74,20 @@ def evaluate_topic_openness(
             reason_code="greet_cooperative",
         )
 
+    if authored_topic is not None and authored_topic.topic_status == "refused":
+        return SocialResolutionEvaluation(
+            topic_key=topic_key,
+            topic_sensitivity=topic_sensitivity,
+            openness_score=openness_score,
+            outcome_kind=SocialOutcomeKind.REFUSE,
+            topic_result=TopicResult.BLOCKED,
+            check_required=False,
+            check_roll_pool=2,
+            check_difficulty=8,
+            recommended_stance=ConversationStance.GUARDED,
+            reason_code="topic_blocked",
+        )
+
     if topic_sensitivity is TopicSensitivity.BLOCKED:
         return SocialResolutionEvaluation(
             topic_key=topic_key,
@@ -76,7 +103,9 @@ def evaluate_topic_openness(
         )
 
     if dialogue_act is DialogueAct.PERSUADE and dialogue_domain in {DialogueDomain.LEAD_TOPIC, DialogueDomain.LEAD_PRESSURE}:
-        check_required = openness_score < 7
+        check_required = bool(authored_topic is not None and authored_topic.persuade_check_required and openness_score < 7)
+        if authored_topic is None:
+            check_required = openness_score < 7
         if check_required:
             topic_result = TopicResult.PARTIAL if openness_score >= 3 else TopicResult.BLOCKED
             outcome_kind = SocialOutcomeKind.COOPERATE if topic_result is TopicResult.PARTIAL else SocialOutcomeKind.REFUSE
@@ -105,6 +134,74 @@ def evaluate_topic_openness(
             recommended_stance=ConversationStance.NEUTRAL,
             reason_code="persuade_opened",
         )
+
+    if authored_topic is not None and authored_topic.topic_status == "productive":
+        if openness_score >= 6:
+            return SocialResolutionEvaluation(
+                topic_key=topic_key,
+                topic_sensitivity=topic_sensitivity,
+                openness_score=openness_score,
+                outcome_kind=_positive_outcome_kind(dialogue_domain),
+                topic_result=TopicResult.OPENED,
+                check_required=False,
+                check_roll_pool=_derive_roll_pool(openness_score),
+                check_difficulty=_derive_check_difficulty(openness_score, topic_sensitivity),
+                recommended_stance=ConversationStance.NEUTRAL,
+                reason_code="topic_opened",
+            )
+        if openness_score >= 3:
+            return SocialResolutionEvaluation(
+                topic_key=topic_key,
+                topic_sensitivity=topic_sensitivity,
+                openness_score=openness_score,
+                outcome_kind=_deflect_outcome_kind(dialogue_domain),
+                topic_result=TopicResult.PARTIAL,
+                check_required=False,
+                check_roll_pool=_derive_roll_pool(openness_score),
+                check_difficulty=_derive_check_difficulty(openness_score, topic_sensitivity),
+                recommended_stance=ConversationStance.NEUTRAL,
+                reason_code="topic_partial",
+            )
+        return SocialResolutionEvaluation(
+            topic_key=topic_key,
+            topic_sensitivity=topic_sensitivity,
+            openness_score=openness_score,
+            outcome_kind=SocialOutcomeKind.DEFLECT,
+            topic_result=TopicResult.BLOCKED,
+            check_required=False,
+            check_roll_pool=_derive_roll_pool(openness_score),
+            check_difficulty=_derive_check_difficulty(openness_score, topic_sensitivity),
+            recommended_stance=ConversationStance.GUARDED,
+            reason_code="topic_blocked",
+        )
+
+    if authored_topic is not None and authored_topic.topic_status == "available":
+        if dialogue_act is DialogueAct.ASK and openness_score >= 3:
+            return SocialResolutionEvaluation(
+                topic_key=topic_key,
+                topic_sensitivity=topic_sensitivity,
+                openness_score=openness_score,
+                outcome_kind=SocialOutcomeKind.COOPERATE,
+                topic_result=TopicResult.UNCHANGED,
+                check_required=False,
+                check_roll_pool=_derive_roll_pool(openness_score),
+                check_difficulty=_derive_check_difficulty(openness_score, topic_sensitivity),
+                recommended_stance=ConversationStance.NEUTRAL,
+                reason_code="topic_available",
+            )
+        if openness_score >= 3:
+            return SocialResolutionEvaluation(
+                topic_key=topic_key,
+                topic_sensitivity=topic_sensitivity,
+                openness_score=openness_score,
+                outcome_kind=_deflect_outcome_kind(dialogue_domain),
+                topic_result=TopicResult.PARTIAL,
+                check_required=False,
+                check_roll_pool=_derive_roll_pool(openness_score),
+                check_difficulty=_derive_check_difficulty(openness_score, topic_sensitivity),
+                recommended_stance=ConversationStance.NEUTRAL,
+                reason_code="topic_partial",
+            )
 
     if openness_score >= 6:
         return SocialResolutionEvaluation(
@@ -188,6 +285,28 @@ def _normalize_topic(topic: str | None) -> str:
     if topic is None:
         return ""
     return " ".join(topic.lower().replace("-", " ").split())
+
+
+def _resolve_authored_topic_definition(
+    authored_npc_rule: Adv1DialogueSocialNpcDefinition | None,
+    plot_id: str | None,
+    plot_stage: str | None,
+    story_flags: set[str],
+    topic_key: str,
+) -> Adv1DialogueSocialTopicDefinition | None:
+    if authored_npc_rule is None:
+        return None
+
+    for stage_rule in authored_npc_rule.stage_definitions:
+        if plot_id is not None and stage_rule.plot_id != plot_id:
+            continue
+        if plot_stage is not None and stage_rule.plot_stage != plot_stage:
+            continue
+        if any(required_flag not in story_flags for required_flag in stage_rule.required_story_flags):
+            continue
+        if topic_key and topic_key in stage_rule.topic_definitions:
+            return stage_rule.topic_definitions[topic_key]
+    return None
 
 
 def _relationship_modifier(relationship: str) -> int:

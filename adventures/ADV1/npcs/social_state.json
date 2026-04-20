@@ -1,0 +1,66 @@
+{
+  "npcs": [
+    {
+      "npc_id": "npc_1",
+      "baseline_stance": "neutral",
+      "baseline_cooperation": "wary",
+      "guarded_dialogue_acts": ["accuse", "threaten"],
+      "stage_definitions": [
+        {
+          "plot_id": "plot_1",
+          "plot_stage": "hook",
+          "required_story_flags": [],
+          "topic_definitions": [
+            {
+              "topic": "dock",
+              "topic_status": "productive",
+              "persuade_check_required": true
+            },
+            {
+              "topic": "ledger",
+              "topic_status": "productive",
+              "persuade_check_required": true
+            },
+            {
+              "topic": "taxi",
+              "topic_status": "available",
+              "persuade_check_required": false
+            },
+            {
+              "topic": "blood",
+              "topic_status": "refused",
+              "persuade_check_required": false
+            }
+          ]
+        },
+        {
+          "plot_id": "plot_1",
+          "plot_stage": "lead_confirmed",
+          "required_story_flags": ["jonas_shared_dock_lead"],
+          "topic_definitions": [
+            {
+              "topic": "dock",
+              "topic_status": "productive",
+              "persuade_check_required": false
+            },
+            {
+              "topic": "ledger",
+              "topic_status": "productive",
+              "persuade_check_required": false
+            },
+            {
+              "topic": "taxi",
+              "topic_status": "available",
+              "persuade_check_required": false
+            },
+            {
+              "topic": "blood",
+              "topic_status": "refused",
+              "persuade_check_required": false
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

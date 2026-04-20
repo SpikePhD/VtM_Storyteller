@@ -11,6 +11,7 @@ from vampire_storyteller.adventure_loader import (
     load_adv1_adventure_metadata,
     load_adv1_dialogue_hook_definitions,
     load_adv1_location_definitions,
+    load_adv1_dialogue_social_state,
     load_adv1_npc_definitions,
     load_adv1_player_seed_data,
     load_adv1_plot_progression_rules,
@@ -141,6 +142,20 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(hook_definitions[5].trust_delta, 0)
         self.assertFalse(hook_definitions[5].repeatable)
         self.assertIn("paper trail", hook_definitions[5].dialogue_text)
+
+    def test_dialogue_social_state_loader_reads_adv1_file(self) -> None:
+        social_state = load_adv1_dialogue_social_state()
+
+        self.assertIn("npc_1", social_state.npc_definitions)
+        jonas = social_state.npc_definitions["npc_1"]
+        self.assertEqual(jonas.baseline_stance, "neutral")
+        self.assertEqual(jonas.baseline_cooperation, "wary")
+        self.assertEqual(jonas.guarded_dialogue_acts, ["accuse", "threaten"])
+        self.assertEqual(jonas.stage_definitions[0].plot_stage, "hook")
+        self.assertEqual(jonas.stage_definitions[0].topic_definitions["dock"].topic_status, "productive")
+        self.assertTrue(jonas.stage_definitions[0].topic_definitions["dock"].persuade_check_required)
+        self.assertEqual(jonas.stage_definitions[1].required_story_flags, ["jonas_shared_dock_lead"])
+        self.assertFalse(jonas.stage_definitions[1].topic_definitions["dock"].persuade_check_required)
 
     def test_plot_progression_definition_loader_reads_talk_branch(self) -> None:
         progression = load_adv1_plot_progression_rules()
