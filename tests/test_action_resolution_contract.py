@@ -98,7 +98,7 @@ class ActionResolutionContractTests(unittest.TestCase):
         with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
             mock_resolve.return_value = DeterministicCheckResolution(
                 kind=DeterministicCheckKind.DIALOGUE_SOCIAL,
-                seed="2026-04-09T22:00:00+02:00|talk|persuade|npc_1|dock|player_1|0|productive",
+                seed="2026-04-09T22:00:00+02:00|talk|persuade|npc_1|dock|player_1|4|sensitive",
                 roll_pool=3,
                 difficulty=6,
                 individual_rolls=[8, 2, 7],
@@ -120,6 +120,7 @@ class ActionResolutionContractTests(unittest.TestCase):
         assert turn.dialogue_adjudication is not None
         self.assertEqual(turn.dialogue_adjudication.resolution_kind, DialogueAdjudicationResolutionKind.ESCALATED)
         self.assertTrue(turn.dialogue_adjudication.check_required)
+        self.assertEqual(turn.dialogue_adjudication.topic_status.value, "productive")
         self.assertIsNotNone(turn.social_outcome)
         assert turn.social_outcome is not None
         self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)

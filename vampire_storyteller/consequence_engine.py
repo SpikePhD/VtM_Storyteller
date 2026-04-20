@@ -117,5 +117,5 @@ def _adjust_trust_for_resolution(world_state: WorldState, trust_adjustments: dic
     for npc_id, delta in trust_adjustments.items():
         npc = world_state.npcs.get(npc_id)
         if npc is not None:
-            npc.trust_level = max(0, npc.trust_level + delta)
-            npc.social_state.trust = npc.trust_level
+            npc.social_state.trust = max(0, npc.social_state.trust + delta)
+            npc.trust_level = npc.social_state.trust

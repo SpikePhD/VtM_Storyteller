@@ -290,8 +290,8 @@ def _adjust_npc_trust(world_state: WorldState, npc_id: str, delta: int) -> None:
     npc = world_state.npcs.get(npc_id)
     if npc is None:
         return
-    npc.trust_level = max(0, npc.trust_level + delta)
-    npc.social_state.trust = npc.trust_level
+    npc.social_state.trust = max(0, npc.social_state.trust + delta)
+    npc.trust_level = npc.social_state.trust
 
 
 def _mark_dialogue_hook_consumed(world_state: WorldState, npc_id: str, hook_id: str) -> None:

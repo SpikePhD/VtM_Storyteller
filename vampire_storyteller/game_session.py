@@ -39,6 +39,7 @@ from .plot_engine import advance_plots
 from .sample_world import build_sample_world
 from .serialization import load_world_state, save_world_state
 from .social_models import SocialCheckResult, SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
+from .social_resolution import evaluate_topic_openness
 from .world_state import WorldState
 
 
@@ -135,7 +136,7 @@ class GameSession:
 
         # Phase 5: execute the canonical command.
         if isinstance(command, TalkCommand) and dialogue_adjudication is not None:
-            result = self._execute_talk_command(command, dialogue_adjudication.social_outcome)
+            result = self._execute_talk_command(command, dialogue_adjudication.dialogue_domain, dialogue_adjudication.social_outcome)
         else:
             result = self._execute_command(command)
         if result.should_quit:
@@ -457,6 +458,7 @@ class GameSession:
     def _execute_talk_command(
         self,
         command: TalkCommand,
+        dialogue_domain: DialogueDomain | None,
         social_outcome: SocialOutcomePacket | None,
     ) -> CommandResult:
         talk_result = resolve_talk_result(
@@ -464,6 +466,7 @@ class GameSession:
             command.npc_id,
             command.dialogue_metadata,
             command.conversation_stance,
+            dialogue_domain=dialogue_domain,
             active_subtopic=command.conversation_subtopic,
             social_outcome=social_outcome,
         )
@@ -615,7 +618,7 @@ class GameSession:
 
         if check_outcome.is_success:
             consequence_summary = self._apply_dialogue_persuade_success_consequences(command, dialogue_adjudication, check_outcome)
-            result = self._execute_talk_command(command, dialogue_adjudication.social_outcome)
+            result = self._execute_talk_command(command, dialogue_adjudication.dialogue_domain, dialogue_adjudication.social_outcome)
             result = self._apply_talk_after_effects(command, result, dialogue_adjudication)
             result = self._append_consequence_summary_to_result(result, consequence_summary)
             return result, adjudication, check_outcome, consequence_summary
@@ -638,10 +641,15 @@ class GameSession:
             normalized_topic = self._normalize_dialogue_topic(
                 command.dialogue_metadata.speech_text or command.dialogue_metadata.utterance_text
             )
-        roll_pool = 3 if dialogue_adjudication.topic_status is DialogueTopicStatus.PRODUCTIVE else 2
-        difficulty = 6 if npc.trust_level < plot_rules.talk_minimum_trust_level else 5
-        if dialogue_adjudication.topic_status is DialogueTopicStatus.REFUSED:
-            difficulty = max(difficulty, 7)
+        evaluation = evaluate_topic_openness(
+            npc.social_state,
+            normalized_topic or topic,
+            DialogueAct.PERSUADE,
+            dialogue_adjudication.dialogue_domain,
+            dialogue_adjudication.conversation_stance,
+        )
+        roll_pool = evaluation.check_roll_pool
+        difficulty = evaluation.check_difficulty
 
         return DeterministicCheckSpecification(
             kind=DeterministicCheckKind.DIALOGUE_SOCIAL,
@@ -652,8 +660,8 @@ class GameSession:
                 command.npc_id,
                 normalized_topic or "no-topic",
                 self._world_state.player.id,
-                str(npc.trust_level),
-                dialogue_adjudication.topic_status.value,
+                str(evaluation.openness_score),
+                evaluation.topic_sensitivity.value,
             ),
             roll_pool=roll_pool,
             difficulty=difficulty,
@@ -675,10 +683,10 @@ class GameSession:
 
         if command.npc_id == plot_rules.talk_npc_id and plot is not None and plot.active and dialogue_adjudication.topic_status is DialogueTopicStatus.PRODUCTIVE:
             previous_stage = plot.stage
-            if npc.trust_level < plot_rules.talk_minimum_trust_level:
-                npc.trust_level = plot_rules.talk_minimum_trust_level
-                npc.social_state.trust = npc.trust_level
+            if npc.social_state.trust < plot_rules.talk_minimum_trust_level:
+                npc.social_state.trust = plot_rules.talk_minimum_trust_level
                 npc.social_state.willingness_to_cooperate = max(npc.social_state.willingness_to_cooperate, 1)
+                npc.trust_level = npc.social_state.trust
                 applied_effects.append("dialogue_trust_adjusted")
             if plot_rules.talk_required_story_flag not in self._world_state.story_flags:
                 self._world_state.add_story_flag(plot_rules.talk_required_story_flag)
@@ -732,6 +740,8 @@ class GameSession:
             ConversationStance.GUARDED,
             self._resolve_next_conversation_subtopic(command, dialogue_adjudication),
         )
+        npc.social_state.current_conversation_stance = ConversationStance.GUARDED
+        npc.trust_level = npc.social_state.trust
         self._sync_npc_social_state(npc.id, ConversationStance.GUARDED)
         self._world_state.append_event(
             EventLogEntry(
@@ -815,8 +825,9 @@ class GameSession:
         npc = self._world_state.npcs.get(npc_id)
         if npc is None:
             return
-        npc.social_state.relationship_to_player = npc.attitude_to_player
-        npc.social_state.trust = npc.trust_level
+        if not npc.social_state.relationship_to_player:
+            npc.social_state.relationship_to_player = npc.attitude_to_player
+        npc.trust_level = npc.social_state.trust
         npc.social_state.current_conversation_stance = stance
 
     def _finalize_social_outcome_packet(

@@ -7,6 +7,21 @@
       "starting_location_id": "loc_cafe",
       "attitude_to_player": "wary",
       "trust_level": 0,
+      "social_state": {
+        "relationship_to_player": "wary",
+        "trust": 0,
+        "hostility": 1,
+        "fear": 0,
+        "respect": 4,
+        "willingness_to_cooperate": 3,
+        "current_conversation_stance": "neutral",
+        "topic_sensitivity": {
+          "dock": "sensitive",
+          "ledger": "sensitive",
+          "taxi": "open",
+          "blood": "blocked"
+        }
+      },
       "goals": [
         "Keep his distance until Mara proves trustworthy",
         "Point Mara toward the dock if pressed"
@@ -28,6 +43,19 @@
       "starting_location_id": "loc_church",
       "attitude_to_player": "guarded",
       "trust_level": 0,
+      "social_state": {
+        "relationship_to_player": "guarded",
+        "trust": 0,
+        "hostility": 1,
+        "fear": 1,
+        "respect": 3,
+        "willingness_to_cooperate": 2,
+        "current_conversation_stance": "neutral",
+        "topic_sensitivity": {
+          "dock": "guarded",
+          "ledger": "sensitive"
+        }
+      },
       "goals": [
         "Protect the church records",
         "Watch for anyone asking about the ledger"

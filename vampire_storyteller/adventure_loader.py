@@ -8,7 +8,8 @@ from typing import Any
 
 from .data_paths import ADVENTURE_ID, get_adventure_root
 from .models import Location, NPC, Player, PlotThread
-from .social_models import NPCSocialState
+from .command_models import ConversationStance
+from .social_models import NPCSocialState, TopicSensitivity
 from .world_state import WorldState
 
 
@@ -76,6 +77,7 @@ class Adv1NpcDefinition:
     starting_location_id: str
     attitude_to_player: str
     trust_level: int
+    social_state: NPCSocialState
     goals: list[str]
     investigation_hint: str
     traits: dict[str, str]
@@ -462,13 +464,17 @@ def _npc_from_dict(data: dict[str, Any]) -> NPC:
 
 
 def _npc_definition_from_dict(data: dict[str, Any]) -> Adv1NpcDefinition:
+    attitude_to_player = _require_str(data, "attitude_to_player")
+    trust_level = _require_int(data, "trust_level")
+    social_state = _social_state_from_dict(data.get("social_state"), attitude_to_player, trust_level)
     return Adv1NpcDefinition(
         id=_require_str(data, "id"),
         name=_require_str(data, "name"),
         role=_require_str(data, "role"),
         starting_location_id=_require_str(data, "starting_location_id"),
-        attitude_to_player=_require_str(data, "attitude_to_player"),
-        trust_level=_require_int(data, "trust_level"),
+        attitude_to_player=attitude_to_player,
+        trust_level=trust_level,
+        social_state=social_state,
         goals=_require_string_list(data, "goals"),
         investigation_hint=_require_str(data, "investigation_hint"),
         traits=_require_string_mapping(data, "traits"),
@@ -483,15 +489,48 @@ def _npc_from_definition(definition: Adv1NpcDefinition) -> NPC:
         role=definition.role,
         location_id=definition.starting_location_id,
         attitude_to_player=definition.attitude_to_player,
-        trust_level=definition.trust_level,
+        trust_level=definition.social_state.trust,
         goals=list(definition.goals),
         investigation_hint=definition.investigation_hint,
         schedule=dict(definition.schedule),
         traits=dict(definition.traits),
-        social_state=NPCSocialState(
-            relationship_to_player=definition.attitude_to_player,
-            trust=definition.trust_level,
-        ),
+        social_state=definition.social_state,
+    )
+
+
+def _social_state_from_dict(data: Any, attitude_to_player: str, trust_level: int) -> NPCSocialState:
+    if data is None:
+        return NPCSocialState(
+            relationship_to_player=attitude_to_player,
+            trust=trust_level,
+        )
+    if not isinstance(data, dict):
+        raise AdventureContentError("Adventure field 'social_state' must be a JSON object.")
+
+    topic_sensitivity_raw = data.get("topic_sensitivity", {})
+    if not isinstance(topic_sensitivity_raw, dict):
+        raise AdventureContentError("Adventure field 'topic_sensitivity' must be a JSON object.")
+    topic_sensitivity: dict[str, TopicSensitivity] = {}
+    for topic, sensitivity in topic_sensitivity_raw.items():
+        if not isinstance(topic, str) or not topic:
+            raise AdventureContentError("Adventure field 'topic_sensitivity' must use non-empty string keys.")
+        if not isinstance(sensitivity, str):
+            raise AdventureContentError("Adventure field 'topic_sensitivity' must use string values.")
+        topic_sensitivity[topic] = TopicSensitivity(sensitivity)
+
+    stance_value = data.get("current_conversation_stance", ConversationStance.NEUTRAL.value)
+    if not isinstance(stance_value, str):
+        raise AdventureContentError("Adventure field 'current_conversation_stance' must be a string.")
+
+    return NPCSocialState(
+        relationship_to_player=str(data.get("relationship_to_player", attitude_to_player)),
+        trust=int(data.get("trust", trust_level)) if isinstance(data.get("trust", trust_level), int) else trust_level,
+        hostility=int(data.get("hostility", 0)) if isinstance(data.get("hostility", 0), int) else 0,
+        fear=int(data.get("fear", 0)) if isinstance(data.get("fear", 0), int) else 0,
+        respect=int(data.get("respect", 0)) if isinstance(data.get("respect", 0), int) else 0,
+        willingness_to_cooperate=int(data.get("willingness_to_cooperate", 0)) if isinstance(data.get("willingness_to_cooperate", 0), int) else 0,
+        current_conversation_stance=ConversationStance(stance_value),
+        topic_sensitivity=topic_sensitivity,
     )
 
 

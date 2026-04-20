@@ -77,6 +77,9 @@ def classify_dialogue_domain(
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         return DialogueDomain.LEAD_PRESSURE
 
+    if _is_lead_follow_up(world_state, combined_text, conversation_stance):
+        return DialogueDomain.LEAD_TOPIC
+
     if dialogue_act is DialogueAct.PERSUADE and (_is_productive_topic_status(topic_status) or _is_missing_ledger_topic(topic_text or combined_text)):
         return DialogueDomain.LEAD_PRESSURE
 
@@ -84,9 +87,6 @@ def classify_dialogue_domain(
         return DialogueDomain.LEAD_TOPIC
 
     if _is_missing_ledger_topic(topic_text or combined_text):
-        return DialogueDomain.LEAD_TOPIC
-
-    if _is_lead_follow_up(world_state, combined_text, conversation_stance):
         return DialogueDomain.LEAD_TOPIC
 
     if dialogue_act is DialogueAct.ASK:

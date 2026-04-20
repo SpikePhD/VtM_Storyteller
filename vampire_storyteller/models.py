@@ -40,6 +40,7 @@ class NPC:
             self.social_state.relationship_to_player = self.attitude_to_player
         if self.social_state.trust == 0 and self.trust_level != 0:
             self.social_state.trust = self.trust_level
+        self.trust_level = self.social_state.trust
 
 
 @dataclass

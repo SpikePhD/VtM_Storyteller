@@ -39,7 +39,7 @@ class DialogueAdjudicationTests(unittest.TestCase):
         ask_outcome = adjudicate_dialogue_talk(world, ask_command)
 
         self.assertTrue(greet_outcome.is_allowed)
-        self.assertEqual(greet_outcome.topic_status, DialogueTopicStatus.AVAILABLE)
+        self.assertEqual(greet_outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
         self.assertEqual(greet_outcome.dialogue_domain, DialogueDomain.LEAD_TOPIC)
         self.assertTrue(ask_outcome.is_allowed)
         self.assertEqual(ask_outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
@@ -119,26 +119,59 @@ class DialogueAdjudicationTests(unittest.TestCase):
         self.assertFalse(outcome.check_required)
         self.assertIsNotNone(outcome.social_outcome)
         assert outcome.social_outcome is not None
-        self.assertEqual(outcome.social_outcome.outcome_kind, SocialOutcomeKind.REFUSE)
-        self.assertEqual(outcome.social_outcome.topic_result, TopicResult.BLOCKED)
+        self.assertEqual(outcome.social_outcome.outcome_kind, SocialOutcomeKind.DEFLECT)
+        self.assertEqual(outcome.social_outcome.topic_result, TopicResult.PARTIAL)
 
-    def test_npc_social_state_can_be_created_serialized_and_attached_cleanly(self) -> None:
+    def test_topic_sensitivity_changes_adjudication_openness(self) -> None:
+        world = build_sample_world()
+        world.npcs["npc_1"].social_state.topic_sensitivity["dock"] = TopicSensitivity.BLOCKED
+        command = TalkCommand(
+            npc_id="npc_1",
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="Jonas, what happened at the dock?",
+                speech_text="what happened at the dock?",
+                dialogue_act=DialogueAct.ASK,
+                topic="dock",
+            ),
+        )
+
+        outcome = adjudicate_dialogue_talk(world, command)
+
+        self.assertEqual(outcome.resolution_kind, DialogueAdjudicationResolutionKind.GUARDED)
+        self.assertEqual(outcome.topic_status, DialogueTopicStatus.REFUSED)
+        self.assertEqual(outcome.social_outcome.topic_result, TopicResult.BLOCKED)
+        self.assertEqual(outcome.social_outcome.outcome_kind, SocialOutcomeKind.REFUSE)
+
+    def test_higher_trust_and_willingness_reduce_persuasion_pressure(self) -> None:
         world = build_sample_world()
         npc = world.npcs["npc_1"]
+        npc.social_state.trust = 8
+        npc.social_state.willingness_to_cooperate = 8
+        npc.social_state.respect = 8
+        npc.social_state.hostility = 0
+        npc.social_state.fear = 0
+        npc.trust_level = npc.social_state.trust
 
-        npc.social_state.relationship_to_player = "guarded"
-        npc.social_state.trust = 3
-        npc.social_state.hostility = 1
-        npc.social_state.fear = 2
-        npc.social_state.respect = 4
-        npc.social_state.willingness_to_cooperate = 5
-        npc.social_state.topic_sensitivity["dock"] = TopicSensitivity.GUARDED
+        command = TalkCommand(
+            npc_id="npc_1",
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="Jonas, help me with the dock.",
+                speech_text="help me with the dock.",
+                dialogue_act=DialogueAct.PERSUADE,
+                topic="dock",
+                tone="careful",
+            ),
+        )
 
-        payload = world.to_dict()
+        outcome = adjudicate_dialogue_talk(world, command)
 
-        self.assertIn("social_state", payload["npcs"]["npc_1"])
-        self.assertEqual(payload["npcs"]["npc_1"]["social_state"]["trust"], 3)
-        self.assertEqual(payload["npcs"]["npc_1"]["social_state"]["topic_sensitivity"]["dock"], "guarded")
+        self.assertTrue(outcome.is_allowed)
+        self.assertEqual(outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
+        self.assertFalse(outcome.check_required)
+        self.assertIsNotNone(outcome.social_outcome)
+        assert outcome.social_outcome is not None
+        self.assertEqual(outcome.social_outcome.topic_result, TopicResult.OPENED)
+        self.assertEqual(outcome.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
 
     def test_session_records_dialogue_adjudication_on_talk_turn(self) -> None:
         session = GameSession()
@@ -152,13 +185,13 @@ class DialogueAdjudicationTests(unittest.TestCase):
         self.assertIsNotNone(turn.dialogue_adjudication)
         assert turn.dialogue_adjudication is not None
         self.assertEqual(turn.dialogue_adjudication.resolution_kind, DialogueAdjudicationResolutionKind.ALLOWED)
-        self.assertEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.AVAILABLE)
+        self.assertEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.PRODUCTIVE)
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
         self.assertEqual(turn.dialogue_adjudication.conversation_stance, ConversationStance.NEUTRAL)
         self.assertIsNotNone(turn.social_outcome)
         assert turn.social_outcome is not None
-        self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.COOPERATE)
-        self.assertEqual(turn.social_outcome.topic_result, TopicResult.UNCHANGED)
+        self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
+        self.assertEqual(turn.social_outcome.topic_result, TopicResult.OPENED)
 
 
 if __name__ == "__main__":
