@@ -2,27 +2,27 @@
 
 ## Project Overview
 
-This project is a GUI-based single-player Vampire: The Masquerade (VtM) storytelling application.
+This project is a GUI-based single-player Vampire: The Masquerade storytelling application.
 
 The system combines:
-- deterministic simulation (world state, time, rules)
-- narrative control (story structure and pressure)
-- LLM-based presentation (scene description, narration, and dialogue feel)
+- deterministic simulation (world state, time, rules, checks, consequences)
+- deterministic social state (relationship, trust, hostility, secrecy, topic gating, willingness)
+- LLM-based realization (scene description, NPC dialogue, tone, atmosphere, and storyteller feel)
 
 The player-facing goal is to make the experience feel natural-language-first:
 - players can write thoughts, intentions, descriptive actions, and dialogue in their own words
-- the engine interprets that freeform input into deterministic actions and state changes
-- the underlying world state remains the source of truth
-- LLMs shape the presentation, not the authority over what is true
-- NPC interaction should feel like real dialogue while still resolving through structured simulation rules
+- the engine interprets that freeform input into bounded structured intent
+- the world state remains the source of truth
+- LLMs shape interpretation within bounded schemas and realize the final presentation, but they do not own truth
+- NPC interaction should feel flexible and human, without requiring the project to hand-author deterministic dialogue for every possible utterance
 
 The system should behave like this:
 
-> The world is simulated deterministically, and the LLM renders that world as a personalized chronicle.
+> The world is simulated deterministically, and the LLM realizes that world as a personalized chronicle.
 
 ## Player Experience
 
-The surface interaction should feel expressive and conversational, not like a command parser.
+The surface interaction should feel expressive and conversational, not like a command parser and not like a hand-authored keyword tree.
 
 ### Player-facing input
 - natural language
@@ -30,13 +30,34 @@ The surface interaction should feel expressive and conversational, not like a co
 - intentions and plans
 - descriptive actions
 - spoken dialogue to NPCs
+- flexible follow-up lines within an active conversation
 
 ### Engine-facing resolution
-- structured interpretation of what the player likely meant
+- bounded interpretation of what the player likely meant
+- deterministic target grounding
 - deterministic action selection
+- deterministic social evaluation
 - rule-based checks, rolls, and consequences
 - state updates applied to the world model
-- narrative output generated after the state is settled
+- narrative and dialogue output generated after the state is settled
+
+### Dialogue Philosophy
+
+Dialogue should scale through **social simulation**, not through ever-growing deterministic dialogue scripts.
+
+The deterministic layer should own:
+- who is present
+- what they know
+- how they feel about the player
+- what topics are sensitive or revealable
+- whether they cooperate, refuse, deflect, escalate, or disengage
+- whether a social check is required
+- whether trust, fear, or plot state changes
+
+The LLM should own:
+- the exact phrasing of the NPC's reply
+- tone, pacing, subtext, atmosphere, and storyteller voice
+- expressive variation that still remains faithful to the structured outcome packet
 
 ### Examples
 
@@ -49,25 +70,27 @@ Underlying resolution:
 - it checks the current location, visible entities, and relevant triggers
 - if needed, it resolves a perception or awareness test using deterministic rules
 - it updates state only if the investigation reveals something concrete
-- the LLM then narrates the result in tone and style
+- the LLM narrates the result after the world state is settled
 
 Player input:
 
 > "You're hiding something. Tell me what happened here."
 
 Underlying resolution:
-- the engine interprets this as a dialogue challenge or interrogation attempt
-- it resolves any social checks, trust changes, or clue reveals using deterministic rules
-- the NPC's disposition, knowledge, and schedule determine what can actually be said
-- the LLM renders the exchange as natural dialogue, but the state change comes from the simulation
+- the engine interprets this as a social pressure attempt against a topic
+- it evaluates the NPC's current predisposition, secrecy, knowledge, and willingness
+- it resolves any required social check deterministically
+- it applies any state shifts, clue reveals, or refusals deterministically
+- the LLM realizes the exchange as natural dialogue, but the state change comes from the simulation
 
 ## Core Principles
 
 1. The LLM is **not** the source of truth.
-2. All world state is deterministic and structured.
-3. The LLM shapes narration and dialogue feel after resolution, but does not author state.
-4. Each player input triggers a simulation "tick" after interpretation.
-5. The system must converge toward meaningful story outcomes.
+2. All world state and social state are deterministic and structured.
+3. The LLM shapes interpretation within bounded schemas and realizes narration after resolution, but does not author state.
+4. Each player input triggers a simulation tick after interpretation.
+5. The project should scale through deterministic facts and social variables, not through bespoke deterministic dialogue scripting for every utterance.
+6. The system must converge toward meaningful story outcomes.
 
 ## Tech Stack (v1)
 
@@ -81,7 +104,7 @@ Underlying resolution:
 A vertical slice where the player can:
 - move around a small map
 - interact with a few NPCs
-- hold natural dialogue with NPCs
+- hold flexible natural dialogue with NPCs
 - experience one short chronicle arc
 - see time, hunger, and state change
-- receive narrated scenes via LLM
+- receive narrated scenes and dialogue via LLM realization grounded in deterministic outcomes

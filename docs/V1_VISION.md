@@ -3,10 +3,12 @@
 ## Goal
 
 Build a playable vertical slice proving that:
-- deterministic simulation and LLM narration can coexist
+- deterministic simulation and LLM realization can coexist
+- deterministic social state can drive flexible NPC dialogue
 - a dynamic story bible can be maintained
 - a GUI can present a coherent experience
 - players can speak and act naturally without learning command syntax
+- the project does not need hand-authored deterministic dialogue for every possible utterance
 
 ## Scope
 
@@ -20,6 +22,7 @@ Build a playable vertical slice proving that:
 
 ### NPCs
 - 3-5 unique NPCs
+- each with distinct social profiles, knowledge, goals, and topic sensitivities
 
 ### Systems
 - time progression
@@ -27,11 +30,15 @@ Build a playable vertical slice proving that:
 - hunger system
 - simple inventory
 - dice system
+- deterministic social resolution
+- bounded intent extraction
+- LLM dialogue and scene realization
 
 ### Story
 - 1 short chronicle arc
-- 1 main hook (e.g., letter delivery)
+- 1 main hook
 - 1 ending
+- topic-gated clue progression
 
 ### GUI
 - map panel
@@ -46,19 +53,22 @@ Build a playable vertical slice proving that:
 - no large world
 - no full VtM ruleset
 - no advanced graphics
+- no sprawling hand-authored dialogue tree for every NPC utterance
 
 ## Success Criteria
 
 The system is successful if:
 - player input is interpreted into consistent world-state updates
 - time advances correctly
-- LLM narration remains consistent with state
-- NPCs feel distinct
-- story progresses toward an ending
+- social checks and consequences remain deterministic
+- LLM dialogue remains consistent with state and social outcome packets
+- NPCs feel distinct and flexible
+- the same NPC can respond naturally to varied phrasing without bespoke scripting for every line
+- story progresses toward an ending without losing state authority
 
 ## Player Experience
 
-The player should be able to write thoughts, intentions, descriptive actions, and dialogue in ordinary language. The engine then resolves that input into deterministic simulation results.
+The player should be able to write thoughts, intentions, descriptive actions, and dialogue in ordinary language. The engine then resolves that input into deterministic simulation and social outcomes, and the LLM realizes those outcomes as natural narration and dialogue.
 
 Example:
 
@@ -66,7 +76,7 @@ Example:
 
 Under the hood:
 - the engine interprets this as a search or perception intent
-- it checks location state, visible entities, and any active triggers
+- it checks location state, visible entities, and active triggers
 - it applies the relevant deterministic rule if a test is needed
 - the resulting state change is recorded before narration is generated
 
@@ -75,11 +85,11 @@ Example:
 > "You're hiding something. Tell me what happened here."
 
 Under the hood:
-- the engine treats this as a dialogue-driven social pressure attempt
+- the engine treats this as a social pressure attempt against a topic
+- it resolves the NPC's response mode from deterministic social variables and topic gates
 - it resolves any social check, attitude shift, or clue reveal deterministically
-- NPC knowledge, disposition, and current scene state determine the response
 - the LLM presents the exchange as natural dialogue, but does not decide the outcome
 
 ## Guiding Principle
 
-> Anything that must be correct is deterministic. Anything expressive is handled by the LLM after the simulation has resolved.
+> Anything that must be correct is deterministic. Anything expressive is realized by the LLM from structured outcomes after the simulation has resolved.
