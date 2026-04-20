@@ -15,9 +15,9 @@ from .action_resolution import (
     adjudication_outcome_from_decision,
 )
 from .adjudication_engine import adjudicate_command
-from .adventure_loader import load_adv1_plot_investigation_rules
+from .adventure_loader import load_adv1_plot_investigation_rules, load_adv1_plot_progression_rules
 from .command_dispatcher import execute_command
-from .command_models import Command, ConversationStance, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
+from .command_models import Command, ConversationStance, DialogueAct, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
 from .exceptions import CommandParseError
 from .command_parser import parse_command
 from .command_result import CommandResult
@@ -26,7 +26,7 @@ from .conversation_context import ConversationContext
 from .data_paths import ensure_adventure_directories, get_default_save_path
 from .dialogue_adjudication import DialogueAdjudicationOutcome, DialogueTopicStatus, adjudicate_dialogue_talk
 from .dialogue_intent_adapter import DialogueIntentAdapter, NullDialogueIntentAdapter
-from .dice_engine import resolve_deterministic_check
+from .dice_engine import DeterministicCheckKind, DeterministicCheckSpecification, resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
 from .narrative_provider import DeterministicSceneNarrativeProvider, SceneNarrativeProvider
@@ -83,6 +83,19 @@ class GameSession:
                 turn = self._build_blocked_resolution_turn(normalized_action, self._blocked_action_adjudication_from_dialogue(dialogue_adjudication), dialogue_adjudication)
                 self._last_action_resolution = turn
                 return turn.to_command_result()
+            if dialogue_adjudication.is_escalated and command.dialogue_metadata is not None and command.dialogue_metadata.dialogue_act is DialogueAct.PERSUADE:
+                result, adjudication, check_outcome, consequence_summary = self._resolve_escalated_persuade_dialogue(command, dialogue_adjudication)
+                turn = self._build_final_resolution_turn(
+                    command=command,
+                    normalized_action=normalized_action,
+                    adjudication=adjudication,
+                    check=check_outcome,
+                    consequence_summary=consequence_summary,
+                    result=result,
+                    dialogue_adjudication=dialogue_adjudication,
+                )
+                self._last_action_resolution = turn
+                return result
             if not dialogue_adjudication.is_allowed:
                 result = self._materialize_dialogue_adjudication_result(command, dialogue_adjudication)
                 turn = self._build_dialogue_adjudication_resolution_turn(normalized_action, dialogue_adjudication, result)
@@ -421,6 +434,189 @@ class GameSession:
             conversation_focus_npc_id=npc.id,
             conversation_stance=dialogue_adjudication.conversation_stance,
         )
+
+    def _resolve_escalated_persuade_dialogue(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+    ) -> tuple[CommandResult, ActionAdjudicationOutcome, ActionCheckOutcome, ActionConsequenceSummary]:
+        check_spec = self._build_dialogue_social_check_spec(command, dialogue_adjudication)
+        adjudication = ActionAdjudicationOutcome.check_gated(
+            reason=dialogue_adjudication.reason_code,
+            check_spec=check_spec,
+        )
+        check_outcome = self._resolve_check(command, adjudication)
+
+        if check_outcome.is_success:
+            consequence_summary = self._apply_dialogue_persuade_success_consequences(command, dialogue_adjudication, check_outcome)
+            result = self._execute_command(command)
+            result = self._apply_talk_after_effects(command, result)
+            result = self._append_consequence_summary_to_result(result, consequence_summary)
+            return result, adjudication, check_outcome, consequence_summary
+
+        consequence_summary = self._apply_dialogue_persuade_failure_consequences(command, dialogue_adjudication, check_outcome)
+        result = self._materialize_dialogue_persuade_failure_result(command, dialogue_adjudication, consequence_summary)
+        return result, adjudication, check_outcome, consequence_summary
+
+    def _build_dialogue_social_check_spec(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+    ) -> DeterministicCheckSpecification:
+        npc = self._world_state.npcs.get(command.npc_id)
+        assert npc is not None
+        plot_rules = load_adv1_plot_progression_rules()
+        topic = command.dialogue_metadata.topic if command.dialogue_metadata is not None else None
+        normalized_topic = self._normalize_dialogue_topic(topic)
+        if not normalized_topic and command.dialogue_metadata is not None:
+            normalized_topic = self._normalize_dialogue_topic(
+                command.dialogue_metadata.speech_text or command.dialogue_metadata.utterance_text
+            )
+        roll_pool = 3 if dialogue_adjudication.topic_status is DialogueTopicStatus.PRODUCTIVE else 2
+        difficulty = 6 if npc.trust_level < plot_rules.talk_minimum_trust_level else 5
+        if dialogue_adjudication.topic_status is DialogueTopicStatus.REFUSED:
+            difficulty = max(difficulty, 7)
+
+        return DeterministicCheckSpecification(
+            kind=DeterministicCheckKind.DIALOGUE_SOCIAL,
+            seed_parts=(
+                self._world_state.current_time,
+                "talk",
+                "persuade",
+                command.npc_id,
+                normalized_topic or "no-topic",
+                self._world_state.player.id,
+                str(npc.trust_level),
+                dialogue_adjudication.topic_status.value,
+            ),
+            roll_pool=roll_pool,
+            difficulty=difficulty,
+        )
+
+    def _apply_dialogue_persuade_success_consequences(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+        check_outcome: ActionCheckOutcome,
+    ) -> ActionConsequenceSummary:
+        npc = self._world_state.npcs.get(command.npc_id)
+        assert npc is not None
+        messages: list[str] = []
+        applied_effects: list[str] = []
+
+        plot_rules = load_adv1_plot_progression_rules()
+        plot = self._world_state.plots.get(plot_rules.plot_id)
+
+        if command.npc_id == plot_rules.talk_npc_id and plot is not None and plot.active and dialogue_adjudication.topic_status is DialogueTopicStatus.PRODUCTIVE:
+            previous_stage = plot.stage
+            if npc.trust_level < plot_rules.talk_minimum_trust_level:
+                npc.trust_level = plot_rules.talk_minimum_trust_level
+                applied_effects.append("dialogue_trust_adjusted")
+            if plot_rules.talk_required_story_flag not in self._world_state.story_flags:
+                self._world_state.add_story_flag(plot_rules.talk_required_story_flag)
+                applied_effects.append("dialogue_story_flag_added")
+            if previous_stage != plot_rules.talk_to_stage:
+                plot.stage = plot_rules.talk_to_stage
+                applied_effects.append("dialogue_plot_progressed")
+                message = (
+                    f"Dialogue check success: {npc.name} shares the dock lead and the Missing Ledger plot advances "
+                    f"from {previous_stage} to {plot.stage}."
+                )
+            else:
+                message = f"Dialogue check success: {npc.name} keeps talking and the conversation remains productive."
+            messages.append(message)
+            self._world_state.append_event(
+                EventLogEntry(
+                    timestamp=self._world_state.current_time,
+                    description=message,
+                    involved_entities=[self._world_state.player.id, plot.id, command.npc_id],
+                )
+            )
+        else:
+            message = f"Dialogue check success: {npc.name} keeps talking and the conversation remains productive."
+            messages.append(message)
+            self._world_state.append_event(
+                EventLogEntry(
+                    timestamp=self._world_state.current_time,
+                    description=message,
+                    involved_entities=[self._world_state.player.id, command.npc_id],
+                )
+            )
+
+        applied_effects.append("dialogue_social_check_success")
+        return ActionConsequenceSummary(messages=tuple(messages), applied_effects=tuple(applied_effects))
+
+    def _apply_dialogue_persuade_failure_consequences(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+        check_outcome: ActionCheckOutcome,
+    ) -> ActionConsequenceSummary:
+        npc = self._world_state.npcs.get(command.npc_id)
+        assert npc is not None
+        if dialogue_adjudication.topic_status is DialogueTopicStatus.REFUSED:
+            message = f"Dialogue check failed: {npc.name} refuses to move past the guarded topic."
+        else:
+            message = f"Dialogue check failed: {npc.name} stays guarded and does not advance the Missing Ledger lead."
+
+        self._conversation_context.set_focus(npc.id, ConversationStance.GUARDED)
+        self._world_state.append_event(
+            EventLogEntry(
+                timestamp=self._world_state.current_time,
+                description=message,
+                involved_entities=[self._world_state.player.id, command.npc_id],
+            )
+        )
+        return ActionConsequenceSummary(messages=(message,), applied_effects=("dialogue_social_check_failure",))
+
+    def _materialize_dialogue_persuade_failure_result(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+        consequence_summary: ActionConsequenceSummary,
+    ) -> CommandResult:
+        npc = self._world_state.npcs.get(command.npc_id)
+        assert npc is not None
+        if consequence_summary.messages:
+            output_text = "\n".join(consequence_summary.messages)
+        elif dialogue_adjudication.topic_status is DialogueTopicStatus.REFUSED:
+            output_text = f"Talk is guarded: {npc.name} refuses to go further right now."
+        else:
+            output_text = f"Talk is guarded: {npc.name} stays guarded and keeps the conversation tight."
+
+        return CommandResult(
+            output_text=output_text,
+            conversation_focus_npc_id=npc.id,
+            conversation_stance=ConversationStance.GUARDED,
+        )
+
+    def _append_consequence_summary_to_result(
+        self,
+        result: CommandResult,
+        consequence_summary: ActionConsequenceSummary,
+    ) -> CommandResult:
+        if not consequence_summary.messages:
+            return result
+
+        summary_text = "\n".join(consequence_summary.messages)
+        output_text = result.output_text.strip()
+        if output_text:
+            combined_output = f"{output_text}\n\n{summary_text}"
+        else:
+            combined_output = summary_text
+
+        return CommandResult(
+            output_text=combined_output,
+            should_quit=result.should_quit,
+            render_scene=result.render_scene,
+            conversation_focus_npc_id=result.conversation_focus_npc_id,
+            conversation_stance=result.conversation_stance,
+        )
+
+    def _normalize_dialogue_topic(self, topic: str | None) -> str:
+        if topic is None:
+            return ""
+        return " ".join(topic.lower().replace("-", " ").split())
 
     def _apply_talk_after_effects(self, command: Command, result: CommandResult) -> CommandResult:
         if not isinstance(command, TalkCommand):

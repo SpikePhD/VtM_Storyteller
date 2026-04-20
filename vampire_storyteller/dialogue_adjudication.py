@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from .command_models import ConversationStance, DialogueAct, TalkCommand
+from .command_models import ConversationStance, DialogueAct, DialogueMetadata, TalkCommand
 from .adventure_loader import load_adv1_plot_progression_rules
 from .world_state import WorldState
 
@@ -87,7 +87,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
     metadata = command.dialogue_metadata
     dialogue_act = metadata.dialogue_act if metadata is not None else DialogueAct.UNKNOWN
     topic = metadata.topic if metadata is not None else None
-    topic_status = _classify_topic_status(world_state, command.npc_id, dialogue_act, topic)
+    topic_status = _classify_topic_status(world_state, command.npc_id, dialogue_act, topic, metadata)
 
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         return DialogueAdjudicationOutcome(
@@ -144,19 +144,22 @@ def _classify_topic_status(
     npc_id: str,
     dialogue_act: DialogueAct,
     topic: str | None,
+    dialogue_metadata: DialogueMetadata | None = None,
 ) -> DialogueTopicStatus:
     normalized_topic = _normalize_text(topic or "")
+    normalized_dialogue_text = _normalize_text(_dialogue_metadata_text(dialogue_metadata))
     plot_rules = load_adv1_plot_progression_rules()
     plot = world_state.plots.get(plot_rules.plot_id)
     plot_stage = plot.stage if plot is not None else ""
     story_flags = set(world_state.story_flags)
+    topic_present = bool(normalized_topic) or bool(normalized_dialogue_text)
 
     if npc_id != plot_rules.talk_npc_id:
         if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
             return DialogueTopicStatus.REFUSED
         if dialogue_act is DialogueAct.PERSUADE:
-            return DialogueTopicStatus.PRODUCTIVE if normalized_topic else DialogueTopicStatus.AVAILABLE
-        return DialogueTopicStatus.AVAILABLE if normalized_topic else DialogueTopicStatus.UNKNOWN
+            return DialogueTopicStatus.PRODUCTIVE if _is_missing_ledger_topic(normalized_topic or normalized_dialogue_text) else (DialogueTopicStatus.AVAILABLE if topic_present else DialogueTopicStatus.UNKNOWN)
+        return DialogueTopicStatus.AVAILABLE if topic_present else DialogueTopicStatus.UNKNOWN
 
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         return DialogueTopicStatus.REFUSED
@@ -165,16 +168,18 @@ def _classify_topic_status(
         return DialogueTopicStatus.AVAILABLE
 
     if dialogue_act is DialogueAct.PERSUADE:
-        return DialogueTopicStatus.PRODUCTIVE if _is_missing_ledger_topic(normalized_topic) else DialogueTopicStatus.AVAILABLE
+        if _is_missing_ledger_topic(normalized_topic or normalized_dialogue_text):
+            return DialogueTopicStatus.PRODUCTIVE
+        return DialogueTopicStatus.AVAILABLE if topic_present else DialogueTopicStatus.UNKNOWN
 
     if dialogue_act is DialogueAct.ASK:
-        if plot_stage in {"hook", "lead_confirmed"} and _is_missing_ledger_topic(normalized_topic):
+        if plot_stage in {"hook", "lead_confirmed"} and _is_missing_ledger_topic(normalized_topic or normalized_dialogue_text):
             return DialogueTopicStatus.PRODUCTIVE
         if plot_stage == "hook" and plot_rules.talk_required_story_flag in story_flags:
-            return DialogueTopicStatus.PRODUCTIVE if _is_missing_ledger_topic(normalized_topic) else DialogueTopicStatus.AVAILABLE
-        return DialogueTopicStatus.AVAILABLE if normalized_topic else DialogueTopicStatus.UNKNOWN
+            return DialogueTopicStatus.PRODUCTIVE if _is_missing_ledger_topic(normalized_topic or normalized_dialogue_text) else DialogueTopicStatus.AVAILABLE
+        return DialogueTopicStatus.AVAILABLE if topic_present else DialogueTopicStatus.UNKNOWN
 
-    return DialogueTopicStatus.UNKNOWN if not normalized_topic else DialogueTopicStatus.AVAILABLE
+    return DialogueTopicStatus.UNKNOWN if not topic_present else DialogueTopicStatus.AVAILABLE
 
 
 def _is_missing_ledger_topic(normalized_topic: str) -> bool:
@@ -194,3 +199,13 @@ def _is_missing_ledger_topic(normalized_topic: str) -> bool:
 
 def _normalize_text(raw_text: str) -> str:
     return " ".join(raw_text.lower().replace("-", " ").split())
+
+
+def _dialogue_metadata_text(dialogue_metadata: DialogueMetadata | None) -> str:
+    if dialogue_metadata is None:
+        return ""
+
+    utterance_text = getattr(dialogue_metadata, "utterance_text", "") or ""
+    speech_text = getattr(dialogue_metadata, "speech_text", "") or ""
+    topic = getattr(dialogue_metadata, "topic", "") or ""
+    return " ".join(part for part in (topic, speech_text, utterance_text) if part)

@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from vampire_storyteller.action_resolution import ActionBlockReason, ActionResolutionKind, NormalizationSource, TurnOutcomeKind
 from vampire_storyteller.dice_engine import DeterministicCheckKind, DeterministicCheckResolution
+from vampire_storyteller.dialogue_adjudication import DialogueAdjudicationResolutionKind
 from vampire_storyteller.game_session import GameSession
 
 
@@ -89,6 +90,40 @@ class ActionResolutionContractTests(unittest.TestCase):
         self.assertIn("plot_resolution_updated", turn.consequence_summary.applied_effects)
         self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", turn.output_text)
         self.assertEqual(result.output_text, turn.output_text)
+
+    def test_roll_gated_persuade_populates_check_and_dialogue_outcome(self) -> None:
+        session = GameSession()
+
+        with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
+            mock_resolve.return_value = DeterministicCheckResolution(
+                kind=DeterministicCheckKind.DIALOGUE_SOCIAL,
+                seed="2026-04-09T22:00:00+02:00|talk|persuade|npc_1|dock|player_1|0|productive",
+                roll_pool=3,
+                difficulty=6,
+                individual_rolls=[8, 2, 7],
+                successes=2,
+                is_success=True,
+            )
+            result = session.process_input("I persuade Jonas to help with the dock.")
+
+        turn = session.get_last_action_resolution()
+
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.adjudication.resolution_kind, ActionResolutionKind.ROLL_GATED)
+        self.assertIsNotNone(turn.check)
+        assert turn.check is not None
+        self.assertEqual(turn.check.kind, DeterministicCheckKind.DIALOGUE_SOCIAL)
+        self.assertTrue(turn.check.is_success)
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.resolution_kind, DialogueAdjudicationResolutionKind.ESCALATED)
+        self.assertTrue(turn.dialogue_adjudication.check_required)
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
+        self.assertTrue(turn.world_state_mutated)
+        self.assertIn("dialogue_social_check_success", turn.consequence_summary.applied_effects)
+        self.assertIn("Jonas Reed points toward the waterline", result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
 
 
 if __name__ == "__main__":

@@ -3,9 +3,11 @@ from __future__ import annotations
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from vampire_storyteller.action_resolution import ActionBlockReason, NormalizationSource, TurnOutcomeKind
 from vampire_storyteller.dice_engine import DeterministicCheckKind
+from vampire_storyteller.dice_engine import DeterministicCheckResolution
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
@@ -268,20 +270,71 @@ class GameSessionTests(unittest.TestCase):
         self.assertTrue(threaten_turn.dialogue_adjudication.is_guarded)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
 
-    def test_persuade_returns_escalation_placeholder_and_marks_check_required(self) -> None:
+    def test_persuade_routes_into_deterministic_social_check_and_advances_on_success(self) -> None:
         session = GameSession()
 
-        result = session.process_input("I persuade Jonas to help with the dock.")
+        with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
+            mock_resolve.return_value = DeterministicCheckResolution(
+                kind=DeterministicCheckKind.DIALOGUE_SOCIAL,
+                seed="2026-04-09T22:00:00+02:00|talk|persuade|npc_1|dock|player_1|0|productive",
+                roll_pool=3,
+                difficulty=6,
+                individual_rolls=[8, 2, 7],
+                successes=2,
+                is_success=True,
+            )
+            result = session.process_input("I persuade Jonas to help with the dock.")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("social check is required", result.output_text)
+        self.assertIn("Jonas Reed points toward the waterline", result.output_text)
+        self.assertIn("Dialogue check success", result.output_text)
         self.assertIsNotNone(turn)
         assert turn is not None
+        self.assertIsNotNone(turn.check)
+        assert turn.check is not None
+        self.assertEqual(turn.check.kind, DeterministicCheckKind.DIALOGUE_SOCIAL)
+        self.assertTrue(turn.check.is_success)
         self.assertIsNotNone(turn.dialogue_adjudication)
         assert turn.dialogue_adjudication is not None
         self.assertTrue(turn.dialogue_adjudication.check_required)
         self.assertEqual(turn.dialogue_adjudication.reason_code, "persuade_check_required")
+        self.assertEqual(turn.adjudication.resolution_kind.name, "ROLL_GATED")
+        self.assertIn("dialogue_social_check_success", turn.consequence_summary.applied_effects)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+        self.assertIn("jonas_shared_dock_lead", session.get_world_state().story_flags)
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+
+    def test_failed_persuade_stays_guarded_and_does_not_advance_plot(self) -> None:
+        session = GameSession()
+
+        with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
+            mock_resolve.return_value = DeterministicCheckResolution(
+                kind=DeterministicCheckKind.DIALOGUE_SOCIAL,
+                seed="2026-04-09T22:00:00+02:00|talk|persuade|npc_1|dock|player_1|0|productive",
+                roll_pool=3,
+                difficulty=6,
+                individual_rolls=[2, 3, 4],
+                successes=0,
+                is_success=False,
+            )
+            result = session.process_input("I persuade Jonas to help with the dock.")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("Dialogue check failed", result.output_text)
+        self.assertIn("guarded", result.output_text.lower())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.check)
+        assert turn.check is not None
+        self.assertFalse(turn.check.is_success)
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertTrue(turn.dialogue_adjudication.check_required)
+        self.assertEqual(turn.dialogue_adjudication.reason_code, "persuade_check_required")
+        self.assertIn("dialogue_social_check_failure", turn.consequence_summary.applied_effects)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
 
     def test_move_clears_conversation_focus(self) -> None:
         session = GameSession()

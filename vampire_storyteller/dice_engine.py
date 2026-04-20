@@ -7,6 +7,7 @@ import random
 
 class DeterministicCheckKind(str, Enum):
     INVESTIGATION = "investigation"
+    DIALOGUE_SOCIAL = "dialogue_social"
     GENERIC = "generic"
 
 
