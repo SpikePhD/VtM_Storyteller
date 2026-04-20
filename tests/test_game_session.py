@@ -272,6 +272,48 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
 
+    def test_taxi_spare_change_follow_up_stays_in_dialogue_without_reusing_dock_lead(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        session.process_input("talk npc_1")
+        plot_stage_before = session.get_world_state().plots["plot_1"].stage
+        story_flags_before = list(session.get_world_state().story_flags)
+        result = session.process_input("Ok then. I will call the taxi - do you have some spare change?")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("not financing the ride", result.output_text.lower())
+        self.assertNotIn("paper trail began", result.output_text.lower())
+        self.assertNotIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertNotIn("Unsupported freeform input", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.OFF_TOPIC_REQUEST)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, plot_stage_before)
+        self.assertEqual(session.get_world_state().story_flags, story_flags_before)
+
+    def test_taxi_money_follow_up_stays_in_dialogue_without_reusing_dock_lead(self) -> None:
+        session = GameSession()
+
+        session.process_input("talk npc_1")
+        session.process_input("talk npc_1")
+        plot_stage_before = session.get_world_state().plots["plot_1"].stage
+        story_flags_before = list(session.get_world_state().story_flags)
+        result = session.process_input("I don't have money to pay for the taxi to the dock!")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("not financing the ride", result.output_text.lower())
+        self.assertNotIn("paper trail began", result.output_text.lower())
+        self.assertNotIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertNotIn("Unsupported freeform input", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.OFF_TOPIC_REQUEST)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, plot_stage_before)
+        self.assertEqual(session.get_world_state().story_flags, story_flags_before)
+
     def test_guarded_follow_up_go_on_does_not_unlock_productive_progression(self) -> None:
         session = GameSession()
 

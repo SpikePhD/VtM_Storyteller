@@ -99,6 +99,12 @@ class DeterministicDialogueRenderer:
             return self._render_jonas_logistics_reply(render_input)
 
         if render_input.dialogue_domain == "off_topic_request":
+            normalized_text = f"{render_input.utterance_text} {render_input.speech_text}".lower().replace("-", " ")
+            if _is_taxi_fare_support_request(normalized_text):
+                return (
+                    "Jonas Reed gives you a flat, unreadable look, like the request never came close to landing. "
+                    "'I am not financing the ride. If the dock matters, find your own way there.'"
+                )
             return (
                 "Jonas Reed keeps a careful distance, his expression flat. "
                 "'Not that. Ask someone else.'"
@@ -200,3 +206,28 @@ class DeterministicDialogueRenderer:
         return (
             f"{render_input.npc_name} answers in a measured, guarded way that stays within what the moment supports."
         )
+
+
+def _is_taxi_fare_support_request(normalized_text: str) -> bool:
+    if not normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "spare change",
+            "taxi fare",
+            "cab fare",
+            "money to pay",
+            "money for the taxi",
+            "money for the ride",
+            "money for the trip",
+            "pay for the taxi",
+            "pay for the ride",
+            "pay for the trip",
+            "pay the taxi",
+            "pay the fare",
+            "cash for the ride",
+            "cash for the trip",
+            "cover the fare",
+        )
+    )

@@ -38,6 +38,9 @@ def classify_dialogue_domain(
     if _is_provocative_or_inappropriate(combined_text):
         return DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE
 
+    if _is_taxi_fare_support_request(combined_text):
+        return DialogueDomain.OFF_TOPIC_REQUEST
+
     if _is_travel_proposal(combined_text):
         return DialogueDomain.TRAVEL_PROPOSAL
 
@@ -186,6 +189,8 @@ def _is_neutral_conversation_opener(normalized_text: str) -> bool:
 def _is_off_topic_request(normalized_text: str) -> bool:
     if not normalized_text:
         return False
+    if _is_taxi_fare_support_request(normalized_text):
+        return True
     return any(
         phrase in normalized_text
         for phrase in (
@@ -198,6 +203,45 @@ def _is_off_topic_request(normalized_text: str) -> bool:
             "hide me",
         )
     )
+
+
+def _is_taxi_fare_support_request(normalized_text: str) -> bool:
+    if not normalized_text:
+        return False
+    if any(
+        phrase in normalized_text
+        for phrase in (
+            "spare change",
+            "taxi fare",
+            "cab fare",
+            "money to pay",
+            "money for the taxi",
+            "money for the ride",
+            "money for the trip",
+            "pay for the taxi",
+            "pay for the ride",
+            "pay for the trip",
+            "pay the taxi",
+            "pay the fare",
+            "cash for the ride",
+            "cash for the trip",
+            "cover the fare",
+        )
+    ):
+        return True
+    has_taxi_context = any(keyword in normalized_text for keyword in ("taxi", "fare", "ride", "trip", "cab"))
+    has_money_support_request = any(
+        phrase in normalized_text
+        for phrase in (
+            "spare",
+            "change",
+            "money",
+            "cash",
+            "pay",
+            "cover",
+        )
+    )
+    return has_taxi_context and has_money_support_request
 
 
 def _is_provocative_or_inappropriate(normalized_text: str) -> bool:

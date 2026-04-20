@@ -124,6 +124,16 @@ def _resolve_domain_routed_dialogue(
         )
 
     if dialogue_domain is DialogueDomain.OFF_TOPIC_REQUEST:
+        normalized_text = _normalize_dialogue_text(dialogue_metadata)
+        if _is_taxi_fare_support_request(normalized_text):
+            return DialogueResolutionResult(
+                output_text=(
+                    f"{npc.name} gives you a flat look. "
+                    "'I am not financing the ride. If the dock matters, find your own way there.'"
+                ),
+                conversation_focus_npc_id=npc_id,
+                conversation_stance=ConversationStance.NEUTRAL,
+            )
         return DialogueResolutionResult(
             output_text=f"{npc.name} keeps his distance. 'Not that. Ask someone else.'",
             conversation_focus_npc_id=npc_id,
@@ -169,6 +179,31 @@ def _normalize_dialogue_text(dialogue_metadata: DialogueMetadata | None) -> str:
             dialogue_metadata.utterance_text or "",
         )
         if part
+    )
+
+
+def _is_taxi_fare_support_request(normalized_text: str) -> bool:
+    if not normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "spare change",
+            "taxi fare",
+            "cab fare",
+            "money to pay",
+            "money for the taxi",
+            "money for the ride",
+            "money for the trip",
+            "pay for the taxi",
+            "pay for the ride",
+            "pay for the trip",
+            "pay the taxi",
+            "pay the fare",
+            "cash for the ride",
+            "cash for the trip",
+            "cover the fare",
+        )
     )
 
 

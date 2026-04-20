@@ -83,6 +83,21 @@ class InputInterpreter:
         "wait close",
         "stay close",
         "come along",
+        "spare change",
+        "taxi fare",
+        "cab fare",
+        "money to pay",
+        "money for the taxi",
+        "money for the ride",
+        "money for the trip",
+        "pay for the taxi",
+        "pay for the ride",
+        "pay for the trip",
+        "pay the taxi",
+        "pay the fare",
+        "cash for the ride",
+        "cash for the trip",
+        "cover the fare",
     )
 
     _LOW_INTENSITY_OBSERVATION_PHRASES = (
@@ -618,7 +633,21 @@ class InputInterpreter:
             return True
         if raw_input.strip().lower().startswith(("yes ", "yes,", "yeah ", "yeah,")) and self._contains_any(
             normalized_text,
-            ("need you", "back up", "backup", "wait nearby", "stay nearby", "stay in the car", "come along"),
+            (
+                "need you",
+                "back up",
+                "backup",
+                "wait nearby",
+                "stay nearby",
+                "stay in the car",
+                "come along",
+                "spare change",
+                "money to pay",
+                "pay for the taxi",
+                "pay for the ride",
+                "taxi fare",
+                "cab fare",
+            ),
         ):
             return True
         return False

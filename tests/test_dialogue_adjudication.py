@@ -93,6 +93,25 @@ class DialogueAdjudicationTests(unittest.TestCase):
         self.assertEqual(outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
         self.assertEqual(outcome.dialogue_domain, DialogueDomain.LEAD_PRESSURE)
 
+    def test_taxi_money_support_request_stays_off_topic_even_with_dock_reference(self) -> None:
+        world = build_sample_world()
+        command = TalkCommand(
+            npc_id="npc_1",
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="Jonas I don't have money to pay for the taxi to the dock!",
+                speech_text="I don't have money to pay for the taxi to the dock!",
+                dialogue_act=DialogueAct.UNKNOWN,
+                topic="dock",
+            ),
+        )
+
+        outcome = adjudicate_dialogue_talk(world, command)
+
+        self.assertEqual(outcome.dialogue_domain, DialogueDomain.OFF_TOPIC_REQUEST)
+        self.assertEqual(outcome.topic_status, DialogueTopicStatus.AVAILABLE)
+        self.assertTrue(outcome.is_allowed)
+        self.assertFalse(outcome.check_required)
+
     def test_session_records_dialogue_adjudication_on_talk_turn(self) -> None:
         session = GameSession()
 

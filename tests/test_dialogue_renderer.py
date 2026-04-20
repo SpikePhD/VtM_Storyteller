@@ -82,6 +82,16 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertIn("if the dock matters, you go", result.output_text.lower())
         self.assertIn("noise", result.output_text.lower())
 
+    def test_taxi_money_support_refusal_renders_from_structured_domain_outcome(self) -> None:
+        session = GameSession()
+        session.process_input("talk npc_1")
+        session.process_input("talk npc_1")
+
+        result = session.process_input("Ok then. I will call the taxi - do you have some spare change?")
+
+        self.assertIn("not financing the ride", result.output_text.lower())
+        self.assertNotIn("paper trail began", result.output_text.lower())
+
     def test_renderer_output_does_not_mutate_world_state(self) -> None:
         session = GameSession()
         session.process_input("Jonas, what happened at the dock?")
