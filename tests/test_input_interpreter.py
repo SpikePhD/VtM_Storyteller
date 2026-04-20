@@ -260,6 +260,26 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertIsNotNone(result.dialogue_metadata)
         self.assertIn("continue", result.dialogue_metadata.utterance_text.lower())
 
+    def test_backup_follow_up_uses_conversation_focus(self) -> None:
+        result = self.interpreter.interpret("I need you as a back up", self.world_state, conversation_focus_npc_id="npc_1")
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+
+    def test_logistics_follow_up_with_acknowledgement_uses_conversation_focus(self) -> None:
+        result = self.interpreter.interpret(
+            "Yes we are. But I need you to back me up",
+            self.world_state,
+            conversation_focus_npc_id="npc_1",
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+
     def test_follow_up_against_stale_focus_returns_grounded_failure(self) -> None:
         result = self.interpreter.interpret(
             "Why?",
@@ -289,6 +309,13 @@ class InputInterpreterTests(unittest.TestCase):
 
     def test_skeptical_follow_up_without_focus_returns_no_active_conversation_result(self) -> None:
         result = self.interpreter.interpret("I don't believe you.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertTrue(result.no_active_conversation)
+        self.assertIsNone(result.canonical_command)
+
+    def test_backup_follow_up_without_focus_returns_no_active_conversation_result(self) -> None:
+        result = self.interpreter.interpret("I need you as a back up", self.world_state)
 
         self.assertFalse(result.fallback_to_parser)
         self.assertTrue(result.no_active_conversation)

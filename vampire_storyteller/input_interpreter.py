@@ -68,6 +68,23 @@ class InputInterpreter:
         "turn back to them",
     )
 
+    _ACTIVE_CONVERSATION_LOGISTICS_PHRASES = (
+        "back me up",
+        "backup",
+        "back up",
+        "watch my back",
+        "cover me",
+        "come along as backup",
+        "come along as back up",
+        "stay in the car",
+        "wait in the car",
+        "wait nearby",
+        "stay nearby",
+        "wait close",
+        "stay close",
+        "come along",
+    )
+
     _LOW_INTENSITY_OBSERVATION_PHRASES = (
         "look around",
         "take a look",
@@ -236,7 +253,7 @@ class InputInterpreter:
             return None
 
         npc_matches = self._match_npc_candidates(normalized_text, world_state)
-        has_talk_cue = bool(npc_matches) or self._looks_like_dialogue_entry(normalized_text, raw_input)
+        has_talk_cue = bool(npc_matches) or self._looks_like_dialogue_entry(normalized_text, raw_input) or self._looks_like_active_conversation_follow_up(normalized_text, raw_input)
 
         if not has_talk_cue:
             return None
@@ -277,7 +294,7 @@ class InputInterpreter:
         if adapter_result is not None:
             return adapter_result
 
-        if self._looks_like_follow_up(normalized_text):
+        if self._looks_like_follow_up(normalized_text) or self._looks_like_active_conversation_follow_up(normalized_text, raw_input):
             if conversation_focus_npc_id is not None:
                 focused_npc = world_state.npcs.get(conversation_focus_npc_id)
                 if focused_npc is not None and focused_npc.location_id == world_state.player.location_id:
@@ -590,6 +607,21 @@ class InputInterpreter:
         return self._contains_any(normalized_text, self._FOCUSED_FOLLOW_UP_PHRASES) or self._contains_any(
             normalized_text, self._FOCUSED_CONTINUATION_PHRASES
         )
+
+    def _looks_like_active_conversation_follow_up(self, normalized_text: str, raw_input: str) -> bool:
+        if self._contains_any(normalized_text, self._ACTIVE_CONVERSATION_LOGISTICS_PHRASES):
+            return True
+        if self._contains_any(normalized_text, ("i need you to", "i need you as", "yes we are", "yes, we are", "yes we are talking about")) and self._contains_any(
+            normalized_text,
+            self._ACTIVE_CONVERSATION_LOGISTICS_PHRASES,
+        ):
+            return True
+        if raw_input.strip().lower().startswith(("yes ", "yes,", "yeah ", "yeah,")) and self._contains_any(
+            normalized_text,
+            ("need you", "back up", "backup", "wait nearby", "stay nearby", "stay in the car", "come along"),
+        ):
+            return True
+        return False
 
     def _looks_like_canonical_talk_command(self, raw_input: str) -> bool:
         tokens = raw_input.strip().split()

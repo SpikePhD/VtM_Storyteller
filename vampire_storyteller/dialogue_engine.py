@@ -116,8 +116,9 @@ def _resolve_domain_routed_dialogue(
         return None
 
     if dialogue_domain is DialogueDomain.TRAVEL_PROPOSAL:
+        logistics_reply = _resolve_logistics_reply(npc.name, dialogue_metadata)
         return DialogueResolutionResult(
-            output_text=f"{npc.name} shakes his head. 'No. If the dock matters, you go. Me showing my face there only makes noise.'",
+            output_text=logistics_reply,
             conversation_focus_npc_id=npc_id,
             conversation_stance=ConversationStance.NEUTRAL,
         )
@@ -146,6 +147,29 @@ def _resolve_domain_routed_dialogue(
         )
 
     return None
+
+
+def _resolve_logistics_reply(npc_name: str, dialogue_metadata: DialogueMetadata | None) -> str:
+    normalized_text = _normalize_dialogue_text(dialogue_metadata)
+    if any(phrase in normalized_text for phrase in ("stay in the car", "wait in the car", "wait nearby", "stay nearby", "stay close", "wait close")):
+        return f"{npc_name} gives a small shake of his head. 'No grand gestures. I'll stay close enough to watch the approach, but I am not stepping into the middle of it unless I have to.'"
+    if any(phrase in normalized_text for phrase in ("back me up", "backup", "back up", "watch my back", "cover me", "come along as backup", "come along as back up")):
+        return f"{npc_name} studies the street before he answers. 'Not shoulder to shoulder. I can keep an eye on things from nearby, but if I stand beside you, people start asking why.'"
+    return f"{npc_name} shakes his head. 'No. If the dock matters, you go. Me showing my face there only makes noise.'"
+
+
+def _normalize_dialogue_text(dialogue_metadata: DialogueMetadata | None) -> str:
+    if dialogue_metadata is None:
+        return ""
+    return " ".join(
+        part.lower().replace("-", " ")
+        for part in (
+            dialogue_metadata.topic or "",
+            dialogue_metadata.speech_text or "",
+            dialogue_metadata.utterance_text or "",
+        )
+        if part
+    )
 
 
 def _find_dialogue_hook(

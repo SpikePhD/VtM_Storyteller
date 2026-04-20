@@ -229,6 +229,49 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
 
+    def test_backup_follow_up_stays_in_dialogue_without_repeating_name(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, good evening.")
+        result = session.process_input("I need you as a back up")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("nearby", result.output_text.lower())
+        self.assertNotIn("Unsupported freeform input", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+
+    def test_acknowledged_backup_follow_up_stays_in_dialogue_without_repeating_name(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, what happened at the dock?")
+        result = session.process_input("Yes we are. But I need you to back me up")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("nearby", result.output_text.lower())
+        self.assertNotIn("Unsupported freeform input", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+
+    def test_named_backup_variant_still_works(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Jonas, I need you as a back up")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("nearby", result.output_text.lower())
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+
     def test_guarded_follow_up_go_on_does_not_unlock_productive_progression(self) -> None:
         session = GameSession()
 
@@ -241,6 +284,15 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
+
+    def test_clear_non_dialogue_action_is_not_swallowed_by_active_conversation(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, good evening.")
+        result = session.process_input("I move to the church.")
+
+        self.assertTrue(result.render_scene)
+        self.assertEqual(session.get_world_state().player.location_id, "loc_church")
 
     def test_talk_question_uses_preserved_utterance_text(self) -> None:
         session = GameSession()

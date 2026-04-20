@@ -96,10 +96,7 @@ class DeterministicDialogueRenderer:
             return self._render_jonas_social_failure(render_input)
 
         if render_input.dialogue_domain == "travel_proposal":
-            return (
-                "Jonas Reed glances past you toward the street before he answers. "
-                "'If the dock matters, you go. Me showing my face there only makes noise.'"
-            )
+            return self._render_jonas_logistics_reply(render_input)
 
         if render_input.dialogue_domain == "off_topic_request":
             return (
@@ -180,6 +177,23 @@ class DeterministicDialogueRenderer:
         return (
             "Whatever leverage you were trying to build, it slips away before Jonas Reed accepts it. "
             "He shuts back down, stays guarded, and gives nothing that would move the lead forward tonight."
+        )
+
+    def _render_jonas_logistics_reply(self, render_input: DialogueRenderInput) -> str:
+        normalized_text = f"{render_input.utterance_text} {render_input.speech_text}".lower().replace("-", " ")
+        if any(phrase in normalized_text for phrase in ("stay in the car", "wait in the car", "wait nearby", "stay nearby", "stay close", "wait close")):
+            return (
+                "Jonas Reed glances toward the street, measuring exits before he answers. "
+                "'I can stay nearby and watch the approach, but I am not planting myself where everyone can read the arrangement.'"
+            )
+        if any(phrase in normalized_text for phrase in ("back me up", "backup", "back up", "watch my back", "cover me", "come along as backup", "come along as back up")):
+            return (
+                "Jonas Reed weighs the request for a moment, then answers in the same careful tone he uses for every risky promise. "
+                "'Not shoulder to shoulder. I can keep an eye on things from nearby, but if I stand beside you, people start asking why.'"
+            )
+        return (
+            "Jonas Reed glances past you toward the street before he answers. "
+            "'If the dock matters, you go. Me showing my face there only makes noise.'"
         )
 
     def _render_default_dialogue(self, render_input: DialogueRenderInput) -> str:

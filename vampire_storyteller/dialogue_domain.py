@@ -120,6 +120,8 @@ def _is_missing_ledger_topic(normalized_text: str) -> bool:
 def _is_travel_proposal(normalized_text: str) -> bool:
     if not normalized_text:
         return False
+    if _is_backup_or_logistics_request(normalized_text):
+        return True
     has_travel_verb = any(
         phrase in normalized_text
         for phrase in (
@@ -138,6 +140,29 @@ def _is_travel_proposal(normalized_text: str) -> bool:
     )
     has_location = any(keyword in normalized_text for keyword in ("dock", "docks", "there", "with me", "with us"))
     return has_travel_verb and has_location
+
+
+def _is_backup_or_logistics_request(normalized_text: str) -> bool:
+    if not normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "back me up",
+            "backup",
+            "back up",
+            "watch my back",
+            "cover me",
+            "come along as backup",
+            "come along as back up",
+            "stay in the car",
+            "wait in the car",
+            "wait nearby",
+            "stay nearby",
+            "stay close",
+            "wait close",
+        )
+    )
 
 
 def _is_neutral_conversation_opener(normalized_text: str) -> bool:
