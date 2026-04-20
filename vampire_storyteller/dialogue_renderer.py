@@ -197,6 +197,14 @@ class DeterministicDialogueRenderer:
                 "Jonas Reed weighs the request for a moment, then answers in the same careful tone he uses for every risky promise. "
                 "'Not shoulder to shoulder. I can keep an eye on things from nearby, but if I stand beside you, people start asking why.'"
             )
+        if any(
+            phrase in normalized_text
+            for phrase in ("drive", "spare car", "have a car", "got a car", "ride", "lift", "drop me off", "vehicle")
+        ):
+            return (
+                "Jonas Reed gives the street another glance before he answers, like he is already ruling out half the idea. "
+                "'I can get around just fine, but I am not turning this into a personal ride. If you go to the dock, you get yourself there.'"
+            )
         return (
             "Jonas Reed glances past you toward the street before he answers. "
             "'If the dock matters, you go. Me showing my face there only makes noise.'"

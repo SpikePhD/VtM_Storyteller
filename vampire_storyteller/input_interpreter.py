@@ -12,6 +12,7 @@ from .dialogue_intent_adapter import (
     is_non_specific_target,
     is_pronoun_like_target,
 )
+from .dialogue_subtopic import DialogueSubtopic
 from .models import NPC
 from .world_state import WorldState
 
@@ -98,6 +99,45 @@ class InputInterpreter:
         "cash for the ride",
         "cash for the trip",
         "cover the fare",
+        "drive",
+        "spare car",
+        "have a car",
+        "got a car",
+        "lift",
+        "drop me off",
+        "vehicle",
+    )
+
+    _FOCUSLESS_ACTIVE_CONVERSATION_PHRASES = (
+        "back me up",
+        "backup",
+        "back up",
+        "watch my back",
+        "cover me",
+        "come along as backup",
+        "come along as back up",
+        "stay in the car",
+        "wait in the car",
+        "wait nearby",
+        "stay nearby",
+        "wait close",
+        "stay close",
+        "come along",
+        "spare change",
+        "taxi fare",
+        "cab fare",
+        "money to pay",
+        "money for the taxi",
+        "money for the ride",
+        "money for the trip",
+        "pay for the taxi",
+        "pay for the ride",
+        "pay for the trip",
+        "pay the taxi",
+        "pay the fare",
+        "cash for the ride",
+        "cash for the trip",
+        "cover the fare",
     )
 
     _LOW_INTENSITY_OBSERVATION_PHRASES = (
@@ -146,6 +186,7 @@ class InputInterpreter:
         raw_input: str,
         world_state: WorldState,
         conversation_focus_npc_id: str | None = None,
+        conversation_subtopic: DialogueSubtopic | None = None,
         stale_conversation_focus_npc_id: str | None = None,
         stale_conversation_focus_reason: str | None = None,
         dialogue_intent_adapter: DialogueIntentAdapter | None = None,
@@ -159,6 +200,7 @@ class InputInterpreter:
             normalized_text,
             world_state,
             conversation_focus_npc_id,
+            conversation_subtopic,
             stale_conversation_focus_npc_id,
             stale_conversation_focus_reason,
             dialogue_intent_adapter,
@@ -260,6 +302,7 @@ class InputInterpreter:
         normalized_text: str,
         world_state: WorldState,
         conversation_focus_npc_id: str | None,
+        conversation_subtopic: DialogueSubtopic | None,
         stale_conversation_focus_npc_id: str | None,
         stale_conversation_focus_reason: str | None,
         dialogue_intent_adapter: DialogueIntentAdapter | None,
@@ -268,7 +311,13 @@ class InputInterpreter:
             return None
 
         npc_matches = self._match_npc_candidates(normalized_text, world_state)
-        has_talk_cue = bool(npc_matches) or self._looks_like_dialogue_entry(normalized_text, raw_input) or self._looks_like_active_conversation_follow_up(normalized_text, raw_input)
+        has_active_conversation = conversation_focus_npc_id is not None or stale_conversation_focus_npc_id is not None or conversation_subtopic is not None
+        has_talk_cue = (
+            bool(npc_matches)
+            or self._looks_like_dialogue_entry(normalized_text, raw_input)
+            or self._contains_any(normalized_text, self._FOCUSLESS_ACTIVE_CONVERSATION_PHRASES)
+            or (has_active_conversation and self._looks_like_active_conversation_follow_up(normalized_text, raw_input, conversation_subtopic))
+        )
 
         if not has_talk_cue:
             return None
@@ -309,7 +358,9 @@ class InputInterpreter:
         if adapter_result is not None:
             return adapter_result
 
-        if self._looks_like_follow_up(normalized_text) or self._looks_like_active_conversation_follow_up(normalized_text, raw_input):
+        if self._looks_like_follow_up(normalized_text) or self._contains_any(normalized_text, self._FOCUSLESS_ACTIVE_CONVERSATION_PHRASES) or (
+            has_active_conversation and self._looks_like_active_conversation_follow_up(normalized_text, raw_input, conversation_subtopic)
+        ):
             if conversation_focus_npc_id is not None:
                 focused_npc = world_state.npcs.get(conversation_focus_npc_id)
                 if focused_npc is not None and focused_npc.location_id == world_state.player.location_id:
@@ -623,8 +674,25 @@ class InputInterpreter:
             normalized_text, self._FOCUSED_CONTINUATION_PHRASES
         )
 
-    def _looks_like_active_conversation_follow_up(self, normalized_text: str, raw_input: str) -> bool:
+    def _looks_like_active_conversation_follow_up(
+        self,
+        normalized_text: str,
+        raw_input: str,
+        conversation_subtopic: DialogueSubtopic | None = None,
+    ) -> bool:
         if self._contains_any(normalized_text, self._ACTIVE_CONVERSATION_LOGISTICS_PHRASES):
+            return True
+        if self._contains_any(
+            normalized_text,
+            (
+                "what happened at the dock",
+                "what happened at the docks",
+                "what about the dock",
+                "what about the ledger",
+                "about the dock",
+                "about the ledger",
+            ),
+        ):
             return True
         if self._contains_any(normalized_text, ("i need you to", "i need you as", "yes we are", "yes, we are", "yes we are talking about")) and self._contains_any(
             normalized_text,
@@ -649,6 +717,23 @@ class InputInterpreter:
                 "cab fare",
             ),
         ):
+            return True
+        if conversation_subtopic is DialogueSubtopic.BLOOD_OR_FEEDING_REQUEST and self._contains_any(
+            normalized_text,
+            (
+                "why not",
+                "eager to please",
+                "please a vampire",
+                "let me feed",
+                "feed off",
+                "blood",
+                "vampire",
+                "do me a favor",
+                "do me this favor",
+            ),
+        ):
+            return True
+        if conversation_subtopic is not None and "please" in normalized_text.split() and len(normalized_text.split()) <= 4:
             return True
         return False
 

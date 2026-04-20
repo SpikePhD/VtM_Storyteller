@@ -99,6 +99,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
         metadata,
         topic_status,
         command.conversation_stance,
+        command.conversation_subtopic,
     )
 
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):

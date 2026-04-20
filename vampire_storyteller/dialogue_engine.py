@@ -10,6 +10,7 @@ from .adventure_loader import (
 from .command_models import ConversationStance, DialogueAct, DialogueMetadata
 from .dialogue_adjudication import DialogueTopicStatus
 from .dialogue_domain import DialogueDomain, classify_dialogue_domain
+from .dialogue_subtopic import DialogueSubtopic, detect_dialogue_subtopic
 from .world_state import WorldState
 
 
@@ -35,6 +36,7 @@ def resolve_talk_result(
     dialogue_metadata: DialogueMetadata | None,
     conversation_stance: ConversationStance = ConversationStance.NEUTRAL,
     dialogue_domain: DialogueDomain | None = None,
+    active_subtopic: DialogueSubtopic | None = None,
 ) -> DialogueResolutionResult:
     npc = world_state.npcs.get(npc_id)
     if npc is None:
@@ -62,6 +64,7 @@ def resolve_talk_result(
         dialogue_metadata,
         DialogueTopicStatus.UNKNOWN,
         conversation_stance,
+        active_subtopic,
     )
     routed_result = _resolve_domain_routed_dialogue(world_state, npc_id, dialogue_metadata, conversation_stance, resolved_dialogue_domain)
     if routed_result is not None:
@@ -161,10 +164,13 @@ def _resolve_domain_routed_dialogue(
 
 def _resolve_logistics_reply(npc_name: str, dialogue_metadata: DialogueMetadata | None) -> str:
     normalized_text = _normalize_dialogue_text(dialogue_metadata)
+    explicit_subtopic = detect_dialogue_subtopic(dialogue_metadata)
     if any(phrase in normalized_text for phrase in ("stay in the car", "wait in the car", "wait nearby", "stay nearby", "stay close", "wait close")):
         return f"{npc_name} gives a small shake of his head. 'No grand gestures. I'll stay close enough to watch the approach, but I am not stepping into the middle of it unless I have to.'"
     if any(phrase in normalized_text for phrase in ("back me up", "backup", "back up", "watch my back", "cover me", "come along as backup", "come along as back up")):
         return f"{npc_name} studies the street before he answers. 'Not shoulder to shoulder. I can keep an eye on things from nearby, but if I stand beside you, people start asking why.'"
+    if explicit_subtopic is DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT:
+        return f"{npc_name} exhales through his nose. 'I have a car, but I am not turning this into a chauffeured favor. If you go to the dock, you get yourself there.'"
     return f"{npc_name} shakes his head. 'No. If the dock matters, you go. Me showing my face there only makes noise.'"
 
 

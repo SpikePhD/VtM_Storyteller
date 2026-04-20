@@ -314,6 +314,87 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, plot_stage_before)
         self.assertEqual(session.get_world_state().story_flags, story_flags_before)
 
+    def test_blood_refusal_follow_up_stays_in_off_topic_lane(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, I need blood before I go")
+        plot_stage_before = session.get_world_state().plots["plot_1"].stage
+        story_flags_before = list(session.get_world_state().story_flags)
+        result = session.process_input("Why not - are you not eager to please a vampire?")
+        turn = session.get_last_action_resolution()
+
+        self.assertNotIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertNotIn("paper trail began", result.output_text.lower())
+        self.assertIn("ask someone else", result.output_text.lower())
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.OFF_TOPIC_REQUEST)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, plot_stage_before)
+        self.assertEqual(session.get_world_state().story_flags, story_flags_before)
+
+    def test_feed_persuade_follow_up_does_not_return_dock_lead(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("I persuade Jonas into letting me feed off him")
+        turn = session.get_last_action_resolution()
+
+        self.assertNotIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertNotIn("paper trail began", result.output_text.lower())
+        self.assertTrue("ask someone else" in result.output_text.lower() or "refuses" in result.output_text.lower())
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.OFF_TOPIC_REQUEST)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+
+    def test_transport_vehicle_question_stays_in_logistics_lane(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("Jonas do you drive?")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("ride", result.output_text.lower())
+        self.assertNotIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+
+    def test_spare_car_follow_up_stays_in_transport_subtopic(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas do you drive?")
+        plot_stage_before = session.get_world_state().plots["plot_1"].stage
+        story_flags_before = list(session.get_world_state().story_flags)
+        result = session.process_input("Do you have a spare car?")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("ride", result.output_text.lower())
+        self.assertNotIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, plot_stage_before)
+        self.assertEqual(session.get_world_state().story_flags, story_flags_before)
+
+    def test_short_please_follow_up_inherits_transport_subtopic(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas do you drive?")
+        result = session.process_input("Please?")
+        turn = session.get_last_action_resolution()
+
+        self.assertNotIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+
+    def test_explicit_return_to_dock_restores_productive_lead_lane_after_transport(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas do you drive?")
+        result = session.process_input("What happened at the dock?")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
+
     def test_guarded_follow_up_go_on_does_not_unlock_productive_progression(self) -> None:
         session = GameSession()
 

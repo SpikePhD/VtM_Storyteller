@@ -5,6 +5,7 @@ from typing import Any
 
 from .adventure_loader import load_adv1_plot_progression_rules
 from .command_models import ConversationStance, DialogueAct, DialogueMetadata
+from .dialogue_subtopic import DialogueSubtopic, detect_dialogue_subtopic, should_inherit_subtopic
 from .world_state import WorldState
 
 
@@ -23,6 +24,7 @@ def classify_dialogue_domain(
     dialogue_metadata: DialogueMetadata | None,
     topic_status: Any,
     conversation_stance: ConversationStance = ConversationStance.NEUTRAL,
+    active_subtopic: DialogueSubtopic | None = None,
 ) -> DialogueDomain:
     combined_text = _normalize_text(_dialogue_metadata_text(dialogue_metadata))
     topic_text = _normalize_text(dialogue_metadata.topic if dialogue_metadata is not None and dialogue_metadata.topic is not None else "")
@@ -38,14 +40,39 @@ def classify_dialogue_domain(
     if _is_provocative_or_inappropriate(combined_text):
         return DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE
 
+    if _is_explicit_lead_topic_reentry(topic_text or combined_text):
+        return DialogueDomain.LEAD_TOPIC
+
+    explicit_subtopic = detect_dialogue_subtopic(dialogue_metadata)
+    if explicit_subtopic is DialogueSubtopic.BLOOD_OR_FEEDING_REQUEST:
+        return DialogueDomain.OFF_TOPIC_REQUEST
+
     if _is_taxi_fare_support_request(combined_text):
         return DialogueDomain.OFF_TOPIC_REQUEST
+
+    if explicit_subtopic is DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT:
+        return DialogueDomain.TRAVEL_PROPOSAL
+
+    if explicit_subtopic is DialogueSubtopic.BACKUP_OR_STAY_NEARBY:
+        return DialogueDomain.TRAVEL_PROPOSAL
 
     if _is_travel_proposal(combined_text):
         return DialogueDomain.TRAVEL_PROPOSAL
 
     if _is_off_topic_request(combined_text):
         return DialogueDomain.OFF_TOPIC_REQUEST
+
+    if should_inherit_subtopic(active_subtopic, dialogue_metadata):
+        if active_subtopic in {
+            DialogueSubtopic.BLOOD_OR_FEEDING_REQUEST,
+            DialogueSubtopic.FARE_OR_MONEY_SUPPORT,
+        }:
+            return DialogueDomain.OFF_TOPIC_REQUEST
+        if active_subtopic in {
+            DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT,
+            DialogueSubtopic.BACKUP_OR_STAY_NEARBY,
+        }:
+            return DialogueDomain.TRAVEL_PROPOSAL
 
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         return DialogueDomain.LEAD_PRESSURE
@@ -116,6 +143,31 @@ def _is_missing_ledger_topic(normalized_text: str) -> bool:
             "receipt",
             "broker",
             "waterline",
+        )
+    )
+
+
+def _is_explicit_lead_topic_reentry(normalized_text: str) -> bool:
+    if not normalized_text:
+        return False
+    if "dock" not in normalized_text and "ledger" not in normalized_text and "waterline" not in normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "what happened at the dock",
+            "what happened at the docks",
+            "tell me more about the dock",
+            "tell me more about the ledger",
+            "back to the dock",
+            "about the dock",
+            "about the ledger",
+            "the ledger",
+            "paper trail",
+            "what happened there",
+            "where is the ledger",
+            "what about the dock",
+            "what about the ledger",
         )
     )
 

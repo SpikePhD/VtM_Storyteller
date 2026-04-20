@@ -3,6 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .dialogue_subtopic import DialogueSubtopic
+
 
 class DialogueAct(str, Enum):
     GREET = "greet"
@@ -62,6 +67,7 @@ class TalkCommand(Command):
     npc_id: str
     dialogue_metadata: DialogueMetadata | None = None
     conversation_stance: ConversationStance = ConversationStance.NEUTRAL
+    conversation_subtopic: DialogueSubtopic | None = None
 
 
 @dataclass(frozen=True)

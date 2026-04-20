@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from .command_models import ConversationStance
+from .dialogue_subtopic import DialogueSubtopic
 from .world_state import WorldState
 
 
@@ -12,6 +13,7 @@ class ConversationContext:
     stale_focus_npc_id: str | None = None
     stale_focus_reason: str | None = None
     stance: ConversationStance = ConversationStance.NEUTRAL
+    subtopic: DialogueSubtopic | None = None
 
     def clear(self, reason: str | None = None) -> None:
         if self.focus_npc_id is not None:
@@ -21,21 +23,29 @@ class ConversationContext:
             self.stale_focus_reason = reason
         self.focus_npc_id = None
         self.stance = ConversationStance.NEUTRAL
+        self.subtopic = None
 
     def reset(self) -> None:
         self.focus_npc_id = None
         self.stale_focus_npc_id = None
         self.stale_focus_reason = None
         self.stance = ConversationStance.NEUTRAL
+        self.subtopic = None
 
-    def set_focus(self, npc_id: str, stance: ConversationStance = ConversationStance.NEUTRAL) -> None:
+    def set_focus(
+        self,
+        npc_id: str,
+        stance: ConversationStance = ConversationStance.NEUTRAL,
+        subtopic: DialogueSubtopic | None = None,
+    ) -> None:
         self.focus_npc_id = npc_id
         self.stale_focus_npc_id = None
         self.stale_focus_reason = None
         self.stance = stance
+        self.subtopic = subtopic
 
     def replace_focus(self, npc_id: str) -> None:
-        self.set_focus(npc_id)
+        self.set_focus(npc_id, self.stance, self.subtopic)
 
     def sync_with_world(self, world_state: WorldState) -> None:
         if self.focus_npc_id is None:

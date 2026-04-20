@@ -29,6 +29,7 @@ from .dialogue_domain import DialogueDomain
 from .dialogue_engine import resolve_talk_result
 from .dialogue_renderer import DeterministicDialogueRenderer, DialogueRenderer, build_dialogue_render_input
 from .dialogue_intent_adapter import DialogueIntentAdapter, NullDialogueIntentAdapter
+from .dialogue_subtopic import DialogueSubtopic, detect_dialogue_subtopic
 from .dice_engine import DeterministicCheckKind, DeterministicCheckSpecification, resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
@@ -141,7 +142,7 @@ class GameSession:
             return result
 
         # Phase 6: update session-local dialogue state and fold in any talk-side plot progress.
-        result = self._apply_talk_after_effects(command, result)
+        result = self._apply_talk_after_effects(command, result, dialogue_adjudication)
 
         # Phase 7: apply deterministic post-resolution consequences.
         result, check_outcome, consequence_summary = self._apply_post_resolution_consequences_phase(command, result, adjudication)
@@ -185,12 +186,16 @@ class GameSession:
     def get_conversation_stance(self) -> ConversationStance:
         return self._conversation_context.stance
 
+    def get_conversation_subtopic(self) -> DialogueSubtopic | None:
+        return self._conversation_context.subtopic
+
     def _interpret_input(self, raw_input: str) -> InterpretedInput:
         self._conversation_context.sync_with_world(self._world_state)
         return self._input_interpreter.interpret(
             raw_input,
             self._world_state,
             self._conversation_context.focus_npc_id,
+            self._conversation_context.subtopic,
             self._conversation_context.stale_focus_npc_id,
             self._conversation_context.stale_focus_reason,
             self._dialogue_intent_adapter,
@@ -291,9 +296,14 @@ class GameSession:
                 command,
                 dialogue_metadata=interpretation.dialogue_metadata,
                 conversation_stance=self._conversation_context.stance,
+                conversation_subtopic=self._conversation_context.subtopic,
             )
         else:
-            command = replace(command, conversation_stance=self._conversation_context.stance)
+            command = replace(
+                command,
+                conversation_stance=self._conversation_context.stance,
+                conversation_subtopic=self._conversation_context.subtopic,
+            )
 
         return NormalizedActionInput(
             raw_input=raw_input,
@@ -439,7 +449,11 @@ class GameSession:
         else:
             output_text = f"Talk has escalated: a social check is required before {npc.name} will continue."
 
-        self._conversation_context.set_focus(npc.id, dialogue_adjudication.conversation_stance)
+        self._conversation_context.set_focus(
+            npc.id,
+            dialogue_adjudication.conversation_stance,
+            self._resolve_next_conversation_subtopic(command, dialogue_adjudication),
+        )
         return CommandResult(
             output_text=output_text,
             conversation_focus_npc_id=npc.id,
@@ -470,9 +484,14 @@ class GameSession:
             command.dialogue_metadata,
             command.conversation_stance,
             dialogue_adjudication.dialogue_domain,
+            command.conversation_subtopic,
         )
         if routed_result.conversation_focus_npc_id is not None and routed_result.conversation_stance is not None:
-            self._conversation_context.set_focus(routed_result.conversation_focus_npc_id, routed_result.conversation_stance)
+            self._conversation_context.set_focus(
+                routed_result.conversation_focus_npc_id,
+                routed_result.conversation_stance,
+                self._resolve_next_conversation_subtopic(command, dialogue_adjudication),
+            )
         return CommandResult(
             output_text=routed_result.output_text,
             conversation_focus_npc_id=routed_result.conversation_focus_npc_id,
@@ -554,7 +573,7 @@ class GameSession:
         if check_outcome.is_success:
             consequence_summary = self._apply_dialogue_persuade_success_consequences(command, dialogue_adjudication, check_outcome)
             result = self._execute_command(command)
-            result = self._apply_talk_after_effects(command, result)
+            result = self._apply_talk_after_effects(command, result, dialogue_adjudication)
             result = self._append_consequence_summary_to_result(result, consequence_summary)
             return result, adjudication, check_outcome, consequence_summary
 
@@ -663,7 +682,11 @@ class GameSession:
         else:
             message = f"Dialogue check failed: {npc.name} stays guarded and does not advance the Missing Ledger lead."
 
-        self._conversation_context.set_focus(npc.id, ConversationStance.GUARDED)
+        self._conversation_context.set_focus(
+            npc.id,
+            ConversationStance.GUARDED,
+            self._resolve_next_conversation_subtopic(command, dialogue_adjudication),
+        )
         self._world_state.append_event(
             EventLogEntry(
                 timestamp=self._world_state.current_time,
@@ -722,14 +745,48 @@ class GameSession:
             return ""
         return " ".join(topic.lower().replace("-", " ").split())
 
-    def _apply_talk_after_effects(self, command: Command, result: CommandResult) -> CommandResult:
+    def _apply_talk_after_effects(
+        self,
+        command: Command,
+        result: CommandResult,
+        dialogue_adjudication: DialogueAdjudicationOutcome | None = None,
+    ) -> CommandResult:
         if not isinstance(command, TalkCommand):
             return result
 
         if result.conversation_focus_npc_id is not None:
             self._conversation_context.replace_focus(result.conversation_focus_npc_id)
             self._conversation_context.stance = result.conversation_stance
+            self._conversation_context.subtopic = self._resolve_next_conversation_subtopic(
+                command,
+                dialogue_adjudication,
+            )
         return result
+
+    def _resolve_next_conversation_subtopic(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome | None,
+    ) -> DialogueSubtopic | None:
+        explicit_subtopic = detect_dialogue_subtopic(command.dialogue_metadata)
+        if explicit_subtopic is not None:
+            return explicit_subtopic
+        if command.conversation_subtopic is None:
+            return None
+        if dialogue_adjudication is None:
+            return command.conversation_subtopic
+        if dialogue_adjudication.dialogue_domain in {
+            DialogueDomain.OFF_TOPIC_REQUEST,
+            DialogueDomain.TRAVEL_PROPOSAL,
+            DialogueDomain.UNKNOWN_MISC,
+        }:
+            return command.conversation_subtopic
+        if dialogue_adjudication.dialogue_domain in {
+            DialogueDomain.LEAD_TOPIC,
+            DialogueDomain.LEAD_PRESSURE,
+        }:
+            return None
+        return command.conversation_subtopic
 
     def _apply_post_resolution_consequences_phase(
         self,
