@@ -7,6 +7,7 @@ from .command_models import DialogueMetadata
 
 
 class DialogueSubtopic(str, Enum):
+    MISSING_LEDGER = "missing_ledger"
     BLOOD_OR_FEEDING_REQUEST = "blood_or_feeding_request"
     FARE_OR_MONEY_SUPPORT = "fare_or_money_support"
     TRANSPORT_OR_VEHICLE_SUPPORT = "transport_or_vehicle_support"
@@ -17,6 +18,8 @@ def detect_dialogue_subtopic(dialogue_metadata: DialogueMetadata | None) -> Dial
     normalized_text = _normalize_dialogue_text(dialogue_metadata)
     if not normalized_text:
         return None
+    if _is_missing_ledger_topic(normalized_text):
+        return DialogueSubtopic.MISSING_LEDGER
     if _is_blood_or_feeding_request(normalized_text):
         return DialogueSubtopic.BLOOD_OR_FEEDING_REQUEST
     if _is_fare_or_money_support_request(normalized_text):
@@ -39,6 +42,8 @@ def should_inherit_subtopic(
     if not normalized_text:
         return False
 
+    if active_subtopic is DialogueSubtopic.MISSING_LEDGER:
+        return _looks_like_missing_ledger_follow_up(normalized_text)
     if active_subtopic is DialogueSubtopic.BLOOD_OR_FEEDING_REQUEST:
         return _looks_like_blood_follow_up(normalized_text)
     if active_subtopic is DialogueSubtopic.FARE_OR_MONEY_SUPPORT:
@@ -48,6 +53,30 @@ def should_inherit_subtopic(
     if active_subtopic is DialogueSubtopic.BACKUP_OR_STAY_NEARBY:
         return _looks_like_backup_follow_up(normalized_text)
     return False
+
+
+def _looks_like_missing_ledger_follow_up(normalized_text: str) -> bool:
+    if _is_missing_ledger_topic(normalized_text):
+        return True
+    if _is_short_please_follow_up(normalized_text):
+        return True
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "what about it",
+            "what about that",
+            "what happened there",
+            "what then",
+            "and then",
+            "tell me more about it",
+            "tell me more about that",
+            "back to that",
+            "go on",
+            "continue",
+            "carry on",
+            "why",
+        )
+    )
 
 
 def _looks_like_blood_follow_up(normalized_text: str) -> bool:
@@ -112,6 +141,35 @@ def _is_blood_or_feeding_request(normalized_text: str) -> bool:
             "letting me feed off you",
             "drink from you",
             "drink your blood",
+        )
+    )
+
+
+def _is_missing_ledger_topic(normalized_text: str) -> bool:
+    if any(
+        phrase in normalized_text
+        for phrase in (
+            "ledger",
+            "paper trail",
+            "receipt",
+            "broker",
+            "waterline",
+        )
+    ):
+        return True
+    if "dock" not in normalized_text and "docks" not in normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "what happened",
+            "what about",
+            "tell me more",
+            "where is",
+            "back to",
+            "what else",
+            "what then",
+            "why",
         )
     )
 

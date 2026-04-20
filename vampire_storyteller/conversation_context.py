@@ -13,7 +13,15 @@ class ConversationContext:
     stale_focus_npc_id: str | None = None
     stale_focus_reason: str | None = None
     stance: ConversationStance = ConversationStance.NEUTRAL
-    subtopic: DialogueSubtopic | None = None
+    active_dialogue_subtopic: DialogueSubtopic | None = None
+
+    @property
+    def subtopic(self) -> DialogueSubtopic | None:
+        return self.active_dialogue_subtopic
+
+    @subtopic.setter
+    def subtopic(self, value: DialogueSubtopic | None) -> None:
+        self.active_dialogue_subtopic = value
 
     def clear(self, reason: str | None = None) -> None:
         if self.focus_npc_id is not None:
@@ -23,14 +31,17 @@ class ConversationContext:
             self.stale_focus_reason = reason
         self.focus_npc_id = None
         self.stance = ConversationStance.NEUTRAL
-        self.subtopic = None
+        self.active_dialogue_subtopic = None
 
     def reset(self) -> None:
         self.focus_npc_id = None
         self.stale_focus_npc_id = None
         self.stale_focus_reason = None
         self.stance = ConversationStance.NEUTRAL
-        self.subtopic = None
+        self.active_dialogue_subtopic = None
+
+    def clear_subtopic(self) -> None:
+        self.active_dialogue_subtopic = None
 
     def set_focus(
         self,
@@ -42,10 +53,10 @@ class ConversationContext:
         self.stale_focus_npc_id = None
         self.stale_focus_reason = None
         self.stance = stance
-        self.subtopic = subtopic
+        self.active_dialogue_subtopic = subtopic
 
     def replace_focus(self, npc_id: str) -> None:
-        self.set_focus(npc_id, self.stance, self.subtopic)
+        self.set_focus(npc_id, self.stance, self.active_dialogue_subtopic)
 
     def sync_with_world(self, world_state: WorldState) -> None:
         if self.focus_npc_id is None:

@@ -733,6 +733,19 @@ class InputInterpreter:
             ),
         ):
             return True
+        if conversation_subtopic is DialogueSubtopic.MISSING_LEDGER and self._contains_any(
+            normalized_text,
+            (
+                "what about it",
+                "what about that",
+                "what happened there",
+                "tell me more about it",
+                "tell me more about that",
+                "and then",
+                "back to that",
+            ),
+        ):
+            return True
         if conversation_subtopic is not None and "please" in normalized_text.split() and len(normalized_text.split()) <= 4:
             return True
         return False

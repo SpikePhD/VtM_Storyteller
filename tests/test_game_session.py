@@ -11,7 +11,9 @@ from vampire_storyteller.dice_engine import DeterministicCheckResolution
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
+from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
+from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.narrative_provider import SceneNarrativeProvider
 from vampire_storyteller.world_state import WorldState
@@ -228,6 +230,34 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+
+    def test_missing_ledger_follow_up_stays_in_the_same_subtopic(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, what happened at the dock?")
+        result = session.process_input("What about it")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+        self.assertEqual(session.get_conversation_subtopic(), DialogueSubtopic.MISSING_LEDGER)
+        self.assertNotIn("Unsupported freeform input", result.output_text)
+
+    def test_guarded_follow_up_does_not_upgrade_missing_ledger_lane(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, what happened at the dock?")
+        result = session.process_input("I don't believe you.")
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.REFUSED)
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_PRESSURE)
+        self.assertEqual(session.get_conversation_subtopic(), DialogueSubtopic.MISSING_LEDGER)
+        self.assertIn("stays guarded", result.output_text)
 
     def test_backup_follow_up_stays_in_dialogue_without_repeating_name(self) -> None:
         session = GameSession()
@@ -662,10 +692,33 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIsNone(session.get_conversation_focus_npc_id())
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertIsNone(session.get_conversation_subtopic())
         result = session.process_input("Why?")
 
         self.assertIn("Talk is blocked", result.output_text)
         self.assertIn("not present at Saint Judith's Church", result.output_text)
+
+    def test_move_clears_missing_ledger_subtopic(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, what happened at the dock?")
+        session.process_input("move loc_church")
+
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+        self.assertIsNone(session.get_conversation_subtopic())
+
+    def test_explicit_new_topic_overrides_missing_ledger_subtopic(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, what happened at the dock?")
+        result = session.process_input("Jonas, do you have a spare car?")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("Jonas Reed", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.TRAVEL_PROPOSAL)
+        self.assertEqual(session.get_conversation_subtopic(), DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT)
 
     def test_follow_up_without_focus_returns_deterministic_feedback(self) -> None:
         session = GameSession()

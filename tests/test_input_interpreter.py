@@ -7,6 +7,7 @@ from vampire_storyteller.command_models import DialogueAct
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.input_interpreter import InputInterpreter
 from vampire_storyteller.models import NPC
+from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.sample_world import build_sample_world
 
 
@@ -267,6 +268,22 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.normalized_intent, "talk")
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.canonical_command, "talk npc_1")
+
+    def test_missing_ledger_follow_up_reuses_active_subtopic(self) -> None:
+        result = self.interpreter.interpret(
+            "What about it",
+            self.world_state,
+            conversation_focus_npc_id="npc_1",
+            conversation_subtopic=DialogueSubtopic.MISSING_LEDGER,
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        assert result.dialogue_metadata is not None
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
 
     def test_logistics_follow_up_with_acknowledgement_uses_conversation_focus(self) -> None:
         result = self.interpreter.interpret(

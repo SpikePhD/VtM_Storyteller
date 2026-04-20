@@ -139,6 +139,17 @@ class GameSession:
             result = self._execute_talk_command(command, dialogue_adjudication.dialogue_domain, dialogue_adjudication.social_outcome)
         else:
             result = self._execute_command(command)
+            if isinstance(command, MoveCommand):
+                focused_npc = self._world_state.npcs.get(self._conversation_context.focus_npc_id or "")
+                location = self._world_state.locations.get(self._world_state.player.location_id or "")
+                if focused_npc is not None and location is not None:
+                    self._conversation_context.clear(
+                        f"Talk is blocked: {focused_npc.name} is not present at {location.name}, so that conversation cannot continue."
+                    )
+                else:
+                    self._conversation_context.clear("Talk continuity was cleared by movement.")
+            elif isinstance(command, (WaitCommand, InvestigateCommand)):
+                self._conversation_context.clear_subtopic()
         if result.should_quit:
             turn = self._build_final_resolution_turn(
                 command=command,
@@ -914,6 +925,10 @@ class GameSession:
         if explicit_subtopic is not None:
             return explicit_subtopic
         if command.conversation_subtopic is None:
+            return None
+        if command.conversation_subtopic is DialogueSubtopic.MISSING_LEDGER:
+            if dialogue_adjudication is None or not dialogue_adjudication.is_blocked:
+                return command.conversation_subtopic
             return None
         if dialogue_adjudication is None:
             return command.conversation_subtopic

@@ -9,6 +9,7 @@ from vampire_storyteller.dialogue_adjudication import (
     adjudicate_dialogue_talk,
 )
 from vampire_storyteller.dialogue_domain import DialogueDomain
+from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.sample_world import build_sample_world
 from vampire_storyteller.social_models import SocialOutcomeKind, TopicResult, TopicSensitivity
@@ -174,6 +175,43 @@ class DialogueAdjudicationTests(unittest.TestCase):
         assert outcome.social_outcome is not None
         self.assertEqual(outcome.social_outcome.topic_result, TopicResult.OPENED)
         self.assertEqual(outcome.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
+
+    def test_missing_ledger_subtopic_keeps_follow_up_in_lead_lane(self) -> None:
+        world = build_sample_world()
+        command = TalkCommand(
+            npc_id="npc_1",
+            conversation_subtopic=DialogueSubtopic.MISSING_LEDGER,
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="What about it",
+                speech_text="what about it",
+                dialogue_act=DialogueAct.ASK,
+            ),
+        )
+
+        outcome = adjudicate_dialogue_talk(world, command)
+
+        self.assertTrue(outcome.is_allowed)
+        self.assertEqual(outcome.dialogue_domain, DialogueDomain.LEAD_TOPIC)
+        self.assertEqual(outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
+        self.assertIsNotNone(outcome.social_outcome)
+
+    def test_missing_ledger_subtopic_does_not_make_threats_productive(self) -> None:
+        world = build_sample_world()
+        command = TalkCommand(
+            npc_id="npc_1",
+            conversation_subtopic=DialogueSubtopic.MISSING_LEDGER,
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="Jonas, talk now or this gets worse.",
+                speech_text="talk now or this gets worse.",
+                dialogue_act=DialogueAct.THREATEN,
+            ),
+        )
+
+        outcome = adjudicate_dialogue_talk(world, command)
+
+        self.assertEqual(outcome.resolution_kind, DialogueAdjudicationResolutionKind.GUARDED)
+        self.assertEqual(outcome.topic_status, DialogueTopicStatus.REFUSED)
+        self.assertEqual(outcome.dialogue_domain, DialogueDomain.LEAD_PRESSURE)
 
     def test_session_records_dialogue_adjudication_on_talk_turn(self) -> None:
         session = GameSession()

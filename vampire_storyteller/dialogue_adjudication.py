@@ -6,6 +6,7 @@ from enum import Enum
 from .adventure_loader import load_adv1_dialogue_social_state, load_adv1_plot_progression_rules
 from .command_models import ConversationStance, DialogueAct, DialogueMetadata, TalkCommand
 from .dialogue_domain import DialogueDomain, classify_dialogue_domain
+from .dialogue_subtopic import DialogueSubtopic
 from .social_resolution import SocialResolutionEvaluation, evaluate_topic_openness
 from .social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from .world_state import WorldState
@@ -125,7 +126,7 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
     story_flags = set(world_state.story_flags)
     authored_social_state = load_adv1_dialogue_social_state()
     authored_npc_rule = authored_social_state.npc_definitions.get(command.npc_id)
-    topic_context = _normalize_text(topic or _dialogue_metadata_text(metadata))
+    topic_context = _normalize_text(topic or _topic_context_from_subtopic(command.conversation_subtopic) or _dialogue_metadata_text(metadata))
     dialogue_domain = classify_dialogue_domain(
         world_state,
         command.npc_id,
@@ -339,3 +340,9 @@ def _dialogue_metadata_text(dialogue_metadata: DialogueMetadata | None) -> str:
     speech_text = getattr(dialogue_metadata, "speech_text", "") or ""
     topic = getattr(dialogue_metadata, "topic", "") or ""
     return " ".join(part for part in (topic, speech_text, utterance_text) if part)
+
+
+def _topic_context_from_subtopic(active_subtopic: DialogueSubtopic | None) -> str | None:
+    if active_subtopic is DialogueSubtopic.MISSING_LEDGER:
+        return "dock"
+    return None

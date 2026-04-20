@@ -44,6 +44,8 @@ def classify_dialogue_domain(
         return DialogueDomain.LEAD_TOPIC
 
     explicit_subtopic = detect_dialogue_subtopic(dialogue_metadata)
+    if explicit_subtopic is DialogueSubtopic.MISSING_LEDGER:
+        return DialogueDomain.LEAD_TOPIC
     if explicit_subtopic is DialogueSubtopic.BLOOD_OR_FEEDING_REQUEST:
         return DialogueDomain.OFF_TOPIC_REQUEST
 
@@ -63,6 +65,8 @@ def classify_dialogue_domain(
         return DialogueDomain.OFF_TOPIC_REQUEST
 
     if should_inherit_subtopic(active_subtopic, dialogue_metadata):
+        if active_subtopic is DialogueSubtopic.MISSING_LEDGER:
+            return DialogueDomain.LEAD_TOPIC
         if active_subtopic in {
             DialogueSubtopic.BLOOD_OR_FEEDING_REQUEST,
             DialogueSubtopic.FARE_OR_MONEY_SUPPORT,
@@ -80,7 +84,13 @@ def classify_dialogue_domain(
     if _is_lead_follow_up(world_state, combined_text, conversation_stance):
         return DialogueDomain.LEAD_TOPIC
 
-    if dialogue_act is DialogueAct.PERSUADE and (_is_productive_topic_status(topic_status) or _is_missing_ledger_topic(topic_text or combined_text)):
+    if dialogue_act is DialogueAct.PERSUADE and (
+        _is_productive_topic_status(topic_status)
+        or _is_missing_ledger_topic(topic_text or combined_text)
+        or topic_text in {"dock", "docks", "ledger"}
+        or (("dock" in combined_text or "docks" in combined_text or "ledger" in combined_text) and not _is_travel_proposal(combined_text))
+        or active_subtopic is DialogueSubtopic.MISSING_LEDGER
+    ):
         return DialogueDomain.LEAD_PRESSURE
 
     if dialogue_act is DialogueAct.GREET:
@@ -133,16 +143,30 @@ def _is_lead_follow_up(
 def _is_missing_ledger_topic(normalized_text: str) -> bool:
     if not normalized_text:
         return False
-    return any(
+    if any(
         keyword in normalized_text
         for keyword in (
-            "dock",
-            "docks",
             "ledger",
             "paper trail",
             "receipt",
             "broker",
             "waterline",
+        )
+    ):
+        return True
+    if "dock" not in normalized_text and "docks" not in normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "what happened",
+            "what about",
+            "tell me more",
+            "where is",
+            "back to",
+            "what else",
+            "what then",
+            "why",
         )
     )
 
