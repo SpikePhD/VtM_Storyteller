@@ -28,6 +28,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.openai_model, "gpt-4.1-mini")
         self.assertFalse(config.use_openai_scene_provider)
         self.assertFalse(config.use_openai_dialogue_intent_adapter)
+        self.assertFalse(config.use_openai_dialogue_renderer)
 
     def test_load_config_reads_runtime_json_and_dotenv_secret(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -41,12 +42,13 @@ class ConfigTests(unittest.TestCase):
                         "openai_model": "gpt-4.1",
                         "use_openai_scene_provider": False,
                         "use_openai_dialogue_intent_adapter": True,
+                        "use_openai_dialogue_renderer": False,
                     }
                 ),
                 encoding="utf-8",
             )
             local_config_path.write_text(
-                json.dumps({"use_openai_scene_provider": True}),
+                json.dumps({"use_openai_scene_provider": True, "use_openai_dialogue_renderer": True}),
                 encoding="utf-8",
             )
             dotenv_path.write_text("OPENAI_API_KEY=test-key\n", encoding="utf-8")
@@ -62,6 +64,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.openai_model, "gpt-4.1")
         self.assertTrue(config.use_openai_scene_provider)
         self.assertTrue(config.use_openai_dialogue_intent_adapter)
+        self.assertTrue(config.use_openai_dialogue_renderer)
 
     def test_environment_secret_overrides_dotenv_secret(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -74,6 +77,7 @@ class ConfigTests(unittest.TestCase):
                         "openai_model": "gpt-4.1-mini",
                         "use_openai_scene_provider": True,
                         "use_openai_dialogue_intent_adapter": False,
+                        "use_openai_dialogue_renderer": False,
                     }
                 ),
                 encoding="utf-8",
@@ -87,6 +91,7 @@ class ConfigTests(unittest.TestCase):
         self.assertEqual(config.openai_model, "gpt-4.1-mini")
         self.assertTrue(config.use_openai_scene_provider)
         self.assertFalse(config.use_openai_dialogue_intent_adapter)
+        self.assertFalse(config.use_openai_dialogue_renderer)
 
 
 if __name__ == "__main__":

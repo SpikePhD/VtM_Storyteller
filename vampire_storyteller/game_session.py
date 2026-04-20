@@ -27,6 +27,7 @@ from .data_paths import ensure_adventure_directories, get_default_save_path
 from .dialogue_adjudication import DialogueAdjudicationOutcome, DialogueTopicStatus, adjudicate_dialogue_talk
 from .dialogue_domain import DialogueDomain
 from .dialogue_engine import resolve_talk_result
+from .dialogue_renderer import DeterministicDialogueRenderer, DialogueRenderer, build_dialogue_render_input
 from .dialogue_intent_adapter import DialogueIntentAdapter, NullDialogueIntentAdapter
 from .dice_engine import DeterministicCheckKind, DeterministicCheckSpecification, resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
@@ -45,6 +46,7 @@ class GameSession:
         world_state: WorldState | None = None,
         scene_provider: SceneNarrativeProvider | None = None,
         dialogue_intent_adapter: DialogueIntentAdapter | None = None,
+        dialogue_renderer: DialogueRenderer | None = None,
         save_path: str | Path | None = None,
     ) -> None:
         self._world_state = world_state if world_state is not None else build_sample_world()
@@ -52,6 +54,8 @@ class GameSession:
         self._fallback_scene_provider = DeterministicSceneNarrativeProvider()
         self._input_interpreter = InputInterpreter()
         self._dialogue_intent_adapter = dialogue_intent_adapter if dialogue_intent_adapter is not None else NullDialogueIntentAdapter()
+        self._dialogue_renderer = dialogue_renderer if dialogue_renderer is not None else DeterministicDialogueRenderer()
+        self._fallback_dialogue_renderer = DeterministicDialogueRenderer()
         self._last_interpreted_input: InterpretedInput | None = None
         self._last_normalized_action: NormalizedActionInput | None = None
         self._last_action_resolution: ActionResolutionTurn | None = None
@@ -93,16 +97,17 @@ class GameSession:
                     adjudication=adjudication,
                     check=check_outcome,
                     consequence_summary=consequence_summary,
-                    result=result,
+                    result=self._render_talk_result(command, result, dialogue_adjudication, check_outcome, consequence_summary),
                     dialogue_adjudication=dialogue_adjudication,
                 )
                 self._last_action_resolution = turn
-                return result
+                return turn.to_command_result()
             if not dialogue_adjudication.is_allowed:
                 if self._should_materialize_domain_routed_dialogue(dialogue_adjudication):
                     result = self._materialize_dialogue_domain_result(command, dialogue_adjudication)
                 else:
                     result = self._materialize_dialogue_adjudication_result(command, dialogue_adjudication)
+                result = self._render_talk_result(command, result, dialogue_adjudication, None, ActionConsequenceSummary())
                 turn = self._build_dialogue_adjudication_resolution_turn(normalized_action, dialogue_adjudication, result)
                 self._last_action_resolution = turn
                 return result
@@ -149,6 +154,7 @@ class GameSession:
 
         # Phase 10: render the final response for the player.
         final_result = self._render_response(command, result)
+        final_result = self._render_talk_result(command, final_result, dialogue_adjudication, check_outcome, consequence_summary)
         turn = self._build_final_resolution_turn(
             command=command,
             normalized_action=normalized_action,
@@ -472,6 +478,66 @@ class GameSession:
             conversation_focus_npc_id=routed_result.conversation_focus_npc_id,
             conversation_stance=routed_result.conversation_stance,
         )
+
+    def _render_talk_result(
+        self,
+        command: Command,
+        result: CommandResult,
+        dialogue_adjudication: DialogueAdjudicationOutcome | None,
+        check: ActionCheckOutcome | None,
+        consequence_summary: ActionConsequenceSummary,
+    ) -> CommandResult:
+        if not isinstance(command, TalkCommand) or dialogue_adjudication is None:
+            return result
+
+        try:
+            render_input = build_dialogue_render_input(
+                self._world_state,
+                command,
+                dialogue_adjudication,
+                check,
+                consequence_summary,
+            )
+            if not self._supports_dialogue_rendering(render_input):
+                return result
+            rendered_output = self._dialogue_renderer.render_dialogue(render_input)
+        except Exception:
+            self._dialogue_renderer = self._fallback_dialogue_renderer
+            render_input = build_dialogue_render_input(
+                self._world_state,
+                command,
+                dialogue_adjudication,
+                check,
+                consequence_summary,
+            )
+            if not self._supports_dialogue_rendering(render_input):
+                return result
+            rendered_output = self._fallback_dialogue_renderer.render_dialogue(render_input)
+
+        return CommandResult(
+            output_text=rendered_output,
+            should_quit=result.should_quit,
+            render_scene=result.render_scene,
+            conversation_focus_npc_id=result.conversation_focus_npc_id,
+            conversation_stance=result.conversation_stance,
+        )
+
+    def _supports_dialogue_rendering(self, render_input) -> bool:
+        if render_input.npc_id != "npc_1":
+            return False
+        if render_input.check_kind == DeterministicCheckKind.DIALOGUE_SOCIAL.value:
+            return True
+        if render_input.dialogue_domain in {
+            DialogueDomain.OFF_TOPIC_REQUEST.value,
+            DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE.value,
+            DialogueDomain.TRAVEL_PROPOSAL.value,
+            DialogueDomain.UNKNOWN_MISC.value,
+            DialogueDomain.LEAD_PRESSURE.value,
+        }:
+            return True
+        if render_input.dialogue_domain == DialogueDomain.LEAD_TOPIC.value and render_input.plot_stage in {"hook", "lead_confirmed"}:
+            return True
+        return False
 
     def _resolve_escalated_persuade_dialogue(
         self,

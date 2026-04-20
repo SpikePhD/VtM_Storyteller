@@ -122,7 +122,8 @@ class ActionResolutionContractTests(unittest.TestCase):
         self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
         self.assertTrue(turn.world_state_mutated)
         self.assertIn("dialogue_social_check_success", turn.consequence_summary.applied_effects)
-        self.assertIn("Jonas Reed points toward the waterline", result.output_text)
+        self.assertIn("points toward the waterline", result.output_text)
+        self.assertIn("broker used the dock to move papers", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
 
 

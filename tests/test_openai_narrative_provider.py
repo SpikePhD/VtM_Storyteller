@@ -79,6 +79,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
                 openai_model="gpt-4.1-mini",
                 use_openai_scene_provider=False,
                 use_openai_dialogue_intent_adapter=False,
+                use_openai_dialogue_renderer=False,
             )
         )
 
@@ -92,6 +93,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
                 openai_model="gpt-4.1-mini",
                 use_openai_scene_provider=True,
                 use_openai_dialogue_intent_adapter=False,
+                use_openai_dialogue_renderer=False,
             )
         )
 
@@ -107,6 +109,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
                 openai_model="gpt-4.1-mini",
                 use_openai_scene_provider=True,
                 use_openai_dialogue_intent_adapter=False,
+                use_openai_dialogue_renderer=False,
             )
         )
 
@@ -138,6 +141,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
                 openai_model="gpt-4.1-mini",
                 use_openai_scene_provider=False,
                 use_openai_dialogue_intent_adapter=False,
+                use_openai_dialogue_renderer=False,
             )
         )
 
@@ -151,6 +155,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
                 openai_model="gpt-4.1-mini",
                 use_openai_scene_provider=False,
                 use_openai_dialogue_intent_adapter=True,
+                use_openai_dialogue_renderer=False,
             )
         )
 
@@ -166,6 +171,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
                     openai_model="gpt-4.1-mini",
                     use_openai_scene_provider=False,
                     use_openai_dialogue_intent_adapter=True,
+                    use_openai_dialogue_renderer=False,
                 )
             )
 

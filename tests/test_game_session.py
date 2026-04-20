@@ -205,7 +205,7 @@ class GameSessionTests(unittest.TestCase):
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
 
-        self.assertIn("Talk is guarded", result.output_text)
+        self.assertIn("stays guarded", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
         self.assertEqual(session.get_world_state().story_flags, [])
@@ -261,8 +261,8 @@ class GameSessionTests(unittest.TestCase):
         threaten_result = session.process_input("I threaten Jonas to talk.")
         threaten_turn = session.get_last_action_resolution()
 
-        self.assertIn("Talk is guarded", accuse_result.output_text)
-        self.assertIn("Talk is guarded", threaten_result.output_text)
+        self.assertIn("stays guarded", accuse_result.output_text)
+        self.assertIn("stays guarded", threaten_result.output_text)
         self.assertNotIn("said what he will say", threaten_result.output_text)
         self.assertIsNotNone(threaten_turn)
         assert threaten_turn is not None
@@ -287,8 +287,8 @@ class GameSessionTests(unittest.TestCase):
             result = session.process_input("I persuade Jonas to help with the dock.")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("Jonas Reed points toward the waterline", result.output_text)
-        self.assertIn("Dialogue check success", result.output_text)
+        self.assertIn("waterline", result.output_text.lower())
+        self.assertIn("broker", result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.check)
@@ -322,8 +322,8 @@ class GameSessionTests(unittest.TestCase):
             result = session.process_input("I persuade Jonas to help with the dock.")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("Dialogue check failed", result.output_text)
         self.assertIn("guarded", result.output_text.lower())
+        self.assertIn("lead forward", result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.check)
@@ -345,7 +345,7 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Jonas, what happened at the dock?")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("dock is the only place worth checking tonight", result.output_text)
+        self.assertIn("dock is the only place worth checking", result.output_text)
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
@@ -360,7 +360,7 @@ class GameSessionTests(unittest.TestCase):
         turn = session.get_last_action_resolution()
 
         self.assertIn("Keep this professional", result.output_text)
-        self.assertNotIn("dock is the only place worth checking tonight", result.output_text)
+        self.assertNotIn("dock is the only place worth checking", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
@@ -378,7 +378,7 @@ class GameSessionTests(unittest.TestCase):
         turn = session.get_last_action_resolution()
 
         self.assertIn("Ask someone else", result.output_text)
-        self.assertNotIn("dock is the only place worth checking tonight", result.output_text)
+        self.assertNotIn("dock is the only place worth checking", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
@@ -396,7 +396,7 @@ class GameSessionTests(unittest.TestCase):
         turn = session.get_last_action_resolution()
 
         self.assertIn("If the dock matters, you go", result.output_text)
-        self.assertNotIn("dock is the only place worth checking tonight", result.output_text)
+        self.assertNotIn("dock is the only place worth checking", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
@@ -417,7 +417,7 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIn("keeps his voice low", first_result.output_text)
         self.assertIn("loosens his shoulders", second_result.output_text)
-        self.assertIn("points toward the waterline", follow_up_result.output_text)
+        self.assertIn("waterline", follow_up_result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
@@ -592,7 +592,7 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIn("keeps his voice low", first_result.output_text)
         self.assertIn("loosens his shoulders", second_result.output_text)
-        self.assertIn("advanced from hook to lead_confirmed", second_result.output_text)
+        self.assertIn("paper trail began", second_result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
         self.assertEqual(session.get_world_state().story_flags, ["jonas_shared_dock_lead"])
