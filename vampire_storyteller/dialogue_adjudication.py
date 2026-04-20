@@ -169,6 +169,20 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             reason_code=evaluation.reason_code,
         )
 
+    if command.conversation_stance is ConversationStance.GUARDED and dialogue_act is DialogueAct.ASK and evaluation.topic_result is TopicResult.OPENED:
+        evaluation = SocialResolutionEvaluation(
+            topic_key=evaluation.topic_key,
+            topic_sensitivity=evaluation.topic_sensitivity,
+            openness_score=evaluation.openness_score,
+            outcome_kind=SocialOutcomeKind.DEFLECT,
+            topic_result=TopicResult.PARTIAL,
+            check_required=False,
+            check_roll_pool=evaluation.check_roll_pool,
+            check_difficulty=evaluation.check_difficulty,
+            recommended_stance=ConversationStance.GUARDED,
+            reason_code="guarded_ask_partial",
+        )
+
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         return DialogueAdjudicationOutcome(
             resolution_kind=DialogueAdjudicationResolutionKind.GUARDED,

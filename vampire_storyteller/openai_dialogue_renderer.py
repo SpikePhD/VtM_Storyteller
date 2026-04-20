@@ -1,6 +1,7 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+from dataclasses import fields, is_dataclass
+from enum import Enum
 import json
 from typing import Any
 
@@ -13,7 +14,7 @@ class OpenAIDialogueRenderer:
         self._client = client if client is not None else self._create_client(api_key)
 
     def render_dialogue(self, render_input: DialogueRenderInput) -> str:
-        payload_json = json.dumps(asdict(render_input), ensure_ascii=True, separators=(",", ":"))
+        payload_json = json.dumps(_to_jsonable(render_input), ensure_ascii=True, separators=(",", ":"))
         prompt = self._build_prompt(payload_json)
         response = self._client.responses.create(model=self._model, input=prompt)
         output_text = getattr(response, "output_text", "")
@@ -33,11 +34,13 @@ class OpenAIDialogueRenderer:
         return "\n".join(
             [
                 "You are rendering a Vampire: The Masquerade dialogue beat from deterministic backend state.",
+                "Use the social_outcome packet as the authoritative contract and the other fields as bounded context.",
                 "Use only the supplied JSON payload as source of truth.",
                 "Write 1 or 2 short paragraphs of plain text only.",
                 "Keep the prose grounded, moody, and concise.",
-                "Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, or check outcomes.",
-                "Do not change whether the exchange was productive, guarded, refused, logistical, off-topic, provocative, or misc.",
+                "Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, checks, or state changes.",
+                "Do not decide whether the NPC reveals, refuses, deflects, disengages, threatens, or cooperates beyond the packet.",
+                "If check_result is present, reflect success or failure naturally without changing the facts.",
                 "If information is absent, omit it.",
                 "Do not add markdown, bullet points, or system notes.",
                 "",
@@ -45,3 +48,17 @@ class OpenAIDialogueRenderer:
                 payload_json,
             ]
         )
+
+
+def _to_jsonable(value: Any) -> Any:
+    if is_dataclass(value):
+        return {field.name: _to_jsonable(getattr(value, field.name)) for field in fields(value)}
+    if isinstance(value, Enum):
+        return value.value
+    if isinstance(value, dict):
+        return {str(key): _to_jsonable(item) for key, item in value.items()}
+    if isinstance(value, tuple):
+        return [_to_jsonable(item) for item in value]
+    if isinstance(value, list):
+        return [_to_jsonable(item) for item in value]
+    return value

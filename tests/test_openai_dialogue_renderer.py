@@ -7,6 +7,14 @@ from vampire_storyteller.cli import build_dialogue_renderer
 from vampire_storyteller.config import AppConfig
 from vampire_storyteller.dialogue_renderer import DialogueRenderInput
 from vampire_storyteller.openai_dialogue_renderer import OpenAIDialogueRenderer
+from vampire_storyteller.command_models import ConversationStance
+from vampire_storyteller.social_models import (
+    SocialCheckResult,
+    SocialOutcomeKind,
+    SocialOutcomePacket,
+    SocialStanceShift,
+    TopicResult,
+)
 
 
 class OpenAIDialogueRendererTests(unittest.TestCase):
@@ -34,6 +42,7 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                 topic_status="productive",
                 adjudication_resolution_kind="allowed",
                 conversation_stance="neutral",
+                conversation_subtopic=None,
                 npc_trust_level=0,
                 plot_name="Missing Ledger",
                 plot_stage="hook",
@@ -44,6 +53,26 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                 check_difficulty=None,
                 consequence_messages=(),
                 applied_effects=(),
+                social_outcome=SocialOutcomePacket(
+                    outcome_kind=SocialOutcomeKind.REVEAL,
+                    stance_shift=SocialStanceShift(
+                        from_stance=ConversationStance.NEUTRAL,
+                        to_stance=ConversationStance.NEUTRAL,
+                    ),
+                    check_required=True,
+                    check_result=SocialCheckResult(
+                        kind="dialogue_social",
+                        seed="seed",
+                        roll_pool=3,
+                        difficulty=6,
+                        successes=2,
+                        is_success=True,
+                    ),
+                    topic_result=TopicResult.OPENED,
+                    state_effects=("dialogue_social_check_success",),
+                    plot_effects=("dialogue_plot_progressed",),
+                    reason_code="persuade_check_required",
+                ),
             )
         )
 
@@ -51,10 +80,12 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         called_kwargs = mock_client.responses.create.call_args.kwargs
         self.assertEqual(called_kwargs["model"], "gpt-4.1-mini")
         prompt = called_kwargs["input"]
-        self.assertIn("Use only the supplied JSON payload as source of truth.", prompt)
-        self.assertIn("Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, or check outcomes.", prompt)
+        self.assertIn("social_outcome packet as the authoritative contract", prompt)
+        self.assertIn("Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, checks, or state changes.", prompt)
         self.assertIn('"npc_name":"Jonas Reed"', prompt)
         self.assertIn('"dialogue_domain":"lead_topic"', prompt)
+        self.assertIn('"outcome_kind":"reveal"', prompt)
+        self.assertIn('"check_result"', prompt)
         self.assertIn('"plot_name":"Missing Ledger"', prompt)
 
     def test_shared_dialogue_renderer_helper_uses_openai_model_from_runtime_config(self) -> None:

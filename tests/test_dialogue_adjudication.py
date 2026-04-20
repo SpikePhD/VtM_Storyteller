@@ -39,8 +39,10 @@ class DialogueAdjudicationTests(unittest.TestCase):
         ask_outcome = adjudicate_dialogue_talk(world, ask_command)
 
         self.assertTrue(greet_outcome.is_allowed)
-        self.assertEqual(greet_outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
+        self.assertEqual(greet_outcome.topic_status, DialogueTopicStatus.AVAILABLE)
         self.assertEqual(greet_outcome.dialogue_domain, DialogueDomain.LEAD_TOPIC)
+        self.assertEqual(greet_outcome.social_outcome.outcome_kind, SocialOutcomeKind.COOPERATE)
+        self.assertEqual(greet_outcome.social_outcome.topic_result, TopicResult.UNCHANGED)
         self.assertTrue(ask_outcome.is_allowed)
         self.assertEqual(ask_outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
         self.assertEqual(ask_outcome.dialogue_domain, DialogueDomain.LEAD_TOPIC)
@@ -185,13 +187,13 @@ class DialogueAdjudicationTests(unittest.TestCase):
         self.assertIsNotNone(turn.dialogue_adjudication)
         assert turn.dialogue_adjudication is not None
         self.assertEqual(turn.dialogue_adjudication.resolution_kind, DialogueAdjudicationResolutionKind.ALLOWED)
-        self.assertEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.PRODUCTIVE)
+        self.assertEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.AVAILABLE)
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
         self.assertEqual(turn.dialogue_adjudication.conversation_stance, ConversationStance.NEUTRAL)
         self.assertIsNotNone(turn.social_outcome)
         assert turn.social_outcome is not None
-        self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
-        self.assertEqual(turn.social_outcome.topic_result, TopicResult.OPENED)
+        self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.COOPERATE)
+        self.assertEqual(turn.social_outcome.topic_result, TopicResult.UNCHANGED)
 
 
 if __name__ == "__main__":

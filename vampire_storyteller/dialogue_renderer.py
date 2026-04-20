@@ -8,6 +8,7 @@ from .adventure_loader import load_adv1_plot_progression_rules
 from .command_models import TalkCommand
 from .dialogue_adjudication import DialogueAdjudicationOutcome
 from .world_state import WorldState
+from .social_models import SocialOutcomeKind, SocialOutcomePacket, TopicResult
 
 
 class DialogueRenderer(Protocol):
@@ -29,6 +30,7 @@ class DialogueRenderInput:
     topic_status: str
     adjudication_resolution_kind: str
     conversation_stance: str
+    conversation_subtopic: str | None
     npc_trust_level: int
     plot_name: str
     plot_stage: str
@@ -39,6 +41,8 @@ class DialogueRenderInput:
     check_difficulty: int | None
     consequence_messages: tuple[str, ...]
     applied_effects: tuple[str, ...]
+    legacy_output_text: str | None = None
+    social_outcome: SocialOutcomePacket | None = None
 
 
 def build_dialogue_render_input(
@@ -47,6 +51,8 @@ def build_dialogue_render_input(
     dialogue_adjudication: DialogueAdjudicationOutcome,
     check: ActionCheckOutcome | None,
     consequence_summary: ActionConsequenceSummary,
+    legacy_output_text: str | None = None,
+    social_outcome: SocialOutcomePacket | None = None,
 ) -> DialogueRenderInput:
     npc = world_state.npcs.get(command.npc_id)
     if npc is None:
@@ -70,6 +76,7 @@ def build_dialogue_render_input(
         topic_status=dialogue_adjudication.topic_status.value,
         adjudication_resolution_kind=dialogue_adjudication.resolution_kind.value,
         conversation_stance=dialogue_adjudication.conversation_stance.value,
+        conversation_subtopic=command.conversation_subtopic.value if command.conversation_subtopic is not None else None,
         npc_trust_level=npc.trust_level,
         plot_name=plot.name if plot is not None else plot_rules.plot_id,
         plot_stage=plot.stage if plot is not None else "",
@@ -80,14 +87,143 @@ def build_dialogue_render_input(
         check_difficulty=check.difficulty if check is not None else None,
         consequence_messages=consequence_summary.messages,
         applied_effects=consequence_summary.applied_effects,
+        legacy_output_text=legacy_output_text,
+        social_outcome=social_outcome,
     )
 
 
 class DeterministicDialogueRenderer:
     def render_dialogue(self, render_input: DialogueRenderInput) -> str:
+        if render_input.social_outcome is not None:
+            return self._render_from_social_outcome(render_input)
         if render_input.npc_id == "npc_1":
             return self._render_jonas_dialogue(render_input)
         return self._render_default_dialogue(render_input)
+
+    def _render_from_social_outcome(self, render_input: DialogueRenderInput) -> str:
+        packet = render_input.social_outcome
+        assert packet is not None
+        if render_input.legacy_output_text and render_input.legacy_output_text.startswith("Talk is blocked"):
+            return render_input.legacy_output_text
+        if render_input.legacy_output_text and "nothing useful to say right now" in render_input.legacy_output_text.lower():
+            return f"Talk is blocked: {render_input.npc_name} has said what he will say."
+        if render_input.npc_id == "npc_1":
+            return self._render_jonas_from_social_outcome(render_input, packet)
+        return self._render_generic_social_outcome(render_input, packet)
+
+    def _render_generic_social_outcome(self, render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
+        name = render_input.npc_name
+        if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
+            return f"{name} ends the exchange without leaving an opening to continue."
+        if packet.outcome_kind is SocialOutcomeKind.THREATEN:
+            return f"{name} goes cold and makes it clear the conversation should stop there."
+        if packet.outcome_kind is SocialOutcomeKind.REFUSE:
+            return f"{name} refuses to go further and keeps the topic closed."
+        if packet.outcome_kind is SocialOutcomeKind.DEFLECT:
+            return f"{name} sidesteps the question and redirects the conversation elsewhere."
+        if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
+            return f"{name} cooperates enough to keep the conversation moving, but does not overcommit."
+        if packet.topic_result is TopicResult.OPENED:
+            return f"{name} gives you a clearer answer and lets the topic open up."
+        if packet.topic_result is TopicResult.PARTIAL:
+            return f"{name} gives you part of an answer, but keeps the rest guarded."
+        return f"{name} answers without changing much about the conversation."
+
+    def _render_jonas_from_social_outcome(self, render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
+        check = packet.check_result
+        if render_input.dialogue_domain == "travel_proposal":
+            return self._render_jonas_travel_response(render_input)
+
+        if render_input.dialogue_domain == "off_topic_request":
+            return self._render_jonas_off_topic_response(render_input)
+
+        if render_input.dialogue_domain == "provocative_or_inappropriate":
+            return "Jonas Reed's expression hardens. 'No. Keep this professional.'"
+
+        if check is not None:
+            if check.is_success:
+                if packet.topic_result is TopicResult.OPENED:
+                    return (
+                        "The pressure lands. Jonas Reed keeps his voice low, studies you for a beat, and loosens his shoulders before he points toward the waterline. "
+                        "He says the dock is where the paper trail began, the only place worth checking tonight, and the broker used the dock to move papers."
+                    )
+                return "The pressure lands and Jonas Reed keeps talking, but he only opens the topic partway."
+            return "Jonas Reed does not give ground. He stays guarded and the lead forward pressure does not land."
+
+        if render_input.dialogue_act == "greet" and packet.topic_result is TopicResult.UNCHANGED:
+            if check is not None and not check.is_success:
+                return "Jonas Reed doesn't take the pressure. He stays polite, but nothing opens up."
+            return "Jonas Reed gives a brief nod and keeps the greeting polite without opening the dock conversation yet."
+
+        if "go on" in (render_input.speech_text.lower() + " " + render_input.utterance_text.lower()):
+            return "Jonas Reed stays guarded and gives you nothing that would move the lead forward."
+
+        if render_input.dialogue_act == "ask" and packet.topic_result in {TopicResult.OPENED, TopicResult.PARTIAL, TopicResult.UNCHANGED}:
+            if (
+                packet.topic_result is TopicResult.OPENED
+                and render_input.conversation_stance != "guarded"
+                and (render_input.lead_flag_active or render_input.plot_stage in {"hook", "lead_confirmed"})
+            ):
+                return (
+                    f"Jonas Reed hears '{render_input.speech_text}' and answers without giving much away. "
+                    "He keeps his voice low, loosens his shoulders, and points you back to the waterline: the dock is the only place worth checking tonight because that is where the paper trail began."
+                )
+            return f"Jonas Reed hears '{render_input.speech_text}' and answers without giving much away."
+
+        if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
+            return "Jonas Reed ends the exchange and leaves no opening to continue."
+
+        if packet.outcome_kind is SocialOutcomeKind.THREATEN:
+            return "Jonas Reed goes still, stays guarded, and lets the warning hang there. The conversation closes around it."
+
+        if packet.outcome_kind is SocialOutcomeKind.REFUSE or packet.topic_result is TopicResult.BLOCKED:
+            if check is not None and not check.is_success:
+                return "Jonas Reed does not buy the pressure. He stays guarded and gives nothing that would move the lead forward."
+            return "Jonas Reed stays guarded and refuses to go further."
+
+        if packet.outcome_kind is SocialOutcomeKind.DEFLECT:
+            if packet.topic_result is TopicResult.PARTIAL:
+                return "Jonas Reed gives you a sliver of an answer, then steers you back before the conversation can deepen."
+            return "Jonas Reed sidesteps the question and keeps the conversation moving without opening anything new."
+
+        if packet.outcome_kind is SocialOutcomeKind.COOPERATE and packet.topic_result is TopicResult.UNCHANGED:
+            if check is not None and not check.is_success:
+                return "Jonas Reed doesn't take the pressure. He stays polite, but nothing opens up."
+            if render_input.dialogue_act == "greet":
+                return "Jonas Reed gives a brief nod and keeps the greeting polite without opening the dock conversation yet."
+            return "Jonas Reed cooperates without giving away more than the moment can support."
+
+        if packet.outcome_kind is SocialOutcomeKind.REVEAL or packet.topic_result is TopicResult.OPENED:
+            if render_input.lead_flag_active or render_input.plot_stage in {"hook", "lead_confirmed"}:
+                return (
+                    "Jonas Reed keeps his voice low, loosens his shoulders, and points you back to the waterline. "
+                    "He says the dock is the only place worth checking tonight because that is where the paper trail began."
+                )
+            return "Jonas Reed gives you a clearer answer and finally lets the topic open up."
+
+        if packet.topic_result is TopicResult.PARTIAL:
+            return "Jonas Reed gives you part of the answer, then closes the rest off before it can go further."
+
+        return "Jonas Reed stays measured and keeps the conversation within safe bounds."
+
+    def _render_jonas_travel_response(self, render_input: DialogueRenderInput) -> str:
+        normalized_text = f"{render_input.utterance_text} {render_input.speech_text}".lower().replace("-", " ")
+        if any(phrase in normalized_text for phrase in ("stay in the car", "wait in the car", "wait nearby", "stay nearby", "stay close", "wait close")):
+            return "Jonas Reed glances toward the street and answers carefully. 'I can stay nearby and watch the approach, but I am not planting myself where everyone can read the arrangement.'"
+        if any(phrase in normalized_text for phrase in ("back me up", "backup", "back up", "watch my back", "cover me", "come along as backup", "come along as back up")):
+            return "Jonas Reed weighs the request and keeps the answer tight. 'Not shoulder to shoulder. I can keep an eye on things from nearby, but if I stand beside you, people start asking why.'"
+        if any(
+            phrase in normalized_text
+            for phrase in ("drive", "spare car", "have a car", "got a car", "ride", "lift", "drop me off", "vehicle")
+        ):
+            return "Jonas Reed gives the street another glance before he answers, like he is already ruling out half the idea. 'I can get around just fine, but I am not turning this into a personal ride. If you go to the dock, you get yourself there.'"
+        return "Jonas Reed glances past you toward the street before he answers. 'If the dock matters, you go. Me showing my face there only makes noise.'"
+
+    def _render_jonas_off_topic_response(self, render_input: DialogueRenderInput) -> str:
+        normalized_text = f"{render_input.utterance_text} {render_input.speech_text}".lower().replace("-", " ")
+        if _is_taxi_fare_support_request(normalized_text):
+            return "Jonas Reed gives you a flat, unreadable look. 'I am not financing the ride. If the dock matters, find your own way there.'"
+        return "Jonas Reed keeps a careful distance and gives you nothing useful. 'Not that. Ask someone else.'"
 
     def _render_jonas_dialogue(self, render_input: DialogueRenderInput) -> str:
         if render_input.check_kind == "dialogue_social":

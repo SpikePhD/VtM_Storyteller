@@ -47,6 +47,20 @@ def evaluate_topic_openness(
             reason_code=f"{dialogue_act.value}_blocked",
         )
 
+    if dialogue_act is DialogueAct.GREET:
+        return SocialResolutionEvaluation(
+            topic_key=topic_key,
+            topic_sensitivity=topic_sensitivity,
+            openness_score=openness_score,
+            outcome_kind=SocialOutcomeKind.COOPERATE,
+            topic_result=TopicResult.UNCHANGED,
+            check_required=False,
+            check_roll_pool=_derive_roll_pool(openness_score),
+            check_difficulty=_derive_check_difficulty(openness_score, topic_sensitivity),
+            recommended_stance=ConversationStance.NEUTRAL,
+            reason_code="greet_cooperative",
+        )
+
     if topic_sensitivity is TopicSensitivity.BLOCKED:
         return SocialResolutionEvaluation(
             topic_key=topic_key,

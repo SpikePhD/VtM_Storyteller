@@ -556,24 +556,40 @@ class GameSession:
             return result
 
         try:
+            render_social_outcome = self._finalize_social_outcome_packet(
+                dialogue_adjudication,
+                result.conversation_stance or dialogue_adjudication.conversation_stance,
+                check,
+                consequence_summary,
+            )
             render_input = build_dialogue_render_input(
                 self._world_state,
                 command,
                 dialogue_adjudication,
                 check,
                 consequence_summary,
+                result.output_text,
+                render_social_outcome,
             )
             if not self._supports_dialogue_rendering(render_input):
                 return result
             rendered_output = self._dialogue_renderer.render_dialogue(render_input)
         except Exception:
             self._dialogue_renderer = self._fallback_dialogue_renderer
+            render_social_outcome = self._finalize_social_outcome_packet(
+                dialogue_adjudication,
+                result.conversation_stance or dialogue_adjudication.conversation_stance,
+                check,
+                consequence_summary,
+            )
             render_input = build_dialogue_render_input(
                 self._world_state,
                 command,
                 dialogue_adjudication,
                 check,
                 consequence_summary,
+                result.output_text,
+                render_social_outcome,
             )
             if not self._supports_dialogue_rendering(render_input):
                 return result
@@ -588,6 +604,8 @@ class GameSession:
         )
 
     def _supports_dialogue_rendering(self, render_input) -> bool:
+        if render_input.social_outcome is not None:
+            return True
         if render_input.npc_id != "npc_1":
             return False
         if render_input.check_kind == DeterministicCheckKind.DIALOGUE_SOCIAL.value:
