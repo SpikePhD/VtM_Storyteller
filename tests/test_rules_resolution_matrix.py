@@ -58,7 +58,10 @@ class RulesResolutionMatrixTests(unittest.TestCase):
 
         self.assertIsNotNone(turn)
         assert turn is not None
-        self.assertIn("Jonas Reed keeps his voice low", result.output_text)
+        self.assertIn("start with the dock", result.output_text.lower())
+        self.assertIsNotNone(result.dialogue_presentation)
+        assert result.dialogue_presentation is not None
+        self.assertEqual(result.dialogue_presentation.npc_display_name, "Jonas Reed")
         self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
         self.assertEqual(turn.normalization_source, NormalizationSource.INTERPRETED)
         self.assertEqual(turn.canonical_action_text, "talk npc_1")

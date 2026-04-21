@@ -43,9 +43,10 @@ class DialogueEndToEndTests(unittest.TestCase):
         self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.COOPERATE)
         self.assertEqual(turn.social_outcome.topic_result, TopicResult.UNCHANGED)
         self.assertFalse(turn.social_outcome.check_required)
-        self.assertIn("nod", result.output_text.lower())
+        self.assertIn("evening", result.output_text.lower())
         self.assertNotIn("paper trail", result.output_text.lower())
         self.assertNotIn("waterline", result.output_text.lower())
+        self.assertIsNotNone(result.dialogue_presentation)
 
     def test_jonas_small_talk_stays_polite_without_opening_the_lead(self) -> None:
         session = GameSession()
@@ -75,6 +76,7 @@ class DialogueEndToEndTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertIn("dock", result.output_text.lower())
         self.assertIn("paper trail", result.output_text.lower())
+        self.assertNotIn("jonas reed", result.output_text.lower())
 
     def test_jonas_persuade_success_renders_reveal_and_backend_progression(self) -> None:
         session = GameSession()
@@ -104,7 +106,7 @@ class DialogueEndToEndTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
         self.assertIn("jonas_shared_dock_lead", session.get_world_state().story_flags)
         self.assertTrue(
-            any(token in result.output_text.lower() for token in ("waterline", "paper trail", "broker"))
+            any(token in result.output_text.lower() for token in ("dockside", "paper trail", "dock"))
         )
 
     def test_jonas_persuade_failure_renders_guarded_refusal_without_reveal(self) -> None:
@@ -131,7 +133,7 @@ class DialogueEndToEndTests(unittest.TestCase):
         self.assertEqual(turn.social_outcome.plot_effects, ())
         self.assertNotIn("waterline", result.output_text.lower())
         self.assertNotIn("paper trail", result.output_text.lower())
-        self.assertIn("guarded", result.output_text.lower())
+        self.assertIn("not getting more", result.output_text.lower())
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
 
@@ -148,7 +150,7 @@ class DialogueEndToEndTests(unittest.TestCase):
         self.assertEqual(turn.social_outcome.topic_result, TopicResult.BLOCKED)
         self.assertEqual(turn.social_outcome.state_effects, ())
         self.assertEqual(turn.social_outcome.plot_effects, ())
-        self.assertIn("guarded", result.output_text.lower())
+        self.assertIn("naming names", result.output_text.lower())
         self.assertNotIn("paper trail", result.output_text.lower())
         self.assertNotEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.PRODUCTIVE)
 

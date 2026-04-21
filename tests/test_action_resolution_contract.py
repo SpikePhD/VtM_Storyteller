@@ -145,7 +145,7 @@ class ActionResolutionContractTests(unittest.TestCase):
 
         self.assertIsNotNone(turn)
         assert turn is not None
-        self.assertIn("stays guarded", result.output_text)
+        self.assertIn("guarded", result.output_text.lower())
         self.assertIsNotNone(turn.social_outcome)
         assert turn.social_outcome is not None
         self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.REFUSE)

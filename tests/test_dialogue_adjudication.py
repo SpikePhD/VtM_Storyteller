@@ -219,7 +219,10 @@ class DialogueAdjudicationTests(unittest.TestCase):
         result = session.process_input("Jonas, good evening.")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("Jonas Reed", result.output_text)
+        self.assertEqual(result.output_text, "Evening.")
+        self.assertIsNotNone(result.dialogue_presentation)
+        assert result.dialogue_presentation is not None
+        self.assertEqual(result.dialogue_presentation.npc_display_name, "Jonas Reed")
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)

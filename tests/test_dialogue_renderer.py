@@ -105,8 +105,8 @@ class DialogueRendererTests(unittest.TestCase):
         result = session.process_input("Jonas, what happened at the dock?")
 
         self.assertIn("dock", result.output_text.lower())
-        self.assertIn("jonas reed", result.output_text.lower())
-        self.assertNotIn("Talk is guarded", result.output_text)
+        self.assertIn("paper trail", result.output_text.lower())
+        self.assertNotIn("jonas reed", result.output_text.lower())
 
     def test_social_check_success_renders_from_structured_success_data(self) -> None:
         session = GameSession()
@@ -124,7 +124,7 @@ class DialogueRendererTests(unittest.TestCase):
             result = session.process_input("I persuade Jonas to help with the dock.")
 
         self.assertIn("dock", result.output_text.lower())
-        self.assertIn("dockside", result.output_text.lower())
+        self.assertIn("paper trail", result.output_text.lower())
         self.assertNotIn("Dialogue check success", result.output_text)
 
     def test_social_check_failure_renders_from_structured_failure_data(self) -> None:
@@ -142,7 +142,7 @@ class DialogueRendererTests(unittest.TestCase):
             )
             result = session.process_input("I persuade Jonas to help with the dock.")
 
-        self.assertIn("guarded", result.output_text.lower())
+        self.assertIn("not getting more", result.output_text.lower())
         self.assertNotIn("Dialogue check failed", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
 
@@ -184,7 +184,7 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("brief nod", output.lower())
+        self.assertIn("evening", output.lower())
         self.assertNotIn("dock", output.lower())
 
     def test_packet_first_reveal_path_still_communicates_the_lead(self) -> None:
@@ -216,7 +216,7 @@ class DialogueRendererTests(unittest.TestCase):
         output = renderer.render_dialogue(render_input)
 
         self.assertIn("dockside", output.lower())
-        self.assertIn("something solid", output.lower())
+        self.assertIn("piece you get", output.lower())
         self.assertNotIn("broker used the dock to move papers", output.lower())
 
     def test_packet_first_refusal_remains_guarded_without_progression(self) -> None:
@@ -252,8 +252,7 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("sister eliza", output.lower())
-        self.assertIn("keeps the topic closed", output.lower())
+        self.assertIn("all you're getting", output.lower())
         self.assertNotIn("jonas", output.lower())
 
     def test_packet_first_deflect_path_redirects_the_conversation(self) -> None:
@@ -274,8 +273,7 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("redirects the conversation", output.lower())
-        self.assertIn("finance the trip", output.lower())
+        self.assertIn("financing the ride", output.lower())
 
     def test_packet_first_disengage_path_shuts_the_exchange_down(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -287,7 +285,7 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("closes off the exchange", output.lower())
+        self.assertIn("done here", output.lower())
 
     def test_packet_first_check_failure_is_reflected_naturally(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -315,7 +313,7 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("does not land", output.lower())
+        self.assertIn("not getting more", output.lower())
         self.assertNotIn("broker used the dock to move papers", output.lower())
 
     def test_packet_first_check_success_is_reflected_naturally(self) -> None:
@@ -346,9 +344,9 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("pressure lands", output.lower())
+        self.assertIn("paper trail", output.lower())
         self.assertIn("dock", output.lower())
-        self.assertIn("plainly enough", output.lower())
+        self.assertIn("piece you get", output.lower())
 
     def test_renderer_output_does_not_mutate_world_state(self) -> None:
         session = GameSession()

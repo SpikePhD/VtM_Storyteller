@@ -48,7 +48,10 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         result = session.process_input("We need to talk about the dock.")
         interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("Jonas Reed", result.output_text)
+        self.assertIn("dock", result.output_text.lower())
+        self.assertIsNotNone(result.dialogue_presentation)
+        assert result.dialogue_presentation is not None
+        self.assertEqual(result.dialogue_presentation.npc_display_name, "Jonas Reed")
         self.assertIsNotNone(interpreted)
         assert interpreted is not None
         self.assertEqual(interpreted.target_reference, "npc_1")
@@ -78,7 +81,10 @@ class DialogueIntentAdapterTests(unittest.TestCase):
                 result = session.process_input(raw_input)
                 interpreted = session.get_last_interpreted_input()
 
-                self.assertIn("Jonas Reed", result.output_text)
+                self.assertIn("dock", result.output_text.lower())
+                self.assertIsNotNone(result.dialogue_presentation)
+                assert result.dialogue_presentation is not None
+                self.assertEqual(result.dialogue_presentation.npc_display_name, "Jonas Reed")
                 self.assertIsNotNone(interpreted)
                 assert interpreted is not None
                 self.assertEqual(interpreted.target_reference, "npc_1")
@@ -146,7 +152,10 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         result = session.process_input("I say to Jonas that we need to talk about the dock.")
         interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("Jonas Reed", result.output_text)
+        self.assertIn("dock", result.output_text.lower())
+        self.assertIsNotNone(result.dialogue_presentation)
+        assert result.dialogue_presentation is not None
+        self.assertEqual(result.dialogue_presentation.npc_display_name, "Jonas Reed")
         self.assertIsNotNone(interpreted)
         assert interpreted is not None
         self.assertEqual(interpreted.target_reference, "npc_1")
@@ -180,7 +189,10 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         session.process_input("Jonas, good evening.")
         result = session.process_input("I turn back to her and continue.")
 
-        self.assertIn("Jonas Reed", result.output_text)
+        self.assertTrue(result.output_text.strip())
+        self.assertIsNotNone(result.dialogue_presentation)
+        assert result.dialogue_presentation is not None
+        self.assertEqual(result.dialogue_presentation.npc_display_name, "Jonas Reed")
         self.assertEqual(session.get_last_interpreted_input().target_reference, "npc_1")
         self.assertEqual(session.get_last_interpreted_input().dialogue_metadata.dialogue_act, DialogueAct.UNKNOWN)
 

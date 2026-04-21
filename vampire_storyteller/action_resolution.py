@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from enum import Enum
 
 from .command_models import Command, ConversationStance
-from .command_result import CommandResult
+from .command_result import CommandResult, DialoguePresentation
 from .dice_engine import (
     DeterministicCheckKind,
     DeterministicCheckResolution,
@@ -200,6 +200,7 @@ class ActionResolutionTurn:
     render_scene: bool
     conversation_focus_npc_id: str | None
     conversation_stance: ConversationStance | None
+    dialogue_presentation: DialoguePresentation | None = None
     dialogue_adjudication: DialogueAdjudicationOutcome | None = None
     social_outcome: SocialOutcomePacket | None = None
 
@@ -210,6 +211,7 @@ class ActionResolutionTurn:
             render_scene=self.render_scene,
             conversation_focus_npc_id=self.conversation_focus_npc_id,
             conversation_stance=self.conversation_stance,
+            dialogue_presentation=self.dialogue_presentation,
         )
 
 

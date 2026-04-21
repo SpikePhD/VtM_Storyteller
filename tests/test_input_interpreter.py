@@ -297,6 +297,21 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.canonical_command, "talk npc_1")
 
+    def test_missing_ledger_statement_follow_up_uses_active_conversation_focus(self) -> None:
+        result = self.interpreter.interpret(
+            "I need you to tell me what you know about the missing ledger",
+            self.world_state,
+            conversation_focus_npc_id="npc_1",
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        assert result.dialogue_metadata is not None
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.PERSUADE)
+
     def test_follow_up_against_stale_focus_returns_grounded_failure(self) -> None:
         result = self.interpreter.interpret(
             "Why?",

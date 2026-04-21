@@ -20,7 +20,7 @@ from .command_dispatcher import execute_command
 from .command_models import Command, ConversationStance, DialogueAct, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
 from .exceptions import CommandParseError
 from .command_parser import parse_command
-from .command_result import CommandResult
+from .command_result import CommandResult, DialoguePresentation
 from .consequence_engine import apply_post_resolution_consequences
 from .conversation_context import ConversationContext
 from .data_paths import ensure_adventure_directories, get_default_save_path
@@ -70,6 +70,7 @@ class GameSession:
     def process_input(self, raw_input: str) -> CommandResult:
         # Phase 1: interpret freeform input against the current world and session context.
         interpretation = self._interpret_input(raw_input)
+        previous_focus_npc_id = self._conversation_context.focus_npc_id
         self._last_interpreted_input = interpretation
         if interpretation.no_active_conversation:
             self._last_action_resolution = None
@@ -99,7 +100,7 @@ class GameSession:
                     adjudication=adjudication,
                     check=check_outcome,
                     consequence_summary=consequence_summary,
-                    result=self._render_talk_result(command, result, dialogue_adjudication, check_outcome, consequence_summary),
+                    result=self._render_talk_result(command, result, dialogue_adjudication, check_outcome, consequence_summary, previous_focus_npc_id),
                     dialogue_adjudication=dialogue_adjudication,
                     social_outcome=self._finalize_social_outcome_packet(
                         dialogue_adjudication,
@@ -115,7 +116,7 @@ class GameSession:
                     result = self._materialize_dialogue_domain_result(command, dialogue_adjudication)
                 else:
                     result = self._materialize_dialogue_adjudication_result(command, dialogue_adjudication)
-                result = self._render_talk_result(command, result, dialogue_adjudication, None, ActionConsequenceSummary())
+                result = self._render_talk_result(command, result, dialogue_adjudication, None, ActionConsequenceSummary(), previous_focus_npc_id)
                 turn = self._build_dialogue_adjudication_resolution_turn(normalized_action, dialogue_adjudication, result)
                 self._last_action_resolution = turn
                 return result
@@ -177,7 +178,7 @@ class GameSession:
 
         # Phase 10: render the final response for the player.
         final_result = self._render_response(command, result)
-        final_result = self._render_talk_result(command, final_result, dialogue_adjudication, check_outcome, consequence_summary)
+        final_result = self._render_talk_result(command, final_result, dialogue_adjudication, check_outcome, consequence_summary, previous_focus_npc_id)
         turn = self._build_final_resolution_turn(
             command=command,
             normalized_action=normalized_action,
@@ -408,6 +409,7 @@ class GameSession:
             render_scene=result.render_scene,
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
+            dialogue_presentation=result.dialogue_presentation,
             dialogue_adjudication=dialogue_adjudication,
             social_outcome=social_outcome,
         )
@@ -435,6 +437,7 @@ class GameSession:
             render_scene=result.render_scene,
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
+            dialogue_presentation=result.dialogue_presentation,
             dialogue_adjudication=dialogue_adjudication,
             social_outcome=self._finalize_social_outcome_packet(
                 dialogue_adjudication,
@@ -561,6 +564,7 @@ class GameSession:
         dialogue_adjudication: DialogueAdjudicationOutcome | None,
         check: ActionCheckOutcome | None,
         consequence_summary: ActionConsequenceSummary,
+        previous_focus_npc_id: str | None,
     ) -> CommandResult:
         if not isinstance(command, TalkCommand) or dialogue_adjudication is None:
             return result
@@ -585,8 +589,14 @@ class GameSession:
             if not self._supports_dialogue_rendering(render_input):
                 return result
             rendered_output = self._dialogue_renderer.render_dialogue(render_input)
+            dialogue_presentation = self._build_dialogue_presentation(
+                command,
+                result,
+                previous_focus_npc_id,
+            )
         except Exception as exc:
             rendered_output = f"Dialogue rendering failed: no realized reply is available right now ({exc})."
+            dialogue_presentation = None
 
         return CommandResult(
             output_text=rendered_output,
@@ -594,10 +604,34 @@ class GameSession:
             render_scene=result.render_scene,
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
+            dialogue_presentation=dialogue_presentation,
         )
 
     def _supports_dialogue_rendering(self, render_input: DialogueRenderInput) -> bool:
         return render_input.social_outcome is not None
+
+    def _build_dialogue_presentation(
+        self,
+        command: TalkCommand,
+        result: CommandResult,
+        previous_focus_npc_id: str | None,
+    ) -> DialoguePresentation | None:
+        if command.dialogue_metadata is None:
+            return None
+        if result.conversation_focus_npc_id is None:
+            return None
+        npc = self._world_state.npcs.get(result.conversation_focus_npc_id)
+        if npc is None:
+            return None
+        utterance = command.dialogue_metadata.speech_text or command.dialogue_metadata.utterance_text
+        utterance = self._normalize_whitespace(utterance)
+        if not utterance:
+            return None
+        return DialoguePresentation(
+            player_utterance=utterance,
+            npc_display_name=npc.name,
+            focus_changed=result.conversation_focus_npc_id != previous_focus_npc_id,
+        )
 
     def _resolve_escalated_persuade_dialogue(
         self,
@@ -789,6 +823,7 @@ class GameSession:
             render_scene=result.render_scene,
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
+            dialogue_presentation=result.dialogue_presentation,
         )
 
     def _normalize_dialogue_topic(self, topic: str | None) -> str:
@@ -970,6 +1005,7 @@ class GameSession:
             render_scene=result.render_scene,
             conversation_focus_npc_id=result.conversation_focus_npc_id,
             conversation_stance=result.conversation_stance,
+            dialogue_presentation=result.dialogue_presentation,
         )
 
     def _classify_turn_kind(

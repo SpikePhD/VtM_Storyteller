@@ -195,82 +195,44 @@ class DeterministicDialogueRenderer:
     def render_dialogue(self, render_input: DialogueRenderInput) -> str:
         packet = render_input.social_outcome
         if packet is None:
-            return f"{render_input.npc_name} gives you a brief, unreadable look and says nothing useful."
+            return "I have nothing for you."
 
         if _is_small_talk(render_input):
             if "how are you" in f"{render_input.utterance_text} {render_input.speech_text}".lower() or "how are things" in f"{render_input.utterance_text} {render_input.speech_text}".lower():
-                return (
-                    f"{render_input.npc_name} gives a short shrug. "
-                    "'I'm holding up. You needed something specific?'"
-                )
-            return f"{render_input.npc_name} gives a brief nod and keeps the greeting polite."
+                return "I'm holding up. You needed something specific?"
+            return "Evening."
 
         if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
-            return f"{render_input.npc_name} closes off the exchange and leaves you with no easy way to continue."
+            return "That's enough. We're done here."
 
         if render_input.dialogue_domain == "provocative_or_inappropriate":
-            return f"{render_input.npc_name}'s expression hardens. 'Keep this professional.'"
+            return "Keep this professional."
 
         if _is_short_lead_follow_up(render_input) and packet.topic_result in {TopicResult.OPENED, TopicResult.UNCHANGED, TopicResult.PARTIAL}:
-            return f"{render_input.npc_name} keeps his voice low. 'Because that's where the trail starts.'"
-
-        intro = _build_intro(render_input)
-        fact_text = _build_fact_text(render_input.authorized_fact_cards)
-
-        if render_input.dialogue_domain == "travel_proposal" and fact_text:
-            return f"{intro} {render_input.npc_name} keeps the request at arm's length. {fact_text}"
-        if render_input.dialogue_domain == "off_topic_request" and fact_text:
-            return f"{intro} {render_input.npc_name} redirects the conversation away from the favor. {fact_text}"
+            return "Because that's where the trail starts."
+        if _is_emptyish_follow_up(render_input):
+            return "If you've got a question, ask it plainly."
+        if _is_background_prompt(render_input):
+            return _render_background_prompt(render_input)
+        if render_input.dialogue_domain == "travel_proposal":
+            return _render_travel_boundary(render_input, packet)
+        if render_input.dialogue_domain == "off_topic_request":
+            return _render_off_topic_boundary(render_input)
 
         if packet.check_result is not None:
             if packet.check_result.is_success:
-                opening = f"{intro} The pressure lands, and {render_input.npc_name} finally gives you something solid."
-            else:
-                opening = f"{intro} The pressure does not land, and {render_input.npc_name} stays guarded and gives nothing away."
-        elif packet.outcome_kind is SocialOutcomeKind.REVEAL or packet.topic_result is TopicResult.OPENED:
-            lead_shift = " He loosens his shoulders just enough for the change to show." if render_input.lead_flag_active or render_input.plot_stage == "lead_confirmed" else ""
-            opening = f"{render_input.npc_name} keeps his voice low and gives you a clearer answer.{lead_shift}"
-        elif packet.outcome_kind is SocialOutcomeKind.COOPERATE:
-            opening = f"{intro} {render_input.npc_name} stays conversational without opening too much."
-        elif packet.outcome_kind is SocialOutcomeKind.DEFLECT:
-            opening = f"{intro} {render_input.npc_name} answers narrowly, then redirects the conversation."
-        elif packet.outcome_kind is SocialOutcomeKind.THREATEN:
-            opening = f"{intro} {render_input.npc_name} stays guarded and lets the warning hang there."
-        else:
-            opening = f"{intro} {render_input.npc_name} stays guarded and keeps the topic closed."
+                return _render_check_success(render_input)
+            return _render_check_failure(render_input)
 
-        if _is_background_prompt(render_input) and fact_text:
-            return f"{opening} {fact_text}"
-
-        if packet.outcome_kind is SocialOutcomeKind.THREATEN and fact_text:
-            return f"{opening} {fact_text}"
-        if packet.outcome_kind is SocialOutcomeKind.REFUSE and fact_text:
-            return f"{opening} {fact_text}"
-        if packet.outcome_kind is SocialOutcomeKind.DEFLECT and fact_text:
-            return f"{opening} {fact_text}"
-        if (packet.outcome_kind is SocialOutcomeKind.REVEAL or packet.topic_result is TopicResult.OPENED) and fact_text:
-            return f"{opening} {fact_text}"
-        if packet.topic_result is TopicResult.PARTIAL and fact_text:
-            return f"{opening} {fact_text}"
-        if fact_text:
-            return f"{opening} {fact_text}"
-
-        return opening
-
-
-def _build_intro(render_input: DialogueRenderInput) -> str:
-    persona = render_input.npc_profile.public_persona or f"a {render_input.npc_role.lower()}"
-    speaking_style = render_input.npc_profile.speaking_style or "careful"
-    return f"{render_input.npc_name} responds in a {speaking_style} way, still presenting as {persona}."
-
-
-def _build_fact_text(facts: tuple[DialogueFactCard, ...]) -> str:
-    if not facts:
-        return ""
-    summaries = [fact.summary.rstrip(".") for fact in facts[:2]]
-    if len(summaries) == 1:
-        return f"{summaries[0]}."
-    return f"{summaries[0]}. {summaries[1]}."
+        if packet.outcome_kind is SocialOutcomeKind.REVEAL or packet.topic_result is TopicResult.OPENED:
+            return _render_reveal(render_input)
+        if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
+            return _render_cooperate(render_input)
+        if packet.outcome_kind is SocialOutcomeKind.DEFLECT or packet.topic_result is TopicResult.PARTIAL:
+            return _render_deflect(render_input)
+        if packet.outcome_kind is SocialOutcomeKind.THREATEN:
+            return _render_threaten(render_input)
+        return _render_refuse(render_input)
 
 
 def _is_small_talk(render_input: DialogueRenderInput) -> bool:
@@ -295,3 +257,83 @@ def _is_short_lead_follow_up(render_input: DialogueRenderInput) -> bool:
     return render_input.dialogue_domain == "lead_topic" and any(
         phrase in normalized for phrase in ("why", "what do you mean", "go on", "tell me more", "what about it")
     )
+
+
+def _is_emptyish_follow_up(render_input: DialogueRenderInput) -> bool:
+    normalized = " ".join(f"{render_input.utterance_text} {render_input.speech_text}".split()).strip()
+    return normalized in {"?", "so?", "so"}
+
+
+def _render_background_prompt(render_input: DialogueRenderInput) -> str:
+    if _has_fact(render_input, "background"):
+        return "I hear things, pass on what matters, and stay out of anybody's pocket. That's how I last in this city."
+    return "I keep to my lane, I listen well, and I stay useful."
+
+
+def _render_travel_boundary(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
+    if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
+        return "I'll stay nearby if things go bad, but I'm not riding with you and I'm not showing up there as your visible accomplice."
+    return "No. If the dock matters, you go. I'm not turning myself into your ride or your visible accomplice."
+
+
+def _render_off_topic_boundary(render_input: DialogueRenderInput) -> str:
+    normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
+    if "blood" in normalized or "feed" in normalized or "bite" in normalized or "drink" in normalized:
+        return "Not from me. Ask someone else."
+    return "No. I'm not financing the ride. Ask someone else."
+
+
+def _render_check_success(render_input: DialogueRenderInput) -> str:
+    if _has_fact(render_input, "lead"):
+        return "All right. The paper trail starts at North Dockside. That's the piece you get from me tonight."
+    return "Fine. You've got enough to move on. Start with the dock and don't waste it."
+
+
+def _render_check_failure(render_input: DialogueRenderInput) -> str:
+    if _has_fact(render_input, "refusal_basis"):
+        return "No. That push doesn't buy you anything. You're not getting more out of me tonight."
+    return "No. You're pushing too hard, and you're not getting more out of me tonight."
+
+
+def _render_reveal(render_input: DialogueRenderInput) -> str:
+    if _has_fact(render_input, "lead"):
+        if render_input.plot_stage == "lead_confirmed" or render_input.lead_flag_active:
+            return "I already told you where to start. North Dockside. That's where the paper trail begins."
+        return "North Dockside. That's where the paper trail begins, and that's where you should start."
+    if _has_fact(render_input, "background"):
+        return _render_background_prompt(render_input)
+    return "I've given you what matters. Start with the dock."
+
+
+def _render_cooperate(render_input: DialogueRenderInput) -> str:
+    if _has_fact(render_input, "lead"):
+        return "Start with the dock. That's the cleanest lead I've got for you."
+    if _has_fact(render_input, "background"):
+        return _render_background_prompt(render_input)
+    return "I'm listening. Keep it narrow."
+
+
+def _render_deflect(render_input: DialogueRenderInput) -> str:
+    if _has_fact(render_input, "redirect") or _has_fact(render_input, "lead"):
+        return "You're asking for too much in public. Start with the dock, and let the rest wait."
+    if _has_fact(render_input, "boundary"):
+        return _render_off_topic_boundary(render_input)
+    return "That's not the part I'm opening up right now."
+
+
+def _render_threaten(render_input: DialogueRenderInput) -> str:
+    if _has_fact(render_input, "boundary") or _has_fact(render_input, "refusal_basis"):
+        return "Watch your tone. You don't get more from me by pushing like that."
+    return "Back off. We're done if that's how you want to do this."
+
+
+def _render_refuse(render_input: DialogueRenderInput) -> str:
+    if _has_fact(render_input, "refusal_basis"):
+        return "No. I'm not naming names, and you're not getting the whole chain behind it."
+    if _has_fact(render_input, "boundary"):
+        return "No. I'm guarded enough already. That's as far as this conversation goes."
+    return "No. That's all you're getting from me."
+
+
+def _has_fact(render_input: DialogueRenderInput, fact_kind: str) -> bool:
+    return any(fact.kind == fact_kind for fact in render_input.authorized_fact_cards)

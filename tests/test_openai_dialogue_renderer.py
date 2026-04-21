@@ -99,6 +99,8 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         prompt = called_kwargs["input"]
         self.assertIn("social_outcome packet as the authoritative contract", prompt)
         self.assertIn("authorized_fact_cards are the only plot-facing facts", prompt)
+        self.assertIn("Write only the NPC's direct speech for this turn.", prompt)
+        self.assertIn("Do not write third-person paraphrase", prompt)
         self.assertIn("Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, checks, or state changes.", prompt)
         self.assertIn('"npc_name":"Jonas Reed"', prompt)
         self.assertIn('"dialogue_domain":"lead_topic"', prompt)

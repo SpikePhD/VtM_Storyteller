@@ -79,10 +79,10 @@ def run_cli() -> None:
 
     while True:
         try:
-            raw_input = input("> ")
+            raw_input = input(_build_cli_prompt(session))
             result = session.process_input(raw_input)
             print()
-            print(result.output_text)
+            print(_format_cli_result(result))
             if result.should_quit:
                 break
         except CommandParseError as exc:
@@ -91,6 +91,30 @@ def run_cli() -> None:
             print(f"Action failed: {exc}")
         except EOFError:
             break
+
+
+def _build_cli_prompt(session: GameSession) -> str:
+    focus_npc_id = session.get_conversation_focus_npc_id()
+    if focus_npc_id is None:
+        return "> "
+    npc = session.get_world_state().npcs.get(focus_npc_id)
+    if npc is None:
+        return "> "
+    prompt_name = npc.name.split()[0] if npc.name.strip() else "Talk"
+    return f"{prompt_name} > "
+
+
+def _format_cli_result(result) -> str:
+    presentation = result.dialogue_presentation
+    if presentation is None:
+        return result.output_text
+
+    lines: list[str] = []
+    if presentation.focus_changed:
+        lines.append(f"Conversation: {presentation.npc_display_name}")
+    lines.append(f'Player: "{presentation.player_utterance}"')
+    lines.append(f'{presentation.npc_display_name}: "{result.output_text}"')
+    return "\n".join(lines)
 
 
 def _build_runtime_banner(
