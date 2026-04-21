@@ -4,7 +4,7 @@ import re
 from enum import Enum
 from dataclasses import dataclass
 
-from .command_models import DialogueAct, DialogueMetadata
+from .command_models import DialogueAct, DialogueMetadata, DialogueMove
 from .dialogue_intent_adapter import (
     DialogueIntentAdapter,
     DialogueIntentProposal,
@@ -557,7 +557,6 @@ class InputInterpreter:
                 "did you",
                 "are you",
                 "is it",
-                "tell me",
             ),
         ):
             return DialogueAct.ASK
@@ -699,6 +698,8 @@ class InputInterpreter:
                 "what about the church",
                 "what about the records",
                 "what about",
+                "tell me",
+                "sure tell me",
                 "what do you know about the missing ledger",
                 "what do you know about the ledger",
                 "tell me what you know about the missing ledger",
@@ -707,6 +708,11 @@ class InputInterpreter:
                 "tell me about the church",
                 "tell me about the records",
                 "tell me about",
+                "just coming to say hi",
+                "coming to say hi",
+                "there you are",
+                "you just did",
+                "are you repeating what i am saying",
                 "missing ledger",
                 "about the dock",
                 "about the ledger",
@@ -837,12 +843,14 @@ class InputInterpreter:
 
         speech_text = self._extract_speech_text(raw_input, resolved_npc.name)
         dialogue_act = self._coerce_dialogue_act(proposal.dialogue_act)
+        dialogue_move = self._coerce_dialogue_move(proposal.dialogue_move)
         metadata = DialogueMetadata(
             utterance_text=raw_input.strip(),
             speech_text=speech_text,
             dialogue_act=dialogue_act,
             topic=proposal.topic,
             tone=proposal.tone,
+            dialogue_move=dialogue_move,
         )
         return InterpretedInput(
             normalized_intent="talk",
@@ -942,6 +950,120 @@ class InputInterpreter:
         except ValueError:
             return DialogueAct.UNKNOWN
 
+    def _coerce_dialogue_move(self, dialogue_move: str) -> DialogueMove:
+        try:
+            return DialogueMove(dialogue_move)
+        except ValueError:
+            return DialogueMove.NONE
+
+    def _classify_dialogue_move(
+        self,
+        raw_input: str,
+        normalized_text: str,
+        speech_text: str,
+        normalized_speech_text: str,
+        dialogue_act: DialogueAct,
+    ) -> DialogueMove:
+        if not normalized_speech_text:
+            return DialogueMove.NONE
+
+        if self._contains_any(
+            normalized_text,
+            (
+                "you just did",
+                "are you repeating what i am saying",
+                "you are repeating what i am saying",
+                "youre repeating what i am saying",
+                "no you have not given me anything",
+                "you have not given me anything",
+                "you have not helped me",
+                "you didnt help me",
+                "you did not help me",
+                "that is not what i meant",
+                "thats not what i meant",
+                "i meant",
+            ),
+        ):
+            return DialogueMove.CLARIFY
+
+        if self._contains_any(
+            normalized_text,
+            (
+                "sure tell me",
+                "sure i am listening",
+                "tell me more",
+                "go on",
+                "continue",
+                "carry on",
+                "keep going",
+                "what else",
+                "and then",
+                "go ahead",
+                "i am listening",
+            ),
+        ) or normalized_text.startswith("sure"):
+            return DialogueMove.CONTINUE
+
+        if self._contains_any(
+            normalized_text,
+            (
+                "just coming to say hi",
+                "coming to say hi",
+                "just wanted to say hi",
+                "say hi",
+                "hello there",
+                "hi there",
+                "good to see you",
+                "nice to see you",
+                "good evening",
+                "good morning",
+                "good afternoon",
+                "just saying hi",
+            ),
+        ):
+            return DialogueMove.REACT
+
+        if self._contains_any(
+            normalized_text,
+            (
+                "there you are",
+                "look who it is",
+                "well well",
+                "oh there you are",
+            ),
+        ):
+            return DialogueMove.BANTER
+
+        if dialogue_act is DialogueAct.ASK and self._contains_any(
+            normalized_speech_text,
+            (
+                "what is going on",
+                "how are you",
+                "how are things",
+                "how is it going",
+                "what do you mean",
+            ),
+        ):
+            return DialogueMove.NONE
+
+        if dialogue_act is DialogueAct.GREET:
+            return DialogueMove.REACT
+
+        if dialogue_act is DialogueAct.UNKNOWN and any(token in normalized_text.split() for token in ("sure", "right", "okay", "ok")):
+            return DialogueMove.REACT
+
+        if dialogue_act is DialogueAct.ASK and self._contains_any(
+            normalized_text,
+            (
+                "go on",
+                "continue",
+                "what else",
+            ),
+        ):
+            return DialogueMove.CONTINUE
+
+        return DialogueMove.NONE
+
     def _build_talk_result(
         self,
         raw_input: str,
@@ -956,12 +1078,14 @@ class InputInterpreter:
         normalized_speech_text = self._normalize_text(speech_text)
         if dialogue_act is None:
             dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, speech_text, normalized_speech_text)
+        dialogue_move = self._classify_dialogue_move(raw_input, normalized_text, speech_text, normalized_speech_text, dialogue_act)
         metadata = DialogueMetadata(
             utterance_text=raw_input.strip(),
             speech_text=speech_text,
             dialogue_act=dialogue_act,
             topic=topic,
             tone=tone,
+            dialogue_move=dialogue_move,
         )
         return InterpretedInput(
             normalized_intent="talk",

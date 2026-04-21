@@ -156,6 +156,20 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
         command.conversation_stance,
         command.conversation_subtopic,
     )
+    if dialogue_domain is DialogueDomain.LEAD_PRESSURE and _is_hostility_challenge(topic_context):
+        evaluation = SocialResolutionEvaluation(
+            topic_key=evaluation.topic_key,
+            topic_sensitivity=evaluation.topic_sensitivity,
+            openness_score=evaluation.openness_score,
+            outcome_kind=SocialOutcomeKind.REFUSE,
+            topic_result=TopicResult.BLOCKED,
+            check_required=False,
+            check_roll_pool=evaluation.check_roll_pool,
+            check_difficulty=evaluation.check_difficulty,
+            recommended_stance=ConversationStance.GUARDED,
+            reason_code="hostility_challenge_guarded",
+        )
+        topic_status = DialogueTopicStatus.REFUSED
     if topic_status is DialogueTopicStatus.PRODUCTIVE:
         evaluation = evaluate_topic_openness(
             npc.social_state,
@@ -384,3 +398,20 @@ def _topic_context_from_subtopic(active_subtopic: DialogueSubtopic | None) -> st
     if active_subtopic is DialogueSubtopic.MISSING_LEDGER:
         return "dock"
     return None
+
+
+def _is_hostility_challenge(normalized_text: str | None) -> bool:
+    if not normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "why are you hostile",
+            "why are you so hostile",
+            "why are you being difficult",
+            "you are being difficult",
+            "you are hostile",
+            "you are guarded",
+            "you are refusing",
+        )
+    )

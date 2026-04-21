@@ -10,7 +10,7 @@ from vampire_storyteller.dice_engine import DeterministicCheckKind
 from vampire_storyteller.dice_engine import DeterministicCheckResolution
 from vampire_storyteller.config import AppConfig
 from vampire_storyteller.command_dispatcher import execute_command
-from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
+from vampire_storyteller.command_models import ConversationStance, DialogueAct, DialogueMove, TalkCommand
 from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.cli import build_runtime_composition
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
@@ -45,6 +45,7 @@ class RecordingDialogueIntentAdapter:
 
         return DialogueIntentProposal(
             dialogue_act="ask",
+            dialogue_move="continue",
             target_npc_text=context.conversation_focus_npc_name or "Jonas Reed",
             topic="missing_ledger",
             tone="curious",
@@ -61,6 +62,7 @@ class RecordingElizaDialogueIntentAdapter:
 
         return DialogueIntentProposal(
             dialogue_act="ask",
+            dialogue_move="continue",
             target_npc_text="Sister Eliza",
             topic="church_records",
             tone="careful",
@@ -336,7 +338,7 @@ class GameSessionTests(unittest.TestCase):
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
         assert turn.dialogue_adjudication is not None
-        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.META_CONVERSATION)
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_PRESSURE)
         self.assertIn(turn.dialogue_adjudication.topic_status, {DialogueTopicStatus.AVAILABLE, DialogueTopicStatus.REFUSED, DialogueTopicStatus.PRODUCTIVE})
 
     def test_meta_conversation_challenge_does_not_reveal_protected_facts(self) -> None:
@@ -390,6 +392,89 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("stay out of anybody's pocket", result.output_text.lower())
         self.assertNotIn("paper trail", result.output_text.lower())
 
+    def test_statement_style_acknowledgement_uses_react_move_without_echoing_player_text(self) -> None:
+        session = GameSession()
+
+        session.process_input("Hello Jonas.")
+        result = session.process_input("Just coming to say hi.")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.REACT)
+        self.assertIn(
+            result.output_text.lower(),
+            {"evening.", "i'm listening.", "i'm holding up. you needed something specific?"},
+        )
+        self.assertNotIn("coming to say hi", result.output_text.lower())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+
+    def test_statement_style_continuation_uses_continue_move_without_echoing_player_text(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, what happened at the dock?")
+        result = session.process_input("Sure. Tell me.")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CONTINUE)
+        self.assertNotIn("sure. tell me", result.output_text.lower())
+        self.assertTrue(result.output_text.strip())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+
+    def test_statement_style_clarify_uses_clarify_move_without_revealing_content(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        result = session.process_input("You just did.")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
+        self.assertNotIn("paper trail", result.output_text.lower())
+        self.assertNotIn("you just did", result.output_text.lower())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+
+    def test_statement_style_banter_uses_banter_move_without_echoing_player_text(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        result = session.process_input("There you are! anyhow, I know you have information for me.")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.BANTER)
+        self.assertNotIn("there you are", result.output_text.lower())
+        self.assertTrue(result.output_text.strip())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+
+    def test_meta_question_uses_clarify_move_without_echoing_player_text(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        result = session.process_input("Are you repeating what I am saying?")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
+        self.assertNotIn("repeating what i am saying", result.output_text.lower())
+        self.assertTrue(result.output_text.strip())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+
     def test_active_conversation_freeform_follow_up_routes_into_dialogue_intent(self) -> None:
         adapter = RecordingDialogueIntentAdapter()
         session = GameSession(dialogue_intent_adapter=adapter)
@@ -404,6 +489,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertIsNotNone(interpreted.dialogue_metadata)
         assert interpreted.dialogue_metadata is not None
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CONTINUE)
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)

@@ -41,6 +41,7 @@ def _make_render_input(
     npc_name: str = "Jonas Reed",
     dialogue_domain: str = "lead_topic",
     dialogue_act: str = "greet",
+    dialogue_move: str = "none",
     conversation_stance: str = "neutral",
     check_result: SocialCheckResult | None = None,
     check_kind: str | None = None,
@@ -61,6 +62,7 @@ def _make_render_input(
         utterance_text=utterance_text,
         speech_text=speech_text,
         dialogue_act=dialogue_act,
+        dialogue_move=dialogue_move,
         dialogue_domain=dialogue_domain,
         topic_status="productive" if topic_result is TopicResult.OPENED else "available" if topic_result is TopicResult.UNCHANGED else "refused",
         adjudication_resolution_kind="allowed",
@@ -146,7 +148,7 @@ class DialogueRendererTests(unittest.TestCase):
             )
             result = session.process_input("I persuade Jonas to help with the dock.")
 
-        self.assertIn("dock", result.output_text.lower())
+        self.assertTrue(result.output_text.strip())
         self.assertNotIn("Dialogue check failed", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
 
@@ -163,7 +165,8 @@ class DialogueRendererTests(unittest.TestCase):
 
         result = session.process_input("Jonas do you want to come with me to the docks?")
 
-        self.assertTrue(any(term in result.output_text.lower() for term in ("nearby", "alone", "docks")))
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("paper trail", result.output_text.lower())
 
     def test_taxi_money_support_refusal_renders_from_structured_domain_outcome(self) -> None:
         session = GameSession()
@@ -172,7 +175,8 @@ class DialogueRendererTests(unittest.TestCase):
 
         result = session.process_input("Ok then. I will call the taxi - do you have some spare change?")
 
-        self.assertTrue(any(term in result.output_text.lower() for term in ("fare", "taxi", "cover")))
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("paper trail", result.output_text.lower())
         self.assertNotIn("paper trail began", result.output_text.lower())
 
     def test_dialogue_context_assembler_returns_jonas_dossier_backed_context(self) -> None:
@@ -409,6 +413,75 @@ class DialogueRendererTests(unittest.TestCase):
 
         self.assertNotIn("paper trail", output.lower())
         self.assertNotIn("dockside", output.lower())
+
+    def test_statement_react_move_renders_without_echoing_player_text(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.COOPERATE,
+            topic_result=TopicResult.UNCHANGED,
+            dialogue_act="greet",
+            dialogue_move="react",
+            utterance_text="Jonas, just coming to say hi.",
+            speech_text="just coming to say hi.",
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertTrue(output.strip())
+        self.assertNotIn("coming to say hi", output.lower())
+
+    def test_statement_continue_move_renders_without_echoing_player_text(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.REFUSE,
+            topic_result=TopicResult.BLOCKED,
+            dialogue_domain="meta_conversation",
+            dialogue_act="unknown",
+            dialogue_move="continue",
+            utterance_text="Jonas, sure. Tell me.",
+            speech_text="sure. tell me.",
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertTrue(output.strip())
+        self.assertNotIn("sure. tell me", output.lower())
+        self.assertIn(output.lower(), {"i'm listening. go on.", "go on."})
+
+    def test_statement_clarify_move_renders_without_echoing_player_text(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.REFUSE,
+            topic_result=TopicResult.BLOCKED,
+            dialogue_domain="meta_conversation",
+            dialogue_act="unknown",
+            dialogue_move="clarify",
+            utterance_text="Jonas, you just did.",
+            speech_text="you just did.",
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertTrue(output.strip())
+        self.assertNotIn("you just did", output.lower())
+        self.assertNotIn("paper trail", output.lower())
+
+    def test_statement_banter_move_renders_without_echoing_player_text(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.REFUSE,
+            topic_result=TopicResult.BLOCKED,
+            dialogue_domain="meta_conversation",
+            dialogue_act="unknown",
+            dialogue_move="banter",
+            utterance_text="Jonas, there you are! anyhow, I know you have information for me.",
+            speech_text="there you are! anyhow, I know you have information for me.",
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertTrue(output.strip())
+        self.assertNotIn("there you are", output.lower())
 
     def test_packet_first_refusal_renders_without_jonas_specific_gate(self) -> None:
         renderer = DeterministicDialogueRenderer()

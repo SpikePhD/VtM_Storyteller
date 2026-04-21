@@ -54,6 +54,7 @@ class DialogueRenderInput:
     npc_profile: NPCDialogueProfile
     authorized_fact_cards: tuple[DialogueFactCard, ...]
     social_outcome: SocialOutcomePacket | None = None
+    dialogue_move: str = "none"
 
 
 def build_dialogue_render_input(
@@ -106,6 +107,7 @@ def build_dialogue_render_input(
         npc_profile=context.npc_profile,
         authorized_fact_cards=context.authorized_fact_cards,
         social_outcome=context.social_outcome,
+        dialogue_move=metadata.dialogue_move.value if metadata is not None else "none",
     )
 
 
@@ -232,6 +234,14 @@ class DeterministicDialogueRenderer:
             return _render_deflect(render_input)
         if packet.outcome_kind is SocialOutcomeKind.THREATEN:
             return _render_threaten(render_input)
+        if _is_statement_banter(render_input):
+            return _render_statement_banter(render_input, packet)
+        if _is_statement_react(render_input):
+            return _render_statement_react(render_input, packet)
+        if _is_statement_continue(render_input):
+            return _render_statement_continue(render_input, packet)
+        if _is_statement_clarify(render_input):
+            return _render_statement_clarify(render_input, packet)
         return _render_refuse(render_input)
 
 
@@ -240,6 +250,58 @@ def _is_small_talk(render_input: DialogueRenderInput) -> bool:
         return False
     normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
     return any(phrase in normalized for phrase in ("hello", "hi", "good evening", "how are you", "how's it going", "how are things"))
+
+
+def _is_statement_react(render_input: DialogueRenderInput) -> bool:
+    return render_input.dialogue_move == "react"
+
+
+def _is_statement_banter(render_input: DialogueRenderInput) -> bool:
+    return render_input.dialogue_move == "banter"
+
+
+def _is_statement_continue(render_input: DialogueRenderInput) -> bool:
+    return render_input.dialogue_move == "continue"
+
+
+def _is_statement_clarify(render_input: DialogueRenderInput) -> bool:
+    return render_input.dialogue_move == "clarify"
+
+
+def _render_statement_react(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
+    normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
+    if "how are you" in normalized or "how are things" in normalized or "how is it going" in normalized:
+        return "I'm holding up. You needed something specific?"
+    if "hello" in normalized or "hi" in normalized or "good evening" in normalized or "good morning" in normalized or "good afternoon" in normalized:
+        return "Evening."
+    if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
+        return "That's enough. We're done here."
+    return "I'm listening."
+
+
+def _render_statement_banter(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
+    if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
+        return "That's enough. We're done here."
+    normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
+    if "there you are" in normalized:
+        return "I'm listening."
+    return "You found me."
+
+
+def _render_statement_continue(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
+    if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
+        return "That's enough. We're done here."
+    if render_input.dialogue_domain == "lead_topic" and packet.topic_result in {TopicResult.OPENED, TopicResult.UNCHANGED, TopicResult.PARTIAL}:
+        return "Go on."
+    return "I'm listening. Go on."
+
+
+def _render_statement_clarify(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
+    if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
+        return "That's enough. We're done here."
+    if packet.outcome_kind is SocialOutcomeKind.DEFLECT or packet.topic_result is TopicResult.PARTIAL:
+        return "You're not getting a clearer answer than that."
+    return "I meant what I said."
 
 
 def _is_background_prompt(render_input: DialogueRenderInput) -> bool:
@@ -280,7 +342,7 @@ def _render_off_topic_boundary(render_input: DialogueRenderInput) -> str:
     normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
     if "blood" in normalized or "feed" in normalized or "bite" in normalized or "drink" in normalized:
         return "Not from me. Ask someone else."
-    return "No. I'm not financing the ride. Ask someone else."
+    return "No. I'm not financing the ride or the taxi fare. Ask someone else."
 
 
 def _render_check_success(render_input: DialogueRenderInput) -> str:

@@ -18,6 +18,14 @@ ALLOWED_DIALOGUE_ACTS: tuple[str, ...] = (
     "unknown",
 )
 
+ALLOWED_DIALOGUE_MOVES: tuple[str, ...] = (
+    "none",
+    "react",
+    "continue",
+    "clarify",
+    "banter",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class DialogueIntentContextNPC:
@@ -41,6 +49,7 @@ class DialogueIntentProposal:
     target_npc_text: str
     topic: str
     tone: str
+    dialogue_move: str = "none"
 
 
 class DialogueIntentAdapter(Protocol):
@@ -80,9 +89,11 @@ class OpenAIDialogueIntentAdapter:
             [
                 "You classify dialogue intent for the OpenAI storyteller backend.",
                 "Use only the supplied JSON context as source of truth.",
-                "Return exactly one JSON object with only these keys: dialogue_act, target_npc_text, topic, tone.",
+                "Return exactly one JSON object with only these keys: dialogue_act, dialogue_move, target_npc_text, topic, tone.",
                 "Do not add markdown, comments, or any extra keys.",
                 "Allowed dialogue_act values: greet, ask, accuse, persuade, threaten, unknown.",
+                "Allowed dialogue_move values: none, react, continue, clarify, banter.",
+                "Use dialogue_move for statement-shaped or conversational turns: react for acknowledgments and greetings, continue for invitations to keep talking, clarify for repairs or pushback, and banter for light social back-and-forth.",
                 "Do not invent NPCs, relationships, clue state, legality, check outcomes, or world mutations.",
                 "target_npc_text is the intended addressee only, not the topic or object being discussed.",
                 "If the target is unclear, choose unknown and keep target_npc_text empty or grounded in the addressee from the player input or active focus.",
@@ -100,23 +111,29 @@ class OpenAIDialogueIntentAdapter:
         if not isinstance(payload, dict):
             return None
 
-        expected_keys = {"dialogue_act", "target_npc_text", "topic", "tone"}
+        expected_keys = {"dialogue_act", "dialogue_move", "target_npc_text", "topic", "tone"}
         if set(payload.keys()) != expected_keys:
             return None
 
         dialogue_act = payload.get("dialogue_act")
+        dialogue_move = payload.get("dialogue_move")
         target_npc_text = payload.get("target_npc_text")
         topic = payload.get("topic")
         tone = payload.get("tone")
-        if not all(isinstance(value, str) for value in (dialogue_act, target_npc_text, topic, tone)):
+        if not all(isinstance(value, str) for value in (dialogue_act, dialogue_move, target_npc_text, topic, tone)):
             return None
 
         normalized_dialogue_act = dialogue_act.strip().lower()
         if normalized_dialogue_act not in ALLOWED_DIALOGUE_ACTS:
             return None
 
+        normalized_dialogue_move = dialogue_move.strip().lower()
+        if normalized_dialogue_move not in ALLOWED_DIALOGUE_MOVES:
+            return None
+
         return DialogueIntentProposal(
             dialogue_act=normalized_dialogue_act,
+            dialogue_move=normalized_dialogue_move,
             target_npc_text=target_npc_text.strip(),
             topic=topic.strip(),
             tone=tone.strip(),

@@ -18,6 +18,14 @@ class DialogueAct(str, Enum):
     UNKNOWN = "unknown"
 
 
+class DialogueMove(str, Enum):
+    NONE = "none"
+    REACT = "react"
+    CONTINUE = "continue"
+    CLARIFY = "clarify"
+    BANTER = "banter"
+
+
 class ConversationStance(str, Enum):
     NEUTRAL = "neutral"
     GUARDED = "guarded"
@@ -30,6 +38,7 @@ class DialogueMetadata:
     dialogue_act: DialogueAct
     topic: str | None = None
     tone: str | None = None
+    dialogue_move: DialogueMove = DialogueMove.NONE
 
 
 @dataclass(frozen=True)

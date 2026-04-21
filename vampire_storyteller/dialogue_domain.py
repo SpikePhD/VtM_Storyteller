@@ -4,7 +4,7 @@ from enum import Enum
 from typing import Any
 
 from .adventure_loader import load_adv1_plot_progression_rules
-from .command_models import ConversationStance, DialogueAct, DialogueMetadata
+from .command_models import ConversationStance, DialogueAct, DialogueMetadata, DialogueMove
 from .dialogue_subtopic import DialogueSubtopic, detect_dialogue_subtopic, should_inherit_subtopic
 from .world_state import WorldState
 
@@ -30,10 +30,11 @@ def classify_dialogue_domain(
     combined_text = _normalize_text(_dialogue_metadata_text(dialogue_metadata))
     topic_text = _normalize_text(dialogue_metadata.topic if dialogue_metadata is not None and dialogue_metadata.topic is not None else "")
     dialogue_act = dialogue_metadata.dialogue_act if dialogue_metadata is not None else DialogueAct.UNKNOWN
+    dialogue_move = dialogue_metadata.dialogue_move if dialogue_metadata is not None else DialogueMove.NONE
     plot_rules = load_adv1_plot_progression_rules()
 
     if npc_id != plot_rules.talk_npc_id:
-        return _classify_non_jonas_domain(dialogue_act, topic_status)
+        return _classify_non_jonas_domain(dialogue_act, dialogue_move, topic_status)
 
     if not combined_text and not topic_text and dialogue_metadata is None:
         return DialogueDomain.LEAD_TOPIC
@@ -41,7 +42,16 @@ def classify_dialogue_domain(
     if _is_provocative_or_inappropriate(combined_text):
         return DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE
 
+    if _is_hostility_challenge(combined_text):
+        return DialogueDomain.LEAD_PRESSURE
+
+    if _is_pressure_challenge(combined_text):
+        return DialogueDomain.LEAD_PRESSURE
+
     if _is_meta_conversation_challenge(combined_text, dialogue_act, conversation_stance):
+        return DialogueDomain.META_CONVERSATION
+
+    if dialogue_move in {DialogueMove.CLARIFY, DialogueMove.BANTER}:
         return DialogueDomain.META_CONVERSATION
 
     if _is_explicit_lead_topic_reentry(topic_text or combined_text):
@@ -85,6 +95,9 @@ def classify_dialogue_domain(
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         return DialogueDomain.LEAD_PRESSURE
 
+    if dialogue_move in {DialogueMove.REACT, DialogueMove.CONTINUE}:
+        return DialogueDomain.LEAD_TOPIC
+
     if _is_lead_follow_up(world_state, combined_text, conversation_stance):
         return DialogueDomain.LEAD_TOPIC
 
@@ -112,7 +125,11 @@ def classify_dialogue_domain(
     return DialogueDomain.UNKNOWN_MISC
 
 
-def _classify_non_jonas_domain(dialogue_act: DialogueAct, topic_status: Any) -> DialogueDomain:
+def _classify_non_jonas_domain(dialogue_act: DialogueAct, dialogue_move: DialogueMove, topic_status: Any) -> DialogueDomain:
+    if dialogue_move in {DialogueMove.CLARIFY, DialogueMove.BANTER}:
+        return DialogueDomain.META_CONVERSATION
+    if dialogue_move in {DialogueMove.REACT, DialogueMove.CONTINUE}:
+        return DialogueDomain.LEAD_TOPIC
     if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
         return DialogueDomain.LEAD_PRESSURE
     if dialogue_act in (DialogueAct.GREET, DialogueAct.ASK):
@@ -336,37 +353,10 @@ def _is_meta_conversation_challenge(
     if not normalized_text:
         return False
 
-    if conversation_stance is ConversationStance.GUARDED and any(
-        phrase in normalized_text
-        for phrase in (
-            "why are you hostile",
-            "why are you so hostile",
-            "why are you being difficult",
-            "you are being difficult",
-            "you are hostile",
-            "you are guarded",
-            "you are refusing",
-            "you did not help me",
-            "you didn't help me",
-            "you have not helped me",
-            "you havent helped me",
-            "you have not given me anything",
-            "you haven't given me anything",
-        )
-    ):
-        return True
-
     if dialogue_act in {DialogueAct.ASK, DialogueAct.ACCUSE, DialogueAct.PERSUADE, DialogueAct.UNKNOWN}:
         return any(
             phrase in normalized_text
             for phrase in (
-                "why are you hostile",
-                "why are you so hostile",
-                "why are you being difficult",
-                "you are being difficult",
-                "you are hostile",
-                "you are guarded",
-                "you are refusing",
                 "you did not help me",
                 "you didn't help me",
                 "you have not helped me",
@@ -383,6 +373,48 @@ def _is_meta_conversation_challenge(
         )
 
     return False
+
+
+def _is_hostility_challenge(normalized_text: str) -> bool:
+    if not normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "why are you hostile",
+            "why are you so hostile",
+            "why are you being difficult",
+            "you are being difficult",
+            "you are hostile",
+            "you are guarded",
+            "you are refusing",
+        )
+    )
+
+
+def _is_pressure_challenge(normalized_text: str) -> bool:
+    if not normalized_text:
+        return False
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "i don't believe you",
+            "i do not believe you",
+            "that sounds wrong",
+            "you did not help me",
+            "you didn't help me",
+            "you have not helped me",
+            "you havent helped me",
+            "you have not given me anything",
+            "you haven't given me anything",
+            "why won't you help me",
+            "why will you not help me",
+            "why are you refusing to help",
+            "why are you refusing",
+            "why won't you answer me",
+            "why are you shutting me out",
+        )
+    )
 
 
 def _is_provocative_or_inappropriate(normalized_text: str) -> bool:

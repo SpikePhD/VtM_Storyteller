@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from vampire_storyteller.action_resolution import NormalizationSource
-from vampire_storyteller.command_models import DialogueAct
+from vampire_storyteller.command_models import DialogueAct, DialogueMove
 from vampire_storyteller.dialogue_intent_adapter import DialogueIntentContext, DialogueIntentProposal
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.input_interpreter import InputInterpreter
@@ -25,6 +25,7 @@ class InputInterpreterTests(unittest.TestCase):
             self.contexts.append(context)
             return DialogueIntentProposal(
                 dialogue_act="ask",
+                dialogue_move="continue",
                 target_npc_text=context.conversation_focus_npc_name or "Jonas Reed",
                 topic="missing_ledger",
                 tone="curious",
@@ -147,6 +148,45 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.UNKNOWN)
         self.assertEqual(result.dialogue_metadata.speech_text, "the city is cold.")
+
+    def test_statement_style_acknowledgement_uses_react_move(self) -> None:
+        result = self.interpreter.interpret("Jonas, just coming to say hi.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.GREET)
+        self.assertEqual(result.dialogue_metadata.dialogue_move, DialogueMove.REACT)
+
+    def test_statement_style_continuation_uses_continue_move(self) -> None:
+        result = self.interpreter.interpret("Jonas, sure. Tell me.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.UNKNOWN)
+        self.assertEqual(result.dialogue_metadata.dialogue_move, DialogueMove.CONTINUE)
+
+    def test_statement_style_clarify_uses_clarify_move(self) -> None:
+        result = self.interpreter.interpret("Jonas, you just did.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.UNKNOWN)
+        self.assertEqual(result.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
+
+    def test_statement_style_banter_uses_banter_move(self) -> None:
+        result = self.interpreter.interpret("Jonas, there you are! anyhow, I know you have information for me.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_move, DialogueMove.BANTER)
+
+    def test_meta_question_uses_clarify_move(self) -> None:
+        result = self.interpreter.interpret("Jonas, are you repeating what I am saying?", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertEqual(result.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
 
     def test_unrecognized_input_falls_back_to_parser(self) -> None:
         result = self.interpreter.interpret("sing a song", self.world_state)

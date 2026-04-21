@@ -39,6 +39,7 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                 utterance_text="Jonas, what happened at the dock?",
                 speech_text="what happened at the dock?",
                 dialogue_act="ask",
+                dialogue_move="continue",
                 dialogue_domain="lead_topic",
                 topic_status="productive",
                 adjudication_resolution_kind="allowed",
@@ -101,9 +102,13 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertIn("authorized_fact_cards are the only plot-facing facts", prompt)
         self.assertIn("Write only the NPC's direct speech for this turn.", prompt)
         self.assertIn("Do not write third-person paraphrase", prompt)
+        self.assertIn("Do not merely restate the player's line", prompt)
+        self.assertIn("Use dialogue_move to shape the line", prompt)
+        self.assertIn("If dialogue_move is continue", prompt)
         self.assertIn("Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, checks, or state changes.", prompt)
         self.assertIn('"npc_name":"Jonas Reed"', prompt)
         self.assertIn('"dialogue_domain":"lead_topic"', prompt)
+        self.assertIn('"dialogue_move":"continue"', prompt)
         self.assertIn('"outcome_kind":"reveal"', prompt)
         self.assertIn('"check_result"', prompt)
         self.assertIn('"plot_name":"Missing Ledger"', prompt)
@@ -125,6 +130,7 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                     utterance_text="Jonas, what happened at the dock?",
                     speech_text="what happened at the dock?",
                     dialogue_act="ask",
+                    dialogue_move="continue",
                     dialogue_domain="lead_topic",
                     topic_status="productive",
                     adjudication_resolution_kind="allowed",
