@@ -7,9 +7,10 @@ from .action_resolution import ActionCheckOutcome, ActionConsequenceSummary
 from .adventure_loader import load_adv1_dialogue_fact_definitions, load_adv1_plot_progression_rules
 from .command_models import TalkCommand
 from .dialogue_adjudication import DialogueAdjudicationOutcome
+from .dialogue_context_assembler import assemble_dialogue_context
 from .models import NPCDialogueProfile
-from .world_state import WorldState
 from .social_models import SocialOutcomeKind, SocialOutcomePacket, TopicResult
+from .world_state import WorldState
 
 
 class DialogueRenderer(Protocol):
@@ -63,49 +64,48 @@ def build_dialogue_render_input(
     consequence_summary: ActionConsequenceSummary,
     social_outcome: SocialOutcomePacket | None = None,
 ) -> DialogueRenderInput:
-    npc = world_state.npcs.get(command.npc_id)
-    if npc is None:
-        raise RuntimeError(f"npc '{command.npc_id}' is missing")
-
-    metadata = command.dialogue_metadata
-    plot_rules = load_adv1_plot_progression_rules()
-    plot = world_state.plots.get(plot_rules.plot_id)
-    location = world_state.locations.get(world_state.player.location_id or "")
-    location_name = location.name if location is not None else (world_state.player.location_id or "unknown location")
     authorized_fact_cards = _select_authorized_fact_cards(
         world_state,
         command,
         dialogue_adjudication,
         social_outcome,
     )
+    context = assemble_dialogue_context(
+        world_state,
+        command,
+        dialogue_adjudication,
+        social_outcome,
+        authorized_fact_cards,
+    )
+    metadata = command.dialogue_metadata
     return DialogueRenderInput(
-        npc_id=npc.id,
-        npc_name=npc.name,
-        npc_role=npc.role,
-        player_name=world_state.player.name,
-        location_name=location_name,
+        npc_id=context.npc_id,
+        npc_name=context.npc_name,
+        npc_role=context.npc_role,
+        player_name=context.player_name,
+        location_name=context.location_name,
         utterance_text=metadata.utterance_text if metadata is not None else "",
         speech_text=metadata.speech_text if metadata is not None else "",
         dialogue_act=metadata.dialogue_act.value if metadata is not None else "unknown",
         dialogue_domain=dialogue_adjudication.dialogue_domain.value,
         topic_status=dialogue_adjudication.topic_status.value,
         adjudication_resolution_kind=dialogue_adjudication.resolution_kind.value,
-        conversation_stance=dialogue_adjudication.conversation_stance.value,
-        conversation_subtopic=command.conversation_subtopic.value if command.conversation_subtopic is not None else None,
+        conversation_stance=context.conversation_stance,
+        conversation_subtopic=context.conversation_subtopic,
         continuity_cue=_build_continuity_cue(command),
-        npc_trust_level=npc.trust_level,
-        plot_name=plot.name if plot is not None else plot_rules.plot_id,
-        plot_stage=plot.stage if plot is not None else "",
-        lead_flag_active=plot_rules.talk_required_story_flag in set(world_state.story_flags),
+        npc_trust_level=context.npc_trust_level,
+        plot_name=context.plot_name,
+        plot_stage=context.plot_stage,
+        lead_flag_active=context.lead_flag_active,
         check_kind=check.kind.value if check is not None else None,
         check_is_success=check.is_success if check is not None else None,
         check_successes=check.successes if check is not None else None,
         check_difficulty=check.difficulty if check is not None else None,
         consequence_messages=consequence_summary.messages,
         applied_effects=consequence_summary.applied_effects,
-        npc_profile=npc.dialogue_profile,
-        authorized_fact_cards=authorized_fact_cards,
-        social_outcome=social_outcome,
+        npc_profile=context.npc_profile,
+        authorized_fact_cards=context.authorized_fact_cards,
+        social_outcome=context.social_outcome,
     )
 
 

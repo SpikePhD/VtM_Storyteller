@@ -3,9 +3,11 @@ from __future__ import annotations
 import unittest
 from unittest.mock import patch
 
+from vampire_storyteller.action_resolution import ActionConsequenceSummary
 from vampire_storyteller.config import AppConfig
 from vampire_storyteller.cli import build_dialogue_renderer
-from vampire_storyteller.command_models import ConversationStance
+from vampire_storyteller.command_models import ConversationStance, DialogueAct, DialogueMetadata, TalkCommand
+from vampire_storyteller.dialogue_context_assembler import DialogueTurnContext, assemble_dialogue_context
 from vampire_storyteller.dialogue_renderer import (
     DialogueFactCard,
     DeterministicDialogueRenderer,
@@ -14,6 +16,7 @@ from vampire_storyteller.dialogue_renderer import (
 )
 from vampire_storyteller.dice_engine import DeterministicCheckKind, DeterministicCheckResolution
 from vampire_storyteller.game_session import GameSession
+from vampire_storyteller.dialogue_adjudication import adjudicate_dialogue_talk
 from vampire_storyteller.social_models import (
     SocialCheckResult,
     SocialOutcomeKind,
@@ -22,6 +25,7 @@ from vampire_storyteller.social_models import (
     TopicResult,
 )
 from vampire_storyteller.models import NPCDialogueProfile
+from vampire_storyteller.sample_world import build_sample_world
 
 
 class FailingDialogueRenderer:
@@ -171,6 +175,115 @@ class DialogueRendererTests(unittest.TestCase):
 
         self.assertIn("not financing the ride", result.output_text.lower())
         self.assertNotIn("paper trail began", result.output_text.lower())
+
+    def test_dialogue_context_assembler_returns_jonas_dossier_backed_context(self) -> None:
+        world_state = build_sample_world()
+        command = TalkCommand(
+            npc_id="npc_1",
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="Jonas, what happened at the dock?",
+                speech_text="what happened at the dock?",
+                dialogue_act=DialogueAct.ASK,
+                topic="dock",
+            ),
+        )
+        adjudication = adjudicate_dialogue_talk(world_state, command)
+
+        context = assemble_dialogue_context(
+            world_state,
+            command,
+            adjudication,
+            adjudication.social_outcome,
+            (),
+        )
+
+        self.assertEqual(context.npc_id, "npc_1")
+        self.assertEqual(context.npc_name, "Jonas Reed")
+        self.assertEqual(context.location_name, "Blackthorn Cafe")
+        self.assertEqual(context.plot_id, "plot_1")
+        self.assertEqual(context.plot_stage, "hook")
+        self.assertEqual(context.conversation_stance, "neutral")
+        self.assertIsNotNone(context.npc_dossier)
+        assert context.npc_dossier is not None
+        self.assertEqual(context.npc_dossier.public_persona, "a wary neighborhood informant who keeps public conversations short")
+        self.assertEqual(context.npc_dossier.revealable_fact_groups[0].fact_ids, ("jonas_missing_ledger_lead",))
+
+    def test_dialogue_context_assembler_returns_bounded_result_without_dossier(self) -> None:
+        world_state = build_sample_world()
+        command = TalkCommand(npc_id="npc_2")
+        adjudication = adjudicate_dialogue_talk(world_state, command)
+
+        context = assemble_dialogue_context(
+            world_state,
+            command,
+            adjudication,
+            adjudication.social_outcome,
+            (),
+        )
+
+        self.assertEqual(context.npc_id, "npc_2")
+        self.assertEqual(context.npc_name, "Sister Eliza")
+        self.assertIsNone(context.npc_dossier)
+        self.assertEqual(context.npc_profile.public_persona, "a guarded haven keeper who watches before she speaks")
+
+    def test_build_dialogue_render_input_uses_assembled_dialogue_context(self) -> None:
+        session = GameSession()
+        session.process_input("Jonas, what happened at the dock?")
+        turn = session.get_last_action_resolution()
+        assert turn is not None
+        assert turn.dialogue_adjudication is not None
+        command = turn.normalized_action.command
+        assert command is not None
+
+        assembled_context = DialogueTurnContext(
+            npc_id="npc_1",
+            npc_name="Assembled Jonas",
+            npc_role="Assembler Role",
+            npc_trust_level=7,
+            npc_profile=NPCDialogueProfile(
+                background_summary="assembled background",
+                public_persona="assembled persona",
+                private_history_summary="assembled history",
+                motivations=["assembled motivation"],
+                speaking_style="assembled style",
+                relationship_context="assembled relationship",
+            ),
+            npc_dossier=None,
+            player_name="Assembled Player",
+            location_name="Assembled Cafe",
+            plot_id="plot_1",
+            plot_name="Assembled Plot",
+            plot_stage="lead_confirmed",
+            lead_flag_active=True,
+            conversation_stance="guarded",
+            conversation_subtopic="missing_ledger",
+            social_outcome=turn.social_outcome,
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="assembled_fact",
+                    kind="lead",
+                    summary="Assembled summary",
+                ),
+            ),
+        )
+
+        with patch("vampire_storyteller.dialogue_renderer.assemble_dialogue_context", return_value=assembled_context) as mock_assemble:
+            render_input = build_dialogue_render_input(
+                session.get_world_state(),
+                command,
+                turn.dialogue_adjudication,
+                turn.check,
+                turn.consequence_summary,
+                social_outcome=turn.social_outcome,
+            )
+
+        mock_assemble.assert_called_once()
+        self.assertEqual(render_input.npc_name, "Assembled Jonas")
+        self.assertEqual(render_input.location_name, "Assembled Cafe")
+        self.assertEqual(render_input.npc_profile.public_persona, "assembled persona")
+        self.assertEqual(render_input.plot_stage, "lead_confirmed")
+        self.assertEqual(render_input.conversation_subtopic, "missing_ledger")
+        self.assertEqual(render_input.authorized_fact_cards[0].fact_id, "assembled_fact")
 
     def test_packet_first_greeting_does_not_force_dock_lead_reveal(self) -> None:
         renderer = DeterministicDialogueRenderer()
