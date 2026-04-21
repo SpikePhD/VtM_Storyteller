@@ -312,11 +312,17 @@ class InputInterpreter:
 
         npc_matches = self._match_npc_candidates(normalized_text, world_state)
         has_active_conversation = conversation_focus_npc_id is not None or stale_conversation_focus_npc_id is not None or conversation_subtopic is not None
+        explicit_non_dialogue_action = self._looks_like_explicit_non_dialogue_action(normalized_text, raw_input, world_state)
         has_talk_cue = (
             bool(npc_matches)
             or self._looks_like_dialogue_entry(normalized_text, raw_input)
             or self._contains_any(normalized_text, self._FOCUSLESS_ACTIVE_CONVERSATION_PHRASES)
-            or (has_active_conversation and self._looks_like_active_conversation_follow_up(normalized_text, raw_input, conversation_subtopic))
+            or (
+                has_active_conversation
+                and not explicit_non_dialogue_action
+                and self._looks_like_active_conversation_follow_up(normalized_text, raw_input, conversation_subtopic)
+            )
+            or (has_active_conversation and not explicit_non_dialogue_action)
         )
 
         if not has_talk_cue:
@@ -768,6 +774,18 @@ class InputInterpreter:
         ):
             return True
         if conversation_subtopic is not None and "please" in normalized_text.split() and len(normalized_text.split()) <= 4:
+            return True
+        return False
+
+    def _looks_like_explicit_non_dialogue_action(self, normalized_text: str, raw_input: str, world_state: WorldState) -> bool:
+        first_token = self._normalize_text(raw_input).split(" ", 1)[0] if raw_input.strip() else ""
+        if first_token in {"look", "status", "help", "move", "wait", "investigate", "save", "load", "quit"}:
+            return True
+        if self._interpret_wait(normalized_text) is not None:
+            return True
+        if self._interpret_observation(normalized_text) is not None:
+            return True
+        if self._interpret_move(normalized_text, world_state) is not None:
             return True
         return False
 

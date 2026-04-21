@@ -31,6 +31,22 @@ class RecordingSceneProvider(SceneNarrativeProvider):
         return f"rendered:{world_state.current_time}"
 
 
+class RecordingDialogueIntentAdapter:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def propose_dialogue_intent(self, context) -> object:
+        self.calls.append(context.raw_input)
+        from vampire_storyteller.dialogue_intent_adapter import DialogueIntentProposal
+
+        return DialogueIntentProposal(
+            dialogue_act="ask",
+            target_npc_text=context.conversation_focus_npc_name or "Jonas Reed",
+            topic="missing_ledger",
+            tone="curious",
+        )
+
+
 class GameSessionTests(unittest.TestCase):
     def test_default_session_builds_successfully(self) -> None:
         session = GameSession()
@@ -251,6 +267,39 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertIn("stay out of anybody's pocket", result.output_text.lower())
         self.assertNotIn("paper trail", result.output_text.lower())
+
+    def test_active_conversation_freeform_follow_up_routes_into_dialogue_intent(self) -> None:
+        adapter = RecordingDialogueIntentAdapter()
+        session = GameSession(dialogue_intent_adapter=adapter)
+
+        session.process_input("Jonas, good evening.")
+        result = session.process_input("Can I have some money?")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertNotIn("Unsupported freeform input", result.output_text)
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertIsNotNone(interpreted.dialogue_metadata)
+        assert interpreted.dialogue_metadata is not None
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        self.assertIsNotNone(result.dialogue_presentation)
+        self.assertGreaterEqual(len(adapter.calls), 1)
+
+    def test_active_conversation_explicit_world_action_stays_on_existing_path(self) -> None:
+        adapter = RecordingDialogueIntentAdapter()
+        session = GameSession(dialogue_intent_adapter=adapter)
+
+        session.process_input("Jonas, good evening.")
+        result = session.process_input("look around the cafe")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertTrue(result.render_scene)
+        self.assertEqual(interpreted.normalized_intent, "look")
+        self.assertEqual(interpreted.canonical_command, "look")
+        self.assertEqual(adapter.calls, [])
 
     def test_dialogue_rendering_support_no_longer_depends_on_jonas_id(self) -> None:
         session = GameSession()

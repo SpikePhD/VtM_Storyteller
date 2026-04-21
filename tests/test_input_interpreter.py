@@ -4,6 +4,7 @@ import unittest
 
 from vampire_storyteller.action_resolution import NormalizationSource
 from vampire_storyteller.command_models import DialogueAct
+from vampire_storyteller.dialogue_intent_adapter import DialogueIntentContext, DialogueIntentProposal
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.input_interpreter import InputInterpreter
 from vampire_storyteller.models import NPC
@@ -15,6 +16,19 @@ class InputInterpreterTests(unittest.TestCase):
     def setUp(self) -> None:
         self.world_state = build_sample_world()
         self.interpreter = InputInterpreter()
+
+    class RecordingDialogueIntentAdapter:
+        def __init__(self) -> None:
+            self.contexts: list[DialogueIntentContext] = []
+
+        def propose_dialogue_intent(self, context: DialogueIntentContext) -> DialogueIntentProposal:
+            self.contexts.append(context)
+            return DialogueIntentProposal(
+                dialogue_act="ask",
+                target_npc_text=context.conversation_focus_npc_name or "Jonas Reed",
+                topic="missing_ledger",
+                tone="curious",
+            )
 
     def test_freeform_careful_look_maps_to_look(self) -> None:
         result = self.interpreter.interpret("I take a careful look around.", self.world_state)
@@ -296,6 +310,38 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.normalized_intent, "talk")
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.canonical_command, "talk npc_1")
+
+    def test_active_conversation_follow_up_routes_through_dialogue_intent(self) -> None:
+        adapter = self.RecordingDialogueIntentAdapter()
+        result = self.interpreter.interpret(
+            "I need help, I don't know how to reach there.",
+            self.world_state,
+            conversation_focus_npc_id="npc_1",
+            dialogue_intent_adapter=adapter,
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        assert result.dialogue_metadata is not None
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertEqual(len(adapter.contexts), 1)
+        self.assertEqual(adapter.contexts[0].conversation_focus_npc_id, "npc_1")
+
+    def test_active_conversation_explicit_world_action_stays_on_existing_path(self) -> None:
+        adapter = self.RecordingDialogueIntentAdapter()
+        result = self.interpreter.interpret(
+            "look around the church",
+            self.world_state,
+            conversation_focus_npc_id="npc_1",
+            dialogue_intent_adapter=adapter,
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "look")
+        self.assertEqual(result.canonical_command, "look")
+        self.assertEqual(adapter.contexts, [])
 
     def test_missing_ledger_statement_follow_up_uses_active_conversation_focus(self) -> None:
         result = self.interpreter.interpret(
