@@ -31,6 +31,8 @@ def _make_render_input(
     *,
     outcome_kind: SocialOutcomeKind,
     topic_result: TopicResult,
+    npc_id: str = "npc_1",
+    npc_name: str = "Jonas Reed",
     dialogue_domain: str = "lead_topic",
     dialogue_act: str = "greet",
     conversation_stance: str = "neutral",
@@ -42,8 +44,8 @@ def _make_render_input(
     plot_effects: tuple[str, ...] = (),
 ) -> DialogueRenderInput:
     return DialogueRenderInput(
-        npc_id="npc_1",
-        npc_name="Jonas Reed",
+        npc_id=npc_id,
+        npc_name=npc_name,
         npc_role="Informant",
         player_name="Mara Vale",
         location_name="Blackthorn Cafe",
@@ -205,6 +207,23 @@ class DialogueRendererTests(unittest.TestCase):
 
         self.assertIn("keep this professional", output.lower())
         self.assertNotIn("paper trail began", output.lower())
+
+    def test_packet_first_refusal_renders_without_jonas_specific_gate(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.REFUSE,
+            topic_result=TopicResult.BLOCKED,
+            npc_id="npc_2",
+            npc_name="Sister Eliza",
+            dialogue_domain="lead_pressure",
+            dialogue_act="ask",
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertIn("sister eliza", output.lower())
+        self.assertIn("refuses", output.lower())
+        self.assertNotIn("jonas", output.lower())
 
     def test_packet_first_deflect_path_redirects_the_conversation(self) -> None:
         renderer = DeterministicDialogueRenderer()

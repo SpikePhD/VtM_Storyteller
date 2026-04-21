@@ -27,7 +27,7 @@ from .data_paths import ensure_adventure_directories, get_default_save_path
 from .dialogue_adjudication import DialogueAdjudicationOutcome, DialogueTopicStatus, adjudicate_dialogue_talk
 from .dialogue_domain import DialogueDomain
 from .dialogue_engine import resolve_talk_result
-from .dialogue_renderer import DeterministicDialogueRenderer, DialogueRenderer, build_dialogue_render_input
+from .dialogue_renderer import DialogueRenderInput, DeterministicDialogueRenderer, DialogueRenderer, build_dialogue_render_input
 from .dialogue_intent_adapter import DialogueIntentAdapter, NullDialogueIntentAdapter
 from .dialogue_subtopic import DialogueSubtopic, detect_dialogue_subtopic
 from .dice_engine import DeterministicCheckKind, DeterministicCheckSpecification, resolve_deterministic_check
@@ -614,24 +614,8 @@ class GameSession:
             conversation_stance=result.conversation_stance,
         )
 
-    def _supports_dialogue_rendering(self, render_input) -> bool:
-        if render_input.social_outcome is not None:
-            return True
-        if render_input.npc_id != "npc_1":
-            return False
-        if render_input.check_kind == DeterministicCheckKind.DIALOGUE_SOCIAL.value:
-            return True
-        if render_input.dialogue_domain in {
-            DialogueDomain.OFF_TOPIC_REQUEST.value,
-            DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE.value,
-            DialogueDomain.TRAVEL_PROPOSAL.value,
-            DialogueDomain.UNKNOWN_MISC.value,
-            DialogueDomain.LEAD_PRESSURE.value,
-        }:
-            return True
-        if render_input.dialogue_domain == DialogueDomain.LEAD_TOPIC.value and render_input.plot_stage in {"hook", "lead_confirmed"}:
-            return True
-        return False
+    def _supports_dialogue_rendering(self, render_input: DialogueRenderInput) -> bool:
+        return render_input.social_outcome is not None
 
     def _resolve_escalated_persuade_dialogue(
         self,

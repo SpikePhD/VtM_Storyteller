@@ -13,9 +13,11 @@ from vampire_storyteller.command_models import ConversationStance, DialogueAct, 
 from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
+from vampire_storyteller.dialogue_renderer import DialogueRenderInput
 from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.narrative_provider import SceneNarrativeProvider
+from vampire_storyteller.social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from vampire_storyteller.world_state import WorldState
 
 
@@ -230,6 +232,49 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+
+    def test_dialogue_rendering_support_no_longer_depends_on_jonas_id(self) -> None:
+        session = GameSession()
+        render_input = DialogueRenderInput(
+            npc_id="npc_2",
+            npc_name="Sister Eliza",
+            npc_role="Observer",
+            player_name="Mara Vale",
+            location_name="Blackthorn Cafe",
+            utterance_text="Sister Eliza, what happened here?",
+            speech_text="what happened here?",
+            dialogue_act="ask",
+            dialogue_domain="lead_topic",
+            topic_status="productive",
+            adjudication_resolution_kind="allowed",
+            conversation_stance="neutral",
+            conversation_subtopic=None,
+            npc_trust_level=0,
+            plot_name="Missing Ledger",
+            plot_stage="hook",
+            lead_flag_active=False,
+            check_kind=None,
+            check_is_success=None,
+            check_successes=None,
+            check_difficulty=None,
+            consequence_messages=(),
+            applied_effects=(),
+            social_outcome=SocialOutcomePacket(
+                outcome_kind=SocialOutcomeKind.COOPERATE,
+                stance_shift=SocialStanceShift(
+                    from_stance=ConversationStance.NEUTRAL,
+                    to_stance=ConversationStance.NEUTRAL,
+                ),
+                check_required=False,
+                check_result=None,
+                topic_result=TopicResult.UNCHANGED,
+                state_effects=(),
+                plot_effects=(),
+                reason_code="test_packet",
+            ),
+        )
+
+        self.assertTrue(session._supports_dialogue_rendering(render_input))
 
     def test_missing_ledger_follow_up_stays_in_the_same_subtopic(self) -> None:
         session = GameSession()
