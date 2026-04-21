@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from vampire_storyteller.cli import _build_cli_prompt, _format_cli_result
+from vampire_storyteller.cli import _build_cli_prompt, _build_runtime_banner, _format_cli_result
+from vampire_storyteller.config import AppConfig
 from vampire_storyteller.command_result import CommandResult, DialoguePresentation
 from vampire_storyteller.game_session import GameSession
+from vampire_storyteller.narrative_provider import DeterministicSceneNarrativeProvider
 
 
 class CliTranscriptTests(unittest.TestCase):
@@ -62,6 +64,27 @@ class CliTranscriptTests(unittest.TestCase):
 
     def test_non_dialogue_result_stays_plain(self) -> None:
         self.assertEqual(_format_cli_result(CommandResult(output_text="Unsupported freeform input.")), "Unsupported freeform input.")
+
+    def test_runtime_banner_marks_openai_dialogue_rendering_as_mandatory(self) -> None:
+        banner = _build_runtime_banner(
+            AppConfig(
+                openai_api_key="test-key",
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=False,
+                use_openai_dialogue_intent_adapter=False,
+                use_openai_dialogue_renderer=True,
+            ),
+            DeterministicSceneNarrativeProvider(),
+            object(),
+            object(),
+            None,
+            None,
+            "OpenAI dialogue renderer requested but OPENAI_API_KEY is missing; deterministic dialogue rendering is disabled in OpenAI dialogue mode, so dialogue turns will fail explicitly.",
+        )
+
+        self.assertIn("Dialogue rendering: OpenAI", banner)
+        self.assertIn("Dialogue render fallback: no (disabled by design in OpenAI dialogue mode)", banner)
+        self.assertIn("Dialogue render notice:", banner)
 
 
 if __name__ == "__main__":

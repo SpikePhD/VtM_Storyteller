@@ -515,7 +515,7 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertIsInstance(renderer, DeterministicDialogueRenderer)
         self.assertIsNone(notice)
 
-    def test_missing_api_key_for_openai_dialogue_renderer_falls_back_safely(self) -> None:
+    def test_missing_api_key_for_openai_dialogue_renderer_hard_fails_explicitly(self) -> None:
         renderer, notice = build_dialogue_renderer(
             AppConfig(
                 openai_api_key=None,
@@ -526,9 +526,48 @@ class DialogueRendererTests(unittest.TestCase):
             )
         )
 
-        self.assertIsInstance(renderer, DeterministicDialogueRenderer)
+        self.assertNotIsInstance(renderer, DeterministicDialogueRenderer)
         self.assertIsNotNone(notice)
         self.assertIn("OPENAI_API_KEY is missing", notice)
+        with self.assertRaisesRegex(RuntimeError, "dialogue turns will fail explicitly"):
+            renderer.render_dialogue(
+                DialogueRenderInput(
+                    npc_id="npc_1",
+                    npc_name="Jonas Reed",
+                    npc_role="Informant",
+                    player_name="Mara Vale",
+                    location_name="Blackthorn Cafe",
+                    utterance_text="Jonas, what happened at the dock?",
+                    speech_text="what happened at the dock?",
+                    dialogue_act="ask",
+                    dialogue_domain="lead_topic",
+                    topic_status="productive",
+                    adjudication_resolution_kind="allowed",
+                    conversation_stance="neutral",
+                    conversation_subtopic=None,
+                    continuity_cue="follow_up_on_missing_ledger",
+                    npc_trust_level=0,
+                    plot_name="Missing Ledger",
+                    plot_stage="hook",
+                    lead_flag_active=False,
+                    check_kind=None,
+                    check_is_success=None,
+                    check_successes=None,
+                    check_difficulty=None,
+                    consequence_messages=(),
+                    applied_effects=(),
+                    npc_profile=NPCDialogueProfile(
+                        background_summary="Jonas trades in local knowledge.",
+                        public_persona="a wary informant",
+                        private_history_summary="He knows the dockside well.",
+                        motivations=["stay useful"],
+                        speaking_style="quiet and economical",
+                        relationship_context="He is testing Mara.",
+                    ),
+                    authorized_fact_cards=(),
+                    social_outcome=None,
+                )
+            )
 
 
 if __name__ == "__main__":

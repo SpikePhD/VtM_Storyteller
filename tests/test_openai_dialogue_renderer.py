@@ -109,6 +109,51 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertIn('"plot_name":"Missing Ledger"', prompt)
         self.assertIn('"authorized_fact_cards"', prompt)
 
+    def test_renderer_hard_fails_when_openai_response_has_no_text(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = "   "
+        renderer = OpenAIDialogueRenderer(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+
+        with self.assertRaisesRegex(RuntimeError, "did not contain text"):
+            renderer.render_dialogue(
+                DialogueRenderInput(
+                    npc_id="npc_1",
+                    npc_name="Jonas Reed",
+                    npc_role="Informant",
+                    player_name="Mara Vale",
+                    location_name="Blackthorn Cafe",
+                    utterance_text="Jonas, what happened at the dock?",
+                    speech_text="what happened at the dock?",
+                    dialogue_act="ask",
+                    dialogue_domain="lead_topic",
+                    topic_status="productive",
+                    adjudication_resolution_kind="allowed",
+                    conversation_stance="neutral",
+                    conversation_subtopic=None,
+                    continuity_cue=None,
+                    npc_trust_level=0,
+                    plot_name="Missing Ledger",
+                    plot_stage="hook",
+                    lead_flag_active=False,
+                    check_kind=None,
+                    check_is_success=None,
+                    check_successes=None,
+                    check_difficulty=None,
+                    consequence_messages=(),
+                    applied_effects=(),
+                    npc_profile=NPCDialogueProfile(
+                        background_summary="Jonas trades in local knowledge.",
+                        public_persona="a wary informant",
+                        private_history_summary="He knows the dockside well.",
+                        motivations=["stay useful"],
+                        speaking_style="quiet and economical",
+                        relationship_context="He is testing Mara.",
+                    ),
+                    authorized_fact_cards=(),
+                    social_outcome=None,
+                )
+            )
+
     def test_shared_dialogue_renderer_helper_uses_openai_model_from_runtime_config(self) -> None:
         with patch("vampire_storyteller.cli.OpenAIDialogueRenderer") as mock_renderer_ctor:
             renderer, notice = build_dialogue_renderer(

@@ -47,6 +47,11 @@ class RecordingDialogueIntentAdapter:
         )
 
 
+class FailingDialogueRenderer:
+    def render_dialogue(self, render_input) -> str:
+        raise RuntimeError("OpenAI dialogue renderer unavailable")
+
+
 class GameSessionTests(unittest.TestCase):
     def test_default_session_builds_successfully(self) -> None:
         session = GameSession()
@@ -359,6 +364,15 @@ class GameSessionTests(unittest.TestCase):
         )
 
         self.assertTrue(session._supports_dialogue_rendering(render_input))
+
+    def test_dialogue_rendering_runtime_failure_hard_fails_the_turn(self) -> None:
+        session = GameSession(dialogue_renderer=FailingDialogueRenderer())
+
+        result = session.process_input("Jonas, what happened at the dock?")
+
+        self.assertIn("dialogue rendering failed", result.output_text.lower())
+        self.assertIn("openai dialogue renderer unavailable", result.output_text.lower())
+        self.assertFalse(result.render_scene)
 
     def test_missing_ledger_follow_up_stays_in_the_same_subtopic(self) -> None:
         session = GameSession()

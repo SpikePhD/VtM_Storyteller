@@ -12,6 +12,14 @@ from .openai_dialogue_renderer import OpenAIDialogueRenderer
 from .openai_narrative_provider import OpenAISceneNarrativeProvider
 
 
+class _UnavailableOpenAIDialogueRenderer:
+    def __init__(self, reason: str) -> None:
+        self._reason = reason
+
+    def render_dialogue(self, render_input) -> str:
+        raise RuntimeError(self._reason)
+
+
 def build_scene_provider(config: AppConfig | None = None) -> tuple[SceneNarrativeProvider, str | None]:
     config = load_config() if config is None else config
     if not config.use_openai_scene_provider:
@@ -52,15 +60,20 @@ def build_dialogue_renderer(config: AppConfig | None = None) -> tuple[DialogueRe
         return DeterministicDialogueRenderer(), None
 
     if not config.openai_api_key:
-        return (
-            DeterministicDialogueRenderer(),
-            "OpenAI dialogue renderer requested but OPENAI_API_KEY is missing; using deterministic dialogue rendering.",
+        reason = (
+            "OpenAI dialogue renderer requested but OPENAI_API_KEY is missing; "
+            "deterministic dialogue rendering is disabled in OpenAI dialogue mode, so dialogue turns will fail explicitly."
         )
+        return _UnavailableOpenAIDialogueRenderer(reason), reason
 
     try:
         return OpenAIDialogueRenderer(api_key=config.openai_api_key, model=config.openai_model), None
-    except Exception:
-        return DeterministicDialogueRenderer(), "OpenAI dialogue renderer unavailable; using deterministic dialogue rendering."
+    except Exception as exc:
+        reason = (
+            "OpenAI dialogue renderer unavailable; deterministic dialogue rendering is disabled in OpenAI dialogue mode, "
+            f"so dialogue turns will fail explicitly. ({exc})"
+        )
+        return _UnavailableOpenAIDialogueRenderer(reason), reason
 
 
 def run_cli() -> None:
@@ -128,7 +141,7 @@ def _build_runtime_banner(
 ) -> str:
     runtime_mode = "OpenAI" if isinstance(scene_provider, OpenAISceneNarrativeProvider) else "deterministic"
     dialogue_mode = "OpenAI" if isinstance(dialogue_intent_adapter, OpenAIDialogueIntentAdapter) else "deterministic"
-    dialogue_render_mode = "OpenAI" if isinstance(dialogue_renderer, OpenAIDialogueRenderer) else "deterministic"
+    dialogue_render_mode = "OpenAI" if config.use_openai_dialogue_renderer else "deterministic"
     lines = [
         "Runtime",
         f"Adventure: {ADVENTURE_ID}",
@@ -150,7 +163,10 @@ def _build_runtime_banner(
     lines.append(f"Dialogue fallback: {'yes' if dialogue_notice is not None else 'no'}")
     if dialogue_notice is not None:
         lines.append(f"Dialogue notice: {dialogue_notice}")
-    lines.append(f"Dialogue render fallback: {'yes' if renderer_notice is not None else 'no'}")
+    if config.use_openai_dialogue_renderer:
+        lines.append("Dialogue render fallback: no (disabled by design in OpenAI dialogue mode)")
+    else:
+        lines.append(f"Dialogue render fallback: {'yes' if renderer_notice is not None else 'no'}")
     if renderer_notice is not None:
         lines.append(f"Dialogue render notice: {renderer_notice}")
     lines.append(f"Save: {get_default_save_path().as_posix()}")
