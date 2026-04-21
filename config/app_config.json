@@ -1,8 +1,15 @@
 {
-  "_comment": "runtime_mode options: deterministic, mixed, openai_storyteller",
-  "runtime_mode": "mixed",
+  "_comment_openai_api_key": "Loaded from OPENAI_API_KEY in the environment or .env file.",
+  "_comment_runtime_mode": "deterministic, mixed, or openai_storyteller.",
+  "runtime_mode": "openai_storyteller",
+  "_comment_openai_model": "Model name used by every OpenAI component.",
   "openai_model": "gpt-4.1-mini",
+  "_comment_use_openai_scene_provider": "Use OpenAI for scene narration when runtime_mode is mixed.",
   "use_openai_scene_provider": true,
+  "_comment_use_openai_dialogue_intent_adapter": "Use OpenAI for dialogue intent interpretation when runtime_mode is mixed.",
   "use_openai_dialogue_intent_adapter": true,
-  "use_openai_dialogue_renderer": false
+  "_comment_use_openai_dialogue_renderer": "Use OpenAI for NPC dialogue realization when runtime_mode is mixed.",
+  "use_openai_dialogue_renderer": true,
+  "_comment_use_openai_storyteller_mode": "Legacy compatibility knob for the full OpenAI storyteller preset.",
+  "use_openai_storyteller_mode": true
 }
