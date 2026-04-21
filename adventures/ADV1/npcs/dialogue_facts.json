@@ -119,6 +119,42 @@
       "allowed_topic_results": ["opened", "partial", "blocked", "unchanged"],
       "required_dialogue_domains": ["off_topic_request"],
       "required_keywords": ["blood", "feed", "feeding", "bite", "drink from", "drink your blood"]
+    },
+    {
+      "fact_id": "eliza_church_records_lead",
+      "npc_id": "npc_2",
+      "plot_id": "plot_1",
+      "summary": "She points Mara toward the church records and is willing to keep the conversation on that lane if Mara stays respectful.",
+      "kind": "lead",
+      "required_plot_stages": ["church_visited"],
+      "allowed_outcome_kinds": ["reveal", "cooperate"],
+      "allowed_topic_results": ["opened", "partial"],
+      "required_dialogue_domains": ["lead_topic", "lead_pressure"],
+      "required_keywords": ["church records", "record shelves", "church", "records"]
+    },
+    {
+      "fact_id": "eliza_church_records_refusal",
+      "npc_id": "npc_2",
+      "plot_id": "plot_1",
+      "summary": "She refuses to unpack the ledger question when the talk turns pushy and keeps the answer narrow.",
+      "kind": "refusal_basis",
+      "required_plot_stages": ["church_visited"],
+      "allowed_outcome_kinds": ["refuse", "threaten"],
+      "allowed_topic_results": ["blocked", "unchanged"],
+      "required_dialogue_domains": ["lead_pressure", "provocative_or_inappropriate"],
+      "required_keywords": ["ledger", "what happened", "why", "pushy"]
+    },
+    {
+      "fact_id": "eliza_church_records_follow_up",
+      "npc_id": "npc_2",
+      "plot_id": "plot_1",
+      "summary": "If Mara keeps following the church-records thread, Eliza stays on it and adds a little more without changing the wider picture.",
+      "kind": "redirect",
+      "required_plot_stages": ["church_visited"],
+      "allowed_outcome_kinds": ["cooperate", "reveal", "deflect"],
+      "allowed_topic_results": ["opened", "partial", "unchanged"],
+      "required_dialogue_domains": ["lead_topic", "lead_pressure"],
+      "required_keywords": ["what about", "what about it", "what about that", "tell me more", "go on", "continue"]
     }
   ]
 }

@@ -61,6 +61,36 @@
           ]
         }
       ]
+    },
+    {
+      "npc_id": "npc_2",
+      "baseline_stance": "neutral",
+      "baseline_cooperation": "guarded",
+      "guarded_dialogue_acts": ["accuse", "threaten"],
+      "stage_definitions": [
+        {
+          "plot_id": "plot_1",
+          "plot_stage": "church_visited",
+          "required_story_flags": [],
+          "topic_definitions": [
+            {
+              "topic": "church_records",
+              "topic_status": "productive",
+              "persuade_check_required": false
+            },
+            {
+              "topic": "ledger",
+              "topic_status": "refused",
+              "persuade_check_required": false
+            },
+            {
+              "topic": "blood",
+              "topic_status": "refused",
+              "persuade_check_required": false
+            }
+          ]
+        }
+      ]
     }
   ]
 }

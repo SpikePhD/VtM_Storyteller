@@ -40,6 +40,58 @@
           "summary": "Jonas can admit the paper trail begins at North Dockside once trust is earned."
         }
       ]
+    },
+    {
+      "npc_id": "npc_2",
+      "public_persona": "a guarded haven keeper who weighs every question before answering",
+      "private_history_summary": "Sister Eliza has learned that records attract predatory attention, so she treats the church archives as both a duty and a risk.",
+      "speaking_style": "measured and restrained",
+      "relationship_context": "She is willing to test Mara's seriousness, but she will not hand over the church's records lightly.",
+      "motivations": [
+        "Protect the church records",
+        "Keep ledger questions away from the nave until Mara proves herself"
+      ],
+      "social_baseline": {
+        "relationship_to_player": "guarded",
+        "trust": 0,
+        "hostility": 1,
+        "fear": 1,
+        "respect": 3,
+        "willingness_to_cooperate": 2,
+        "current_conversation_stance": "neutral"
+      },
+      "topic_groups": [
+        {
+          "group_id": "church_records",
+          "topics": ["church", "records", "church records"],
+          "sensitivity": "open",
+          "taboo_topics": ["blood"]
+        },
+        {
+          "group_id": "ledger_pressure",
+          "topics": ["ledger"],
+          "sensitivity": "guarded",
+          "taboo_topics": ["threats", "blood"]
+        },
+        {
+          "group_id": "sanctuary_boundaries",
+          "topics": ["blood", "feeding"],
+          "sensitivity": "blocked",
+          "taboo_topics": ["blood"]
+        }
+      ],
+      "revealable_fact_groups": [
+        {
+          "group_id": "church_records_lead",
+          "fact_ids": ["eliza_church_records_lead"],
+          "summary": "Eliza can point Mara toward the church records once the conversation stays on that lane."
+        },
+        {
+          "group_id": "church_records_boundary",
+          "fact_ids": ["eliza_church_records_refusal", "eliza_church_records_follow_up"],
+          "summary": "Eliza can refuse direct ledger pressure and continue a church-records thread if Mara keeps following it."
+        }
+      ]
     }
   ]
 }

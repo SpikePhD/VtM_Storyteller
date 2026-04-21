@@ -109,6 +109,10 @@ def classify_dialogue_domain(
 
 
 def _classify_non_jonas_domain(dialogue_act: DialogueAct, topic_status: Any) -> DialogueDomain:
+    if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
+        return DialogueDomain.LEAD_PRESSURE
+    if dialogue_act in (DialogueAct.GREET, DialogueAct.ASK):
+        return DialogueDomain.LEAD_TOPIC
     if dialogue_act is DialogueAct.PERSUADE and _is_productive_topic_status(topic_status):
         return DialogueDomain.LEAD_PRESSURE
     if _is_productive_topic_status(topic_status):

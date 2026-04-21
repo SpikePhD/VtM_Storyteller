@@ -47,6 +47,31 @@ class RecordingDialogueIntentAdapter:
         )
 
 
+class RecordingElizaDialogueIntentAdapter:
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def propose_dialogue_intent(self, context) -> object:
+        self.calls.append(context.raw_input)
+        from vampire_storyteller.dialogue_intent_adapter import DialogueIntentProposal
+
+        return DialogueIntentProposal(
+            dialogue_act="ask",
+            target_npc_text="Sister Eliza",
+            topic="church_records",
+            tone="careful",
+        )
+
+
+class RecordingDialogueRenderer:
+    def __init__(self) -> None:
+        self.render_inputs: list[DialogueRenderInput] = []
+
+    def render_dialogue(self, render_input: DialogueRenderInput) -> str:
+        self.render_inputs.append(render_input)
+        return "The church records can wait for you."
+
+
 class FailingDialogueRenderer:
     def render_dialogue(self, render_input) -> str:
         raise RuntimeError("OpenAI dialogue renderer unavailable")
@@ -373,6 +398,32 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("dialogue rendering failed", result.output_text.lower())
         self.assertIn("openai dialogue renderer unavailable", result.output_text.lower())
         self.assertFalse(result.render_scene)
+
+    def test_eliza_church_records_slice_routes_through_the_same_architecture(self) -> None:
+        adapter = RecordingElizaDialogueIntentAdapter()
+        renderer = RecordingDialogueRenderer()
+        session = GameSession(dialogue_intent_adapter=adapter, dialogue_renderer=renderer)
+
+        session.process_input("move loc_church")
+        session.process_input("Sister Eliza, good evening.")
+        result = session.process_input("What about the church records?")
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(result.output_text, "The church records can wait for you.")
+        self.assertIsNotNone(result.dialogue_presentation)
+        self.assertGreaterEqual(len(adapter.calls), 1)
+        self.assertGreaterEqual(len(renderer.render_inputs), 2)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
+        self.assertEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.PRODUCTIVE)
+        last_render_input = renderer.render_inputs[-1]
+        self.assertEqual(last_render_input.npc_name, "Sister Eliza")
+        self.assertIn("eliza_church_records_lead", [fact.fact_id for fact in last_render_input.authorized_fact_cards])
+        self.assertIn("eliza_church_records_follow_up", [fact.fact_id for fact in last_render_input.authorized_fact_cards])
+        self.assertNotIn("Unsupported freeform input", result.output_text)
 
     def test_missing_ledger_follow_up_stays_in_the_same_subtopic(self) -> None:
         session = GameSession()
@@ -1050,7 +1101,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("Learned: The ledger's path points back to a hidden broker operating through the dock.", result.output_text)
         self.assertIn("Closing beat: Mara leaves North Dockside with the ledger matter settled.", result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
-        self.assertEqual(session.get_world_state().npcs["npc_2"].trust_level, 1)
+        self.assertEqual(session.get_world_state().npcs["npc_2"].trust_level, 2)
         self.assertEqual(session.get_world_state().story_flags, [])
 
     def test_save_load_restores_trust_reflected_in_scene_text(self) -> None:

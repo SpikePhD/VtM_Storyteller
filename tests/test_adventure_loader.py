@@ -145,13 +145,17 @@ class AdventureLoaderTests(unittest.TestCase):
     def test_dialogue_fact_definition_loader_reads_adv1_file(self) -> None:
         fact_state = load_adv1_dialogue_fact_definitions()
 
-        self.assertGreaterEqual(len(fact_state.fact_definitions), 5)
+        self.assertGreaterEqual(len(fact_state.fact_definitions), 13)
         first_fact = fact_state.fact_definitions[0]
         self.assertEqual(first_fact.fact_id, "jonas_missing_ledger_lead")
         self.assertEqual(first_fact.kind, "lead")
         self.assertEqual(first_fact.subtopic, "missing_ledger")
         self.assertIn("dockside", first_fact.summary.lower())
         self.assertIn("reveal", first_fact.allowed_outcome_kinds)
+        fact_ids = {fact.fact_id for fact in fact_state.fact_definitions}
+        self.assertIn("eliza_church_records_lead", fact_ids)
+        self.assertIn("eliza_church_records_refusal", fact_ids)
+        self.assertIn("eliza_church_records_follow_up", fact_ids)
 
     def test_dialogue_social_state_loader_reads_adv1_file(self) -> None:
         social_state = load_adv1_dialogue_social_state()
@@ -166,6 +170,12 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertTrue(jonas.stage_definitions[0].topic_definitions["dock"].persuade_check_required)
         self.assertEqual(jonas.stage_definitions[1].required_story_flags, ["jonas_shared_dock_lead"])
         self.assertFalse(jonas.stage_definitions[1].topic_definitions["dock"].persuade_check_required)
+        self.assertIn("npc_2", social_state.npc_definitions)
+        eliza = social_state.npc_definitions["npc_2"]
+        self.assertEqual(eliza.baseline_cooperation, "guarded")
+        self.assertEqual(eliza.stage_definitions[0].plot_stage, "church_visited")
+        self.assertEqual(eliza.stage_definitions[0].topic_definitions["church_records"].topic_status, "productive")
+        self.assertEqual(eliza.stage_definitions[0].topic_definitions["ledger"].topic_status, "refused")
 
     def test_dialogue_dossier_loader_reads_adv1_file(self) -> None:
         dossier_state = load_adv1_dialogue_dossiers()
@@ -189,6 +199,19 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(jonas.topic_groups[0].sensitivity, "sensitive")
         self.assertEqual(jonas.topic_groups[0].taboo_topics, ("blood",))
         self.assertEqual(jonas.revealable_fact_groups[0].fact_ids, ("jonas_missing_ledger_lead",))
+        self.assertIn("npc_2", dossier_state.npc_definitions)
+        eliza = dossier_state.npc_definitions["npc_2"]
+        self.assertEqual(eliza.npc_id, "npc_2")
+        self.assertIn("guarded haven keeper", eliza.public_persona.lower())
+        self.assertIn("church archives", eliza.private_history_summary.lower())
+        self.assertEqual(eliza.speaking_style, "measured and restrained")
+        self.assertIn("will not hand over", eliza.relationship_context.lower())
+        self.assertEqual(eliza.social_baseline.relationship_to_player, "guarded")
+        self.assertEqual(eliza.social_baseline.trust, 0)
+        self.assertEqual(eliza.topic_groups[0].group_id, "church_records")
+        self.assertEqual(eliza.topic_groups[0].topics, ("church", "records", "church records"))
+        self.assertEqual(eliza.topic_groups[0].sensitivity, "open")
+        self.assertIn("eliza_church_records_lead", eliza.revealable_fact_groups[0].fact_ids)
 
     def test_plot_progression_definition_loader_reads_talk_branch(self) -> None:
         progression = load_adv1_plot_progression_rules()

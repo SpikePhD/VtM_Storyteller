@@ -74,7 +74,7 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertIn("hidden broker", world.plots["plot_1"].learned_outcome)
         self.assertIn("Mara leaves North Dockside", world.plots["plot_1"].closing_beat)
         self.assertEqual(world.npcs["npc_1"].trust_level, 1)
-        self.assertEqual(world.npcs["npc_2"].trust_level, 1)
+        self.assertEqual(world.npcs["npc_2"].trust_level, 2)
         self.assertEqual(world.event_log[-1].description, "Mara leaves North Dockside with the ledger matter settled.")
         self.assertEqual(world.event_log[-2].description, "Plot 'Missing Ledger' resolved at North Dockside.")
         self.assertEqual(world.event_log[-1].involved_entities, ["player_1", "plot_1", "loc_dock"])

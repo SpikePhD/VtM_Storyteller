@@ -208,9 +208,19 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertEqual(context.npc_dossier.public_persona, "a wary neighborhood informant who keeps public conversations short")
         self.assertEqual(context.npc_dossier.revealable_fact_groups[0].fact_ids, ("jonas_missing_ledger_lead",))
 
-    def test_dialogue_context_assembler_returns_bounded_result_without_dossier(self) -> None:
+    def test_dialogue_context_assembler_returns_eliza_dossier_backed_context(self) -> None:
         world_state = build_sample_world()
-        command = TalkCommand(npc_id="npc_2")
+        world_state.player.location_id = "loc_church"
+        world_state.plots["plot_1"].stage = "church_visited"
+        command = TalkCommand(
+            npc_id="npc_2",
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="Sister Eliza, what about the church records?",
+                speech_text="what about the church records?",
+                dialogue_act=DialogueAct.ASK,
+                topic="church_records",
+            ),
+        )
         adjudication = adjudicate_dialogue_talk(world_state, command)
 
         context = assemble_dialogue_context(
@@ -223,8 +233,41 @@ class DialogueRendererTests(unittest.TestCase):
 
         self.assertEqual(context.npc_id, "npc_2")
         self.assertEqual(context.npc_name, "Sister Eliza")
-        self.assertIsNone(context.npc_dossier)
+        self.assertIsNotNone(context.npc_dossier)
+        assert context.npc_dossier is not None
+        self.assertEqual(context.npc_dossier.public_persona, "a guarded haven keeper who weighs every question before answering")
+        self.assertEqual(context.npc_dossier.topic_groups[0].group_id, "church_records")
         self.assertEqual(context.npc_profile.public_persona, "a guarded haven keeper who watches before she speaks")
+
+    def test_build_dialogue_render_input_uses_eliza_church_records_facts(self) -> None:
+        world_state = build_sample_world()
+        world_state.player.location_id = "loc_church"
+        world_state.plots["plot_1"].stage = "church_visited"
+        command = TalkCommand(
+            npc_id="npc_2",
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="Sister Eliza, what about the church records?",
+                speech_text="what about the church records?",
+                dialogue_act=DialogueAct.ASK,
+                topic="church_records",
+            ),
+        )
+        adjudication = adjudicate_dialogue_talk(world_state, command)
+
+        render_input = build_dialogue_render_input(
+            world_state,
+            command,
+            adjudication,
+            None,
+            ActionConsequenceSummary(),
+            social_outcome=adjudication.social_outcome,
+        )
+
+        self.assertEqual(render_input.npc_name, "Sister Eliza")
+        self.assertEqual(render_input.dialogue_domain, "lead_topic")
+        self.assertEqual(render_input.topic_status, "productive")
+        self.assertIn("eliza_church_records_lead", [fact.fact_id for fact in render_input.authorized_fact_cards])
+        self.assertIn("eliza_church_records_follow_up", [fact.fact_id for fact in render_input.authorized_fact_cards])
 
     def test_build_dialogue_render_input_uses_assembled_dialogue_context(self) -> None:
         session = GameSession()

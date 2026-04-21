@@ -53,18 +53,22 @@
       "role": "Haven Keeper",
       "starting_location_id": "loc_church",
       "attitude_to_player": "guarded",
-      "trust_level": 0,
+      "trust_level": 1,
       "social_state": {
         "relationship_to_player": "guarded",
-        "trust": 0,
+        "trust": 1,
         "hostility": 1,
         "fear": 1,
         "respect": 3,
         "willingness_to_cooperate": 2,
         "current_conversation_stance": "neutral",
         "topic_sensitivity": {
+          "church_records": "open",
+          "church": "open",
+          "records": "open",
           "dock": "guarded",
-          "ledger": "sensitive"
+          "ledger": "guarded",
+          "blood": "blocked"
         }
       },
       "goals": [

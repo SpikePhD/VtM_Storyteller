@@ -11,3 +11,4 @@
 - Added a bounded dialogue-context assembler that threads dossier-backed turn context into render-input construction without changing dialogue behavior.
 - Routed active Jonas follow-up lines through the dialogue-intent path before unsupported-input fallback, while keeping explicit world actions on their existing routes.
 - Made OpenAI dialogue mode mandatory at render time so missing dialogue LLMs now hard-fail dialogue turns instead of falling back to deterministic NPC speech.
+- Onboarded Sister Eliza onto the shared dossier-backed dialogue slice, including church-records facts and generic non-Jonas follow-up routing.
