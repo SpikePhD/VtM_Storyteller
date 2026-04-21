@@ -395,6 +395,22 @@ class DialogueRendererTests(unittest.TestCase):
 
         self.assertIn("keep this professional", output.lower())
 
+    def test_packet_first_meta_conversation_challenge_stays_out_of_the_content_lane(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.DEFLECT,
+            topic_result=TopicResult.PARTIAL,
+            dialogue_domain="meta_conversation",
+            dialogue_act="ask",
+            utterance_text="Why are you so hostile?",
+            speech_text="why are you so hostile?",
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertNotIn("paper trail", output.lower())
+        self.assertNotIn("dockside", output.lower())
+
     def test_packet_first_refusal_renders_without_jonas_specific_gate(self) -> None:
         renderer = DeterministicDialogueRenderer()
         render_input = _make_render_input(

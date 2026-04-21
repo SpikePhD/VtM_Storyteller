@@ -292,6 +292,37 @@ class GameSessionTests(unittest.TestCase):
         assert turn.dialogue_adjudication is not None
         self.assertTrue(turn.dialogue_adjudication.is_guarded)
 
+    def test_meta_conversation_stance_challenge_uses_distinct_domain(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        result = session.process_input("Why are you so hostile?")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertNotIn("paper trail", result.output_text.lower())
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.META_CONVERSATION)
+        self.assertIn(turn.dialogue_adjudication.topic_status, {DialogueTopicStatus.AVAILABLE, DialogueTopicStatus.REFUSED, DialogueTopicStatus.PRODUCTIVE})
+
+    def test_meta_conversation_challenge_does_not_reveal_protected_facts(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        session.process_input("Why are you so hostile?")
+        turn = session.get_last_action_resolution()
+
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertNotEqual(turn.dialogue_adjudication.social_outcome.topic_result, TopicResult.OPENED)
+        self.assertNotEqual(turn.dialogue_adjudication.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
+
     def test_follow_up_what_do_you_mean_stays_in_question_path(self) -> None:
         session = GameSession()
 
@@ -303,6 +334,20 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+
+    def test_content_topic_question_still_uses_the_lead_lane(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        result = session.process_input("Why are the docks the starting place?")
+        turn = session.get_last_action_resolution()
+
+        self.assertIn("trail starts", result.output_text.lower())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
 
     def test_background_follow_up_after_greeting_stays_with_jonas(self) -> None:
         session = GameSession()

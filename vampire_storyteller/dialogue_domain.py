@@ -12,6 +12,7 @@ from .world_state import WorldState
 class DialogueDomain(str, Enum):
     LEAD_TOPIC = "lead_topic"
     LEAD_PRESSURE = "lead_pressure"
+    META_CONVERSATION = "meta_conversation"
     TRAVEL_PROPOSAL = "travel_proposal"
     OFF_TOPIC_REQUEST = "off_topic_request"
     PROVOCATIVE_OR_INAPPROPRIATE = "provocative_or_inappropriate"
@@ -39,6 +40,9 @@ def classify_dialogue_domain(
 
     if _is_provocative_or_inappropriate(combined_text):
         return DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE
+
+    if _is_meta_conversation_challenge(combined_text, dialogue_act, conversation_stance):
+        return DialogueDomain.META_CONVERSATION
 
     if _is_explicit_lead_topic_reentry(topic_text or combined_text):
         return DialogueDomain.LEAD_TOPIC
@@ -322,6 +326,63 @@ def _is_taxi_fare_support_request(normalized_text: str) -> bool:
         )
     )
     return has_taxi_context and has_money_support_request
+
+
+def _is_meta_conversation_challenge(
+    normalized_text: str,
+    dialogue_act: DialogueAct,
+    conversation_stance: ConversationStance,
+) -> bool:
+    if not normalized_text:
+        return False
+
+    if conversation_stance is ConversationStance.GUARDED and any(
+        phrase in normalized_text
+        for phrase in (
+            "why are you hostile",
+            "why are you so hostile",
+            "why are you being difficult",
+            "you are being difficult",
+            "you are hostile",
+            "you are guarded",
+            "you are refusing",
+            "you did not help me",
+            "you didn't help me",
+            "you have not helped me",
+            "you havent helped me",
+            "you have not given me anything",
+            "you haven't given me anything",
+        )
+    ):
+        return True
+
+    if dialogue_act in {DialogueAct.ASK, DialogueAct.ACCUSE, DialogueAct.PERSUADE, DialogueAct.UNKNOWN}:
+        return any(
+            phrase in normalized_text
+            for phrase in (
+                "why are you hostile",
+                "why are you so hostile",
+                "why are you being difficult",
+                "you are being difficult",
+                "you are hostile",
+                "you are guarded",
+                "you are refusing",
+                "you did not help me",
+                "you didn't help me",
+                "you have not helped me",
+                "you havent helped me",
+                "you have not given me anything",
+                "you haven't given me anything",
+                "why won't you help me",
+                "why will you not help me",
+                "why are you refusing to help",
+                "why are you refusing",
+                "why won't you answer me",
+                "why are you shutting me out",
+            )
+        )
+
+    return False
 
 
 def _is_provocative_or_inappropriate(normalized_text: str) -> bool:

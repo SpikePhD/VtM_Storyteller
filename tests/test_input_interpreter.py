@@ -283,6 +283,23 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.canonical_command, "talk npc_1")
 
+    def test_meta_conversation_follow_up_routes_through_dialogue_intent(self) -> None:
+        adapter = self.RecordingDialogueIntentAdapter()
+        result = self.interpreter.interpret(
+            "Why are you so hostile?",
+            self.world_state,
+            conversation_focus_npc_id="npc_1",
+            dialogue_intent_adapter=adapter,
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        assert result.dialogue_metadata is not None
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertEqual(len(adapter.contexts), 1)
+
     def test_missing_ledger_follow_up_reuses_active_subtopic(self) -> None:
         result = self.interpreter.interpret(
             "What about it",

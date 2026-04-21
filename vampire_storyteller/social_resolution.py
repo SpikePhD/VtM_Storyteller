@@ -60,6 +60,33 @@ def evaluate_topic_openness(
             reason_code=f"{dialogue_act.value}_blocked",
         )
 
+    if dialogue_domain is DialogueDomain.META_CONVERSATION:
+        if dialogue_act in (DialogueAct.ACCUSE, DialogueAct.THREATEN):
+            return SocialResolutionEvaluation(
+                topic_key=topic_key,
+                topic_sensitivity=topic_sensitivity,
+                openness_score=openness_score,
+                outcome_kind=SocialOutcomeKind.REFUSE,
+                topic_result=TopicResult.BLOCKED,
+                check_required=False,
+                check_roll_pool=_derive_roll_pool(openness_score),
+                check_difficulty=_derive_check_difficulty(openness_score, topic_sensitivity),
+                recommended_stance=ConversationStance.GUARDED,
+                reason_code="meta_conversation_blocked",
+            )
+        return SocialResolutionEvaluation(
+            topic_key=topic_key,
+            topic_sensitivity=topic_sensitivity,
+            openness_score=openness_score,
+            outcome_kind=SocialOutcomeKind.DEFLECT,
+            topic_result=TopicResult.PARTIAL,
+            check_required=False,
+            check_roll_pool=_derive_roll_pool(openness_score),
+            check_difficulty=_derive_check_difficulty(openness_score, topic_sensitivity),
+            recommended_stance=ConversationStance.GUARDED if current_stance is ConversationStance.GUARDED else ConversationStance.NEUTRAL,
+            reason_code="meta_conversation_deflected",
+        )
+
     if dialogue_act is DialogueAct.GREET:
         return SocialResolutionEvaluation(
             topic_key=topic_key,
@@ -353,6 +380,7 @@ def _dialogue_domain_modifier(dialogue_domain: DialogueDomain) -> int:
     return {
         DialogueDomain.LEAD_TOPIC: 1,
         DialogueDomain.LEAD_PRESSURE: 0,
+        DialogueDomain.META_CONVERSATION: -1,
         DialogueDomain.TRAVEL_PROPOSAL: -1,
         DialogueDomain.OFF_TOPIC_REQUEST: -2,
         DialogueDomain.PROVOCATIVE_OR_INAPPROPRIATE: -6,
