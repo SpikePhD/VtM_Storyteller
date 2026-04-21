@@ -36,6 +36,7 @@ class OpenAIDialogueRenderer:
                 "You are rendering a Vampire: The Masquerade dialogue beat from deterministic backend state.",
                 "Use the social_outcome packet as the authoritative contract and the other fields as bounded context.",
                 "Use only the supplied JSON payload as source of truth.",
+                "Prefer natural conversational phrasing over scripted exposition, and avoid repeating the same lead line when the packet already made the answer clear.",
                 "Write 1 or 2 short paragraphs of plain text only.",
                 "Keep the prose grounded, moody, and concise.",
                 "Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, checks, or state changes.",

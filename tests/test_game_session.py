@@ -185,7 +185,7 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Why?")
         interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("hears 'Why?'", result.output_text)
+        self.assertIn("trail starts", result.output_text.lower())
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
@@ -467,7 +467,8 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("What happened at the dock?")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("dock is the only place worth checking", result.output_text.lower())
+        self.assertIn("dock", result.output_text.lower())
+        self.assertIn("paper trail", result.output_text.lower())
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
 
     def test_guarded_follow_up_go_on_does_not_unlock_productive_progression(self) -> None:
@@ -537,8 +538,8 @@ class GameSessionTests(unittest.TestCase):
             result = session.process_input("I persuade Jonas to help with the dock.")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("waterline", result.output_text.lower())
-        self.assertIn("broker", result.output_text.lower())
+        self.assertIn("dock", result.output_text.lower())
+        self.assertIn("paper trail", result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.check)
@@ -595,7 +596,8 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Jonas, what happened at the dock?")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("dock is the only place worth checking", result.output_text)
+        self.assertIn("dock", result.output_text.lower())
+        self.assertIn("paper trail", result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
@@ -667,13 +669,14 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIn("keeps his voice low", first_result.output_text)
         self.assertIn("loosens his shoulders", second_result.output_text)
-        self.assertIn("waterline", follow_up_result.output_text.lower())
+        self.assertIn("trail starts", follow_up_result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
         assert turn.dialogue_adjudication is not None
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+        self.assertIn("trail starts", follow_up_result.output_text.lower())
 
     def test_guarded_blood_request_still_uses_off_topic_refusal(self) -> None:
         session = GameSession()
@@ -865,7 +868,7 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIn("keeps his voice low", first_result.output_text)
         self.assertIn("loosens his shoulders", second_result.output_text)
-        self.assertIn("paper trail began", second_result.output_text)
+        self.assertIn("paper trail", second_result.output_text.lower())
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
         self.assertEqual(session.get_world_state().story_flags, ["jonas_shared_dock_lead"])

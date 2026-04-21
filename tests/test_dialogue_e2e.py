@@ -47,6 +47,18 @@ class DialogueEndToEndTests(unittest.TestCase):
         self.assertNotIn("paper trail", result.output_text.lower())
         self.assertNotIn("waterline", result.output_text.lower())
 
+    def test_jonas_small_talk_stays_polite_without_opening_the_lead(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello")
+        result, interpreted, turn = self._run_dialogue_turn(session, "How are you?")
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertIn("holding up", result.output_text.lower())
+        self.assertIn("something specific", result.output_text.lower())
+        self.assertNotIn("paper trail", result.output_text.lower())
+        self.assertNotIn("waterline", result.output_text.lower())
+
     def test_jonas_dock_question_emits_productive_packet_from_backend_truth(self) -> None:
         session = GameSession()
 

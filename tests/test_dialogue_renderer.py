@@ -108,8 +108,8 @@ class DialogueRendererTests(unittest.TestCase):
             )
             result = session.process_input("I persuade Jonas to help with the dock.")
 
-        self.assertIn("waterline", result.output_text.lower())
-        self.assertIn("broker", result.output_text.lower())
+        self.assertIn("dock", result.output_text.lower())
+        self.assertIn("paper trail", result.output_text.lower())
         self.assertNotIn("Dialogue check success", result.output_text)
 
     def test_social_check_failure_renders_from_structured_failure_data(self) -> None:
@@ -191,8 +191,9 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("waterline", output.lower())
-        self.assertIn("broker used the dock to move papers", output.lower())
+        self.assertIn("dock", output.lower())
+        self.assertIn("paper trail", output.lower())
+        self.assertNotIn("broker used the dock to move papers", output.lower())
 
     def test_packet_first_refusal_remains_guarded_without_progression(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -295,7 +296,9 @@ class DialogueRendererTests(unittest.TestCase):
         output = renderer.render_dialogue(render_input)
 
         self.assertIn("pressure lands", output.lower())
-        self.assertIn("broker used the dock to move papers", output.lower())
+        self.assertIn("dock", output.lower())
+        self.assertIn("paper trail", output.lower())
+        self.assertNotIn("broker used the dock to move papers", output.lower())
 
     def test_renderer_output_does_not_mutate_world_state(self) -> None:
         session = GameSession()

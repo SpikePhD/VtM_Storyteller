@@ -746,6 +746,18 @@ class InputInterpreter:
             ),
         ):
             return True
+        if self._contains_any(
+            normalized_text,
+            (
+                "how are you",
+                "how are you doing",
+                "how are things",
+                "how is it going",
+                "how's it going",
+                "how have you been",
+            ),
+        ):
+            return True
         if conversation_subtopic is not None and "please" in normalized_text.split() and len(normalized_text.split()) <= 4:
             return True
         return False

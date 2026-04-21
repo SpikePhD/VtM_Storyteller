@@ -131,6 +131,7 @@ class DeterministicDialogueRenderer:
 
     def _render_jonas_from_social_outcome(self, render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
         check = packet.check_result
+        normalized_text = f"{render_input.utterance_text} {render_input.speech_text}".lower().replace("-", " ")
         if render_input.dialogue_domain == "travel_proposal":
             return self._render_jonas_travel_response(render_input)
 
@@ -140,12 +141,15 @@ class DeterministicDialogueRenderer:
         if render_input.dialogue_domain == "provocative_or_inappropriate":
             return "Jonas Reed's expression hardens. 'No. Keep this professional.'"
 
+        if render_input.dialogue_act == "ask" and _is_small_talk_question(normalized_text):
+            return self._render_jonas_small_talk_response()
+
         if check is not None:
             if check.is_success:
                 if packet.topic_result is TopicResult.OPENED:
                     return (
-                        "The pressure lands. Jonas Reed keeps his voice low, studies you for a beat, and loosens his shoulders before he points toward the waterline. "
-                        "He says the dock is where the paper trail began, the only place worth checking tonight, and the broker used the dock to move papers."
+                        "The pressure lands. Jonas Reed keeps his voice low, studies you for a beat, and then exhales. "
+                        "He admits the dock is where the paper trail began, and that is the trail worth following."
                     )
                 return "The pressure lands and Jonas Reed keeps talking, but he only opens the topic partway."
             return "Jonas Reed does not give ground. He stays guarded and the lead forward pressure does not land."
@@ -155,8 +159,10 @@ class DeterministicDialogueRenderer:
                 return "Jonas Reed doesn't take the pressure. He stays polite, but nothing opens up."
             return "Jonas Reed gives a brief nod and keeps the greeting polite without opening the dock conversation yet."
 
-        if "go on" in (render_input.speech_text.lower() + " " + render_input.utterance_text.lower()):
-            return "Jonas Reed stays guarded and gives you nothing that would move the lead forward."
+        if _is_short_follow_up_question(normalized_text):
+            if render_input.conversation_subtopic == "missing_ledger" or packet.topic_result is TopicResult.OPENED:
+                return "Jonas Reed exhales. 'Because that's where the trail starts.'"
+            return "Jonas Reed gives you a brief, careful answer, but he doesn't open anything new."
 
         if render_input.dialogue_act == "ask" and packet.topic_result in {TopicResult.OPENED, TopicResult.PARTIAL, TopicResult.UNCHANGED}:
             if (
@@ -166,7 +172,7 @@ class DeterministicDialogueRenderer:
             ):
                 return (
                     f"Jonas Reed hears '{render_input.speech_text}' and answers without giving much away. "
-                    "He keeps his voice low, loosens his shoulders, and points you back to the waterline: the dock is the only place worth checking tonight because that is where the paper trail began."
+                    "He keeps his voice low, loosens his shoulders, and points you back to the dock: that is where the paper trail began."
                 )
             return f"Jonas Reed hears '{render_input.speech_text}' and answers without giving much away."
 
@@ -196,8 +202,8 @@ class DeterministicDialogueRenderer:
         if packet.outcome_kind is SocialOutcomeKind.REVEAL or packet.topic_result is TopicResult.OPENED:
             if render_input.lead_flag_active or render_input.plot_stage in {"hook", "lead_confirmed"}:
                 return (
-                    "Jonas Reed keeps his voice low, loosens his shoulders, and points you back to the waterline. "
-                    "He says the dock is the only place worth checking tonight because that is where the paper trail began."
+                    "Jonas Reed keeps his voice low, loosens his shoulders, and points you back to the dock. "
+                    "He says that is where the paper trail began."
                 )
             return "Jonas Reed gives you a clearer answer and finally lets the topic open up."
 
@@ -321,6 +327,9 @@ class DeterministicDialogueRenderer:
             "He shuts back down, stays guarded, and gives nothing that would move the lead forward tonight."
         )
 
+    def _render_jonas_small_talk_response(self) -> str:
+        return "Jonas Reed gives a short shrug. 'I am holding up. You needed something specific?'"
+
     def _render_jonas_logistics_reply(self, render_input: DialogueRenderInput) -> str:
         normalized_text = f"{render_input.utterance_text} {render_input.speech_text}".lower().replace("-", " ")
         if any(phrase in normalized_text for phrase in ("stay in the car", "wait in the car", "wait nearby", "stay nearby", "stay close", "wait close")):
@@ -373,5 +382,35 @@ def _is_taxi_fare_support_request(normalized_text: str) -> bool:
             "cash for the ride",
             "cash for the trip",
             "cover the fare",
+        )
+    )
+
+
+def _is_small_talk_question(normalized_text: str) -> bool:
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "how are you",
+            "how are you doing",
+            "how are things",
+            "how is it going",
+            "how's it going",
+            "how have you been",
+        )
+    )
+
+
+def _is_short_follow_up_question(normalized_text: str) -> bool:
+    return any(
+        phrase in normalized_text
+        for phrase in (
+            "why",
+            "go on",
+            "what now",
+            "what about it",
+            "what about that",
+            "and then",
+            "tell me more",
+            "continue",
         )
     )
