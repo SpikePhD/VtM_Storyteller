@@ -22,6 +22,7 @@ class AppConfig:
     use_openai_dialogue_intent_adapter: bool
     use_openai_dialogue_renderer: bool
     use_openai_storyteller_mode: bool = False
+    runtime_mode: str | None = None
 
 
 def load_config(
@@ -35,6 +36,7 @@ def load_config(
 
     merged_runtime_config = {**runtime_config, **local_runtime_config}
     openai_model = _coerce_str(merged_runtime_config.get("openai_model"), DEFAULT_OPENAI_MODEL)
+    runtime_mode = _coerce_runtime_mode(merged_runtime_config.get("runtime_mode"))
     use_openai_storyteller_mode = _coerce_bool(merged_runtime_config.get("use_openai_storyteller_mode"), False)
     use_openai_scene_provider = _coerce_bool(merged_runtime_config.get("use_openai_scene_provider"), False)
     use_openai_dialogue_intent_adapter = _coerce_bool(merged_runtime_config.get("use_openai_dialogue_intent_adapter"), False)
@@ -47,6 +49,7 @@ def load_config(
         use_openai_scene_provider=use_openai_scene_provider,
         use_openai_dialogue_intent_adapter=use_openai_dialogue_intent_adapter,
         use_openai_dialogue_renderer=use_openai_dialogue_renderer,
+        runtime_mode=runtime_mode,
     )
 
 
@@ -120,3 +123,12 @@ def _coerce_bool(value: Any, default: bool) -> bool:
         if normalized in {"false", "0", "no", "off"}:
             return False
     return default
+
+
+def _coerce_runtime_mode(value: Any) -> str | None:
+    if not isinstance(value, str):
+        return None
+    normalized = " ".join(value.strip().lower().replace("-", "_").split())
+    if normalized in {"deterministic", "mixed", "openai_storyteller"}:
+        return normalized
+    return None

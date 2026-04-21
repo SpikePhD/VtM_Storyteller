@@ -35,6 +35,16 @@ class RuntimeComposition:
     full_openai_storyteller_mode: bool = False
 
 
+def _resolve_runtime_mode(config: AppConfig) -> str:
+    if config.runtime_mode is not None:
+        return config.runtime_mode
+    if config.use_openai_storyteller_mode:
+        return "openai_storyteller"
+    if config.use_openai_scene_provider or config.use_openai_dialogue_intent_adapter or config.use_openai_dialogue_renderer:
+        return "mixed"
+    return "deterministic"
+
+
 def build_scene_provider(config: AppConfig | None = None) -> tuple[SceneNarrativeProvider, str | None]:
     config = load_config() if config is None else config
     if not config.use_openai_scene_provider:
@@ -93,8 +103,21 @@ def build_dialogue_renderer(config: AppConfig | None = None) -> tuple[DialogueRe
 
 def build_runtime_composition(config: AppConfig | None = None) -> RuntimeComposition:
     config = load_config() if config is None else config
-    if config.use_openai_storyteller_mode:
+    runtime_mode = _resolve_runtime_mode(config)
+    if runtime_mode == "openai_storyteller":
         return _build_full_openai_storyteller_composition(config)
+    if runtime_mode == "deterministic":
+        return RuntimeComposition(
+            scene_provider=DeterministicSceneNarrativeProvider(),
+            dialogue_intent_adapter=NullDialogueIntentAdapter(),
+            dialogue_renderer=DeterministicDialogueRenderer(),
+            mode_label="Deterministic",
+            scene_label="deterministic",
+            dialogue_intent_label="deterministic",
+            dialogue_render_label="deterministic",
+            notices=(),
+            full_openai_storyteller_mode=False,
+        )
 
     scene_provider, scene_notice = build_scene_provider(config)
     dialogue_intent_adapter, dialogue_notice = build_dialogue_intent_adapter(config)
@@ -138,6 +161,8 @@ def _build_full_openai_storyteller_composition(config: AppConfig) -> RuntimeComp
 
 
 def _mode_label_for_mixed_runtime(config: AppConfig) -> str:
+    if config.runtime_mode == "mixed":
+        return "Mixed"
     if config.use_openai_scene_provider or config.use_openai_dialogue_intent_adapter or config.use_openai_dialogue_renderer:
         return "Mixed"
     return "Deterministic"

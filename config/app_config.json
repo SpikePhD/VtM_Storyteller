@@ -1,5 +1,8 @@
 {
+  "_comment": "runtime_mode options: deterministic, mixed, openai_storyteller",
+  "runtime_mode": "mixed",
   "openai_model": "gpt-4.1-mini",
   "use_openai_scene_provider": true,
-  "use_openai_dialogue_intent_adapter": true
+  "use_openai_dialogue_intent_adapter": true,
+  "use_openai_dialogue_renderer": false
 }

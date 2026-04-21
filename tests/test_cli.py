@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
+import tempfile
 import unittest
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from vampire_storyteller.cli import _build_cli_prompt, _build_runtime_banner, _format_cli_result, build_runtime_composition
-from vampire_storyteller.config import AppConfig
+from vampire_storyteller.config import AppConfig, load_config
 from vampire_storyteller.command_result import CommandResult, DialoguePresentation
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.narrative_provider import DeterministicSceneNarrativeProvider
@@ -170,6 +173,50 @@ class CliTranscriptTests(unittest.TestCase):
         self.assertIn("Dialogue rendering: deterministic", banner)
         self.assertIn("Storyteller preset: no", banner)
         self.assertIn("Mixed mode: no", banner)
+
+    def test_runtime_mode_deterministic_overrides_component_switches(self) -> None:
+        runtime = build_runtime_composition(
+            AppConfig(
+                openai_api_key="test-key",
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=True,
+                use_openai_dialogue_intent_adapter=True,
+                use_openai_dialogue_renderer=True,
+                runtime_mode="deterministic",
+            )
+        )
+
+        self.assertEqual(runtime.mode_label, "Deterministic")
+        self.assertEqual(runtime.scene_label, "deterministic")
+        self.assertEqual(runtime.dialogue_intent_label, "deterministic")
+        self.assertEqual(runtime.dialogue_render_label, "deterministic")
+        self.assertFalse(runtime.full_openai_storyteller_mode)
+
+    def test_runtime_mode_knob_is_loaded_from_config_json(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            config_path = temp_root / "app_config.json"
+            config_path.write_text(
+                json.dumps(
+                    {
+                        "runtime_mode": "openai_storyteller",
+                        "openai_model": "gpt-4.1-mini",
+                        "use_openai_scene_provider": False,
+                        "use_openai_dialogue_intent_adapter": False,
+                        "use_openai_dialogue_renderer": False,
+                    },
+                    indent=2,
+                ),
+                encoding="utf-8",
+            )
+
+            config = load_config(config_path=config_path, local_config_path=temp_root / "missing.local.json", dotenv_path=temp_root / ".env")
+
+        self.assertEqual(config.runtime_mode, "openai_storyteller")
+        self.assertEqual(config.openai_model, "gpt-4.1-mini")
+        self.assertFalse(config.use_openai_scene_provider)
+        self.assertFalse(config.use_openai_dialogue_intent_adapter)
+        self.assertFalse(config.use_openai_dialogue_renderer)
 
     def test_full_openai_storyteller_mode_without_renderer_availability_fails_loudly(self) -> None:
         with patch("vampire_storyteller.cli.OpenAISceneNarrativeProvider") as mock_scene_ctor:
