@@ -35,6 +35,8 @@ class OpenAIDialogueRenderer:
             [
                 "You are rendering a Vampire: The Masquerade dialogue beat from deterministic backend state.",
                 "Use the social_outcome packet as the authoritative contract and the other fields as bounded context.",
+                "authorized_fact_cards are the only plot-facing facts the NPC may communicate in this turn.",
+                "npc_profile provides character texture, tone, and background color, but it does not authorize new reveals by itself.",
                 "Use only the supplied JSON payload as source of truth.",
                 "Prefer natural conversational phrasing over scripted exposition, and avoid repeating the same lead line when the packet already made the answer clear.",
                 "Write 1 or 2 short paragraphs of plain text only.",

@@ -58,7 +58,6 @@ class GameSession:
         self._input_interpreter = InputInterpreter()
         self._dialogue_intent_adapter = dialogue_intent_adapter if dialogue_intent_adapter is not None else NullDialogueIntentAdapter()
         self._dialogue_renderer = dialogue_renderer if dialogue_renderer is not None else DeterministicDialogueRenderer()
-        self._fallback_dialogue_renderer = DeterministicDialogueRenderer()
         self._last_interpreted_input: InterpretedInput | None = None
         self._last_normalized_action: NormalizedActionInput | None = None
         self._last_action_resolution: ActionResolutionTurn | None = None
@@ -565,6 +564,8 @@ class GameSession:
     ) -> CommandResult:
         if not isinstance(command, TalkCommand) or dialogue_adjudication is None:
             return result
+        if result.output_text.startswith("Talk is blocked:"):
+            return result
 
         try:
             render_social_outcome = self._finalize_social_outcome_packet(
@@ -579,32 +580,13 @@ class GameSession:
                 dialogue_adjudication,
                 check,
                 consequence_summary,
-                result.output_text,
                 render_social_outcome,
             )
             if not self._supports_dialogue_rendering(render_input):
                 return result
             rendered_output = self._dialogue_renderer.render_dialogue(render_input)
-        except Exception:
-            self._dialogue_renderer = self._fallback_dialogue_renderer
-            render_social_outcome = self._finalize_social_outcome_packet(
-                dialogue_adjudication,
-                result.conversation_stance or dialogue_adjudication.conversation_stance,
-                check,
-                consequence_summary,
-            )
-            render_input = build_dialogue_render_input(
-                self._world_state,
-                command,
-                dialogue_adjudication,
-                check,
-                consequence_summary,
-                result.output_text,
-                render_social_outcome,
-            )
-            if not self._supports_dialogue_rendering(render_input):
-                return result
-            rendered_output = self._fallback_dialogue_renderer.render_dialogue(render_input)
+        except Exception as exc:
+            rendered_output = f"Dialogue rendering failed: no realized reply is available right now ({exc})."
 
         return CommandResult(
             output_text=rendered_output,

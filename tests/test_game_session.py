@@ -13,9 +13,10 @@ from vampire_storyteller.command_models import ConversationStance, DialogueAct, 
 from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
-from vampire_storyteller.dialogue_renderer import DialogueRenderInput
+from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput
 from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
+from vampire_storyteller.models import NPCDialogueProfile
 from vampire_storyteller.narrative_provider import SceneNarrativeProvider
 from vampire_storyteller.social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from vampire_storyteller.world_state import WorldState
@@ -228,10 +229,21 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("What do you mean?")
         interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("hears 'What do you mean?'", result.output_text)
+        self.assertIn("trail starts", result.output_text.lower())
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+
+    def test_background_follow_up_after_greeting_stays_with_jonas(self) -> None:
+        session = GameSession()
+
+        session.process_input("Hello Jonas, how's going?")
+        result = session.process_input("Tell me more about you, what do you do?")
+        interpreted = session.get_last_interpreted_input()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertIn("informant", result.output_text.lower())
+        self.assertNotIn("paper trail", result.output_text.lower())
 
     def test_dialogue_rendering_support_no_longer_depends_on_jonas_id(self) -> None:
         session = GameSession()
@@ -249,6 +261,7 @@ class GameSessionTests(unittest.TestCase):
             adjudication_resolution_kind="allowed",
             conversation_stance="neutral",
             conversation_subtopic=None,
+            continuity_cue=None,
             npc_trust_level=0,
             plot_name="Missing Ledger",
             plot_stage="hook",
@@ -259,6 +272,21 @@ class GameSessionTests(unittest.TestCase):
             check_difficulty=None,
             consequence_messages=(),
             applied_effects=(),
+            npc_profile=NPCDialogueProfile(
+                background_summary="Sister Eliza protects records and people.",
+                public_persona="a guarded haven keeper",
+                private_history_summary="She does not give much away.",
+                motivations=["protect the church records"],
+                speaking_style="measured and restrained",
+                relationship_context="She is cautious with Mara.",
+            ),
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="test_fact",
+                    kind="background",
+                    summary="She stays measured and keeps her answer narrow.",
+                ),
+            ),
             social_outcome=SocialOutcomePacket(
                 outcome_kind=SocialOutcomeKind.COOPERATE,
                 stance_shift=SocialStanceShift(
@@ -502,7 +530,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertIsNotNone(interpreted)
         self.assertIsNotNone(interpreted.dialogue_metadata)
         self.assertIn("I ask Jonas what happened here.", interpreted.dialogue_metadata.utterance_text)
-        self.assertIn("hears 'what happened here.'", result.output_text)
+        self.assertIn("keeps his voice low", result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
 
     def test_aggressive_talk_is_guarded(self) -> None:
@@ -574,7 +602,7 @@ class GameSessionTests(unittest.TestCase):
         turn = session.get_last_action_resolution()
 
         self.assertIn("guarded", result.output_text.lower())
-        self.assertIn("lead forward", result.output_text.lower())
+        self.assertIn("gives nothing away", result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.check)
@@ -647,7 +675,7 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Jonas do you want to come with me to the docks?")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("If the dock matters, you go", result.output_text)
+        self.assertIn("if the dock matters, you go", result.output_text.lower())
         self.assertNotIn("dock is the only place worth checking", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
@@ -703,7 +731,7 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Jonas do you want to come with me to the docks?")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("If the dock matters, you go", result.output_text)
+        self.assertIn("if the dock matters, you go", result.output_text.lower())
         self.assertNotIn("stays guarded and keeps the conversation tight", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
@@ -896,7 +924,7 @@ class GameSessionTests(unittest.TestCase):
     def test_canonical_talk_without_metadata_still_works(self) -> None:
         session = GameSession()
 
-        result = execute_command(session.get_world_state(), TalkCommand(npc_id="npc_1"))
+        result = session.process_input("talk npc_1")
 
         self.assertIn("Jonas Reed keeps his voice low", result.output_text)
         self.assertFalse(result.render_scene)

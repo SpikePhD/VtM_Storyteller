@@ -7,6 +7,7 @@ from vampire_storyteller.config import AppConfig
 from vampire_storyteller.cli import build_dialogue_renderer
 from vampire_storyteller.command_models import ConversationStance
 from vampire_storyteller.dialogue_renderer import (
+    DialogueFactCard,
     DeterministicDialogueRenderer,
     DialogueRenderInput,
     build_dialogue_render_input,
@@ -20,6 +21,7 @@ from vampire_storyteller.social_models import (
     SocialStanceShift,
     TopicResult,
 )
+from vampire_storyteller.models import NPCDialogueProfile
 
 
 class FailingDialogueRenderer:
@@ -42,6 +44,9 @@ def _make_render_input(
     lead_flag_active: bool = False,
     applied_effects: tuple[str, ...] = (),
     plot_effects: tuple[str, ...] = (),
+    authorized_fact_cards: tuple[DialogueFactCard, ...] = (),
+    utterance_text: str = "Jonas, what happened at the dock?",
+    speech_text: str = "what happened at the dock?",
 ) -> DialogueRenderInput:
     return DialogueRenderInput(
         npc_id=npc_id,
@@ -49,14 +54,15 @@ def _make_render_input(
         npc_role="Informant",
         player_name="Mara Vale",
         location_name="Blackthorn Cafe",
-        utterance_text="Jonas, what happened at the dock?",
-        speech_text="what happened at the dock?",
+        utterance_text=utterance_text,
+        speech_text=speech_text,
         dialogue_act=dialogue_act,
         dialogue_domain=dialogue_domain,
         topic_status="productive" if topic_result is TopicResult.OPENED else "available" if topic_result is TopicResult.UNCHANGED else "refused",
         adjudication_resolution_kind="allowed",
         conversation_stance=conversation_stance,
         conversation_subtopic=None,
+        continuity_cue=None,
         npc_trust_level=0,
         plot_name="Missing Ledger",
         plot_stage=plot_stage,
@@ -67,6 +73,15 @@ def _make_render_input(
         check_difficulty=check_result.difficulty if check_result is not None else None,
         consequence_messages=(),
         applied_effects=applied_effects,
+        npc_profile=NPCDialogueProfile(
+            background_summary="Jonas trades in local knowledge.",
+            public_persona="a wary informant",
+            private_history_summary="He knows the dockside well enough to avoid being seen there lightly.",
+            motivations=["stay useful", "avoid exposure"],
+            speaking_style="quiet and economical",
+            relationship_context="He is testing Mara.",
+        ),
+        authorized_fact_cards=authorized_fact_cards,
         social_outcome=SocialOutcomePacket(
             outcome_kind=outcome_kind,
             stance_shift=SocialStanceShift(
@@ -109,7 +124,7 @@ class DialogueRendererTests(unittest.TestCase):
             result = session.process_input("I persuade Jonas to help with the dock.")
 
         self.assertIn("dock", result.output_text.lower())
-        self.assertIn("paper trail", result.output_text.lower())
+        self.assertIn("dockside", result.output_text.lower())
         self.assertNotIn("Dialogue check success", result.output_text)
 
     def test_social_check_failure_renders_from_structured_failure_data(self) -> None:
@@ -144,8 +159,8 @@ class DialogueRendererTests(unittest.TestCase):
 
         result = session.process_input("Jonas do you want to come with me to the docks?")
 
-        self.assertIn("if the dock matters, you go", result.output_text.lower())
-        self.assertIn("noise", result.output_text.lower())
+        self.assertIn("visible accomplice", result.output_text.lower())
+        self.assertIn("dock", result.output_text.lower())
 
     def test_taxi_money_support_refusal_renders_from_structured_domain_outcome(self) -> None:
         session = GameSession()
@@ -163,12 +178,14 @@ class DialogueRendererTests(unittest.TestCase):
             outcome_kind=SocialOutcomeKind.COOPERATE,
             topic_result=TopicResult.UNCHANGED,
             dialogue_act="greet",
+            utterance_text="Jonas, good evening.",
+            speech_text="good evening.",
         )
 
         output = renderer.render_dialogue(render_input)
 
         self.assertIn("brief nod", output.lower())
-        self.assertNotIn("dock is where the paper trail began", output.lower())
+        self.assertNotIn("dock", output.lower())
 
     def test_packet_first_reveal_path_still_communicates_the_lead(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -187,12 +204,19 @@ class DialogueRendererTests(unittest.TestCase):
             check_kind="dialogue_social",
             lead_flag_active=True,
             plot_effects=("dialogue_plot_progressed",),
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="jonas_missing_ledger_lead",
+                    kind="lead",
+                    summary="He confirms that the missing ledger's trail begins at North Dockside.",
+                ),
+            ),
         )
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("dock", output.lower())
-        self.assertIn("paper trail", output.lower())
+        self.assertIn("dockside", output.lower())
+        self.assertIn("something solid", output.lower())
         self.assertNotIn("broker used the dock to move papers", output.lower())
 
     def test_packet_first_refusal_remains_guarded_without_progression(self) -> None:
@@ -202,12 +226,18 @@ class DialogueRendererTests(unittest.TestCase):
             topic_result=TopicResult.BLOCKED,
             dialogue_domain="provocative_or_inappropriate",
             dialogue_act="threaten",
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="jonas_provocative_boundary",
+                    kind="boundary",
+                    summary="He treats provocative pressure as a reason to harden immediately and shut the conversation back down.",
+                ),
+            ),
         )
 
         output = renderer.render_dialogue(render_input)
 
         self.assertIn("keep this professional", output.lower())
-        self.assertNotIn("paper trail began", output.lower())
 
     def test_packet_first_refusal_renders_without_jonas_specific_gate(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -223,7 +253,7 @@ class DialogueRendererTests(unittest.TestCase):
         output = renderer.render_dialogue(render_input)
 
         self.assertIn("sister eliza", output.lower())
-        self.assertIn("refuses", output.lower())
+        self.assertIn("keeps the topic closed", output.lower())
         self.assertNotIn("jonas", output.lower())
 
     def test_packet_first_deflect_path_redirects_the_conversation(self) -> None:
@@ -233,12 +263,19 @@ class DialogueRendererTests(unittest.TestCase):
             topic_result=TopicResult.PARTIAL,
             dialogue_domain="off_topic_request",
             dialogue_act="ask",
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="jonas_money_boundary",
+                    kind="boundary",
+                    summary="He refuses to finance the trip and does not want the conversation drifting into favors that expose him.",
+                ),
+            ),
         )
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("not that", output.lower())
-        self.assertIn("ask someone else", output.lower())
+        self.assertIn("redirects the conversation", output.lower())
+        self.assertIn("finance the trip", output.lower())
 
     def test_packet_first_disengage_path_shuts_the_exchange_down(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -250,7 +287,7 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("ends the exchange", output.lower())
+        self.assertIn("closes off the exchange", output.lower())
 
     def test_packet_first_check_failure_is_reflected_naturally(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -267,11 +304,18 @@ class DialogueRendererTests(unittest.TestCase):
                 is_success=False,
             ),
             check_kind="dialogue_social",
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="jonas_check_failure_guarded",
+                    kind="refusal_basis",
+                    summary="When the push fails, he goes guarded again and gives Mara nothing beyond the fact that she is not getting more tonight.",
+                ),
+            ),
         )
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("stays guarded", output.lower())
+        self.assertIn("does not land", output.lower())
         self.assertNotIn("broker used the dock to move papers", output.lower())
 
     def test_packet_first_check_success_is_reflected_naturally(self) -> None:
@@ -291,14 +335,20 @@ class DialogueRendererTests(unittest.TestCase):
             check_kind="dialogue_social",
             lead_flag_active=True,
             plot_effects=("dialogue_plot_progressed",),
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="jonas_check_success_reveal",
+                    kind="lead",
+                    summary="Under real pressure he admits the dock lead plainly enough for Mara to act on it.",
+                ),
+            ),
         )
 
         output = renderer.render_dialogue(render_input)
 
         self.assertIn("pressure lands", output.lower())
         self.assertIn("dock", output.lower())
-        self.assertIn("paper trail", output.lower())
-        self.assertNotIn("broker used the dock to move papers", output.lower())
+        self.assertIn("plainly enough", output.lower())
 
     def test_renderer_output_does_not_mutate_world_state(self) -> None:
         session = GameSession()
@@ -333,13 +383,12 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertTrue(output.strip())
         self.assertEqual(before, after)
 
-    def test_session_falls_back_to_deterministic_dialogue_renderer_when_renderer_fails(self) -> None:
+    def test_session_returns_explicit_render_failure_when_renderer_fails(self) -> None:
         session = GameSession(dialogue_renderer=FailingDialogueRenderer())
 
         result = session.process_input("Jonas, what happened at the dock?")
 
-        self.assertIn("dock", result.output_text.lower())
-        self.assertIn("jonas reed", result.output_text.lower())
+        self.assertIn("dialogue rendering failed", result.output_text.lower())
 
     def test_dialogue_renderer_helper_uses_deterministic_renderer_when_openai_not_selected(self) -> None:
         renderer, notice = build_dialogue_renderer(

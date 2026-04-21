@@ -4,7 +4,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from .command_models import ConversationStance
-from .models import EventLogEntry, Location, NPC, Player, PlotThread
+from .models import EventLogEntry, Location, NPC, NPCDialogueProfile, Player, PlotThread
 from .social_models import NPCSocialState, TopicSensitivity
 
 
@@ -93,6 +93,7 @@ def _npc_to_dict(npc: NPC) -> dict[str, Any]:
         "investigation_hint": npc.investigation_hint,
         "schedule": dict(npc.schedule),
         "traits": dict(npc.traits),
+        "dialogue_profile": _npc_dialogue_profile_to_dict(npc.dialogue_profile),
         "social_state": _npc_social_state_to_dict(npc.social_state),
     }
 
@@ -164,7 +165,34 @@ def _npc_from_dict(data: dict[str, Any]) -> NPC:
         investigation_hint=_require_str(data, "investigation_hint", "investigation_hint"),
         schedule=_require_str_mapping(_require_present_value(data, "schedule"), "schedule"),
         traits=_require_str_mapping(_require_present_value(data, "traits"), "traits"),
+        dialogue_profile=_npc_dialogue_profile_from_dict(data.get("dialogue_profile")),
         social_state=_npc_social_state_from_dict(data.get("social_state"), attitude_to_player, trust_level),
+    )
+
+
+def _npc_dialogue_profile_to_dict(profile: NPCDialogueProfile) -> dict[str, Any]:
+    return {
+        "background_summary": profile.background_summary,
+        "public_persona": profile.public_persona,
+        "private_history_summary": profile.private_history_summary,
+        "motivations": list(profile.motivations),
+        "speaking_style": profile.speaking_style,
+        "relationship_context": profile.relationship_context,
+    }
+
+
+def _npc_dialogue_profile_from_dict(data: Any) -> NPCDialogueProfile:
+    if data is None:
+        return NPCDialogueProfile()
+    if not isinstance(data, dict):
+        raise TypeError("dialogue_profile must be a JSON object.")
+    return NPCDialogueProfile(
+        background_summary=_require_optional_text_field(data, "background_summary"),
+        public_persona=_require_optional_text_field(data, "public_persona"),
+        private_history_summary=_require_optional_text_field(data, "private_history_summary"),
+        motivations=_require_optional_string_list(data, "motivations"),
+        speaking_style=_require_optional_text_field(data, "speaking_style"),
+        relationship_context=_require_optional_text_field(data, "relationship_context"),
     )
 
 
@@ -334,6 +362,12 @@ def _require_string_list(value: Any, label: str) -> list[str]:
     return validated
 
 
+def _require_optional_string_list(data: dict[str, Any], field_name: str) -> list[str]:
+    if field_name not in data:
+        return []
+    return _require_string_list(data[field_name], field_name)
+
+
 def _require_int_mapping(value: Any, label: str) -> dict[str, int]:
     if not isinstance(value, dict):
         raise TypeError(f"{label} must be a JSON object.")
@@ -360,6 +394,13 @@ def _require_str_mapping(value: Any, label: str) -> dict[str, str]:
             raise TypeError(f"{label} must use string values.")
         validated[key] = entry
     return validated
+
+
+def _require_optional_text_field(data: dict[str, Any], field_name: str) -> str:
+    value = data.get(field_name, "")
+    if not isinstance(value, str):
+        raise TypeError(f"{field_name} must be a string.")
+    return value
 
 
 def _require_social_str(data: dict[str, Any], field_name: str, default: str) -> str:

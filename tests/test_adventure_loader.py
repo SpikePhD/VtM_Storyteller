@@ -9,6 +9,7 @@ import unittest
 from vampire_storyteller.adventure_loader import (
     AdventureContentError,
     load_adv1_adventure_metadata,
+    load_adv1_dialogue_fact_definitions,
     load_adv1_dialogue_hook_definitions,
     load_adv1_location_definitions,
     load_adv1_dialogue_social_state,
@@ -96,6 +97,7 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(npc_definitions[0].trust_level, 0)
         self.assertEqual(npc_definitions[0].goals[0], "Keep his distance until Mara proves trustworthy")
         self.assertIn("dock", npc_definitions[0].investigation_hint)
+        self.assertIn("street knowledge", npc_definitions[0].dialogue_profile.background_summary.lower())
         self.assertEqual(npc_definitions[1].goals[1], "Watch for anyone asking about the ledger")
         self.assertIn("ledger", npc_definitions[1].investigation_hint)
 
@@ -130,18 +132,25 @@ class AdventureLoaderTests(unittest.TestCase):
             "eliza_church_visited_1",
         ])
         self.assertEqual(hook_definitions[0].required_plot_stage, "hook")
-        self.assertIn("dock", hook_definitions[0].dialogue_text)
-        self.assertIn("ready", hook_definitions[0].blocked_text)
         self.assertEqual(hook_definitions[1].required_dialogue_acts, ["greet"])
         self.assertEqual(hook_definitions[2].required_dialogue_acts, ["ask"])
-        self.assertIn("{speech_text}", hook_definitions[2].dialogue_text)
         self.assertEqual(hook_definitions[3].required_dialogue_acts, ["accuse"])
         self.assertEqual(hook_definitions[4].required_dialogue_acts, ["threaten"])
         self.assertEqual(hook_definitions[5].story_flags_to_add, ["jonas_shared_dock_lead"])
         self.assertEqual(hook_definitions[5].minimum_trust_level, 1)
         self.assertEqual(hook_definitions[5].trust_delta, 0)
         self.assertFalse(hook_definitions[5].repeatable)
-        self.assertIn("paper trail", hook_definitions[5].dialogue_text)
+
+    def test_dialogue_fact_definition_loader_reads_adv1_file(self) -> None:
+        fact_state = load_adv1_dialogue_fact_definitions()
+
+        self.assertGreaterEqual(len(fact_state.fact_definitions), 5)
+        first_fact = fact_state.fact_definitions[0]
+        self.assertEqual(first_fact.fact_id, "jonas_missing_ledger_lead")
+        self.assertEqual(first_fact.kind, "lead")
+        self.assertEqual(first_fact.subtopic, "missing_ledger")
+        self.assertIn("dockside", first_fact.summary.lower())
+        self.assertIn("reveal", first_fact.allowed_outcome_kinds)
 
     def test_dialogue_social_state_loader_reads_adv1_file(self) -> None:
         social_state = load_adv1_dialogue_social_state()

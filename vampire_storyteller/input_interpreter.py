@@ -691,6 +691,10 @@ class InputInterpreter:
                 "what about the ledger",
                 "about the dock",
                 "about the ledger",
+                "tell me more about you",
+                "more about you",
+                "what do you do",
+                "who are you",
             ),
         ):
             return True

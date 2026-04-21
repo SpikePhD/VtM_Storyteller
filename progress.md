@@ -5,3 +5,4 @@
 - Simplified packet-first dialogue rendering support so the session gate depends on the social outcome packet rather than `npc_1`, while keeping Jonas realization and fallback behavior intact.
 - Added a Jonas Missing Ledger end-to-end dialogue harness covering packet truth, check success/failure, renderer fallback, and malformed-intent safety.
 - Softened Jonas packet-first realization for small talk and follow-up turns so the Missing Ledger lane sounds less scripted without changing backend truth.
+- Replaced Jonas' remaining backend-authored reply text path with dossier/profile data plus authorized fact cards, and made talk realization packet-first without hook dialogue strings.

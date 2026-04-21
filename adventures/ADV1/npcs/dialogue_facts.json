@@ -1,0 +1,124 @@
+{
+  "facts": [
+    {
+      "fact_id": "jonas_missing_ledger_lead",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "subtopic": "missing_ledger",
+      "summary": "He confirms that the missing ledger's paper trail begins at North Dockside and wants the search to start there.",
+      "kind": "lead",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "required_story_flags": [],
+      "allowed_outcome_kinds": ["reveal", "cooperate"],
+      "allowed_topic_results": ["opened", "partial"],
+      "required_dialogue_domains": ["lead_topic", "lead_pressure"]
+    },
+    {
+      "fact_id": "jonas_missing_ledger_refusal",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "subtopic": "missing_ledger",
+      "summary": "He refuses to explain his source or the full chain behind the ledger until Mara has earned more trust.",
+      "kind": "refusal_basis",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["refuse", "threaten"],
+      "allowed_topic_results": ["blocked", "unchanged"],
+      "required_dialogue_domains": ["lead_topic", "lead_pressure"]
+    },
+    {
+      "fact_id": "jonas_missing_ledger_redirect",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "subtopic": "missing_ledger",
+      "summary": "He trims the answer down and redirects Mara toward the dock instead of unpacking the whole story in public.",
+      "kind": "redirect",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["deflect", "cooperate"],
+      "allowed_topic_results": ["partial", "unchanged"],
+      "required_dialogue_domains": ["lead_topic", "lead_pressure"]
+    },
+    {
+      "fact_id": "jonas_public_persona_background",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "summary": "He presents himself as a local informant who survives by hearing more than he says and by staying out of anyone's pocket.",
+      "kind": "background",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["reveal", "cooperate", "deflect"],
+      "allowed_topic_results": ["opened", "unchanged", "partial"],
+      "required_dialogue_acts": ["ask"],
+      "required_keywords": ["about you", "what do you do", "who are you", "more about you"]
+    },
+    {
+      "fact_id": "jonas_travel_boundary",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "summary": "He can stay nearby in a limited way. If the dock matters, you go alone, and he will not turn himself into your ride or a visible accomplice.",
+      "kind": "boundary",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["deflect", "refuse", "cooperate"],
+      "allowed_topic_results": ["opened", "partial", "blocked", "unchanged"],
+      "required_dialogue_domains": ["travel_proposal"]
+    },
+    {
+      "fact_id": "jonas_money_boundary",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "summary": "He is not financing the ride. Ask someone else for money or fare support without dragging him into it.",
+      "kind": "boundary",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["deflect", "refuse", "cooperate"],
+      "allowed_topic_results": ["opened", "partial", "blocked", "unchanged"],
+      "required_dialogue_domains": ["off_topic_request"]
+    },
+    {
+      "fact_id": "jonas_provocative_boundary",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "summary": "He treats provocative pressure as a reason to harden immediately and shut the conversation back down.",
+      "kind": "boundary",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["threaten", "refuse"],
+      "allowed_topic_results": ["blocked"],
+      "required_dialogue_domains": ["provocative_or_inappropriate", "lead_pressure"]
+    },
+    {
+      "fact_id": "jonas_check_success_reveal",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "subtopic": "missing_ledger",
+      "summary": "Under real pressure he admits plainly that the paper trail points back to the dock, even if he still keeps his source close.",
+      "kind": "lead",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["reveal"],
+      "allowed_topic_results": ["opened"],
+      "requires_check_success": true,
+      "required_dialogue_domains": ["lead_pressure"]
+    },
+    {
+      "fact_id": "jonas_check_failure_guarded",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "subtopic": "missing_ledger",
+      "summary": "When the push fails, he goes guarded again and gives Mara nothing beyond the fact that she is not getting more tonight.",
+      "kind": "refusal_basis",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["refuse"],
+      "allowed_topic_results": ["blocked"],
+      "requires_check_success": false,
+      "required_dialogue_domains": ["lead_pressure"]
+    },
+    {
+      "fact_id": "jonas_blood_boundary",
+      "npc_id": "npc_1",
+      "plot_id": "plot_1",
+      "summary": "He wants no part of feeding talk. Ask someone else if Mara is pushing for blood or a body.",
+      "kind": "boundary",
+      "required_plot_stages": ["hook", "lead_confirmed"],
+      "allowed_outcome_kinds": ["deflect", "refuse", "cooperate"],
+      "allowed_topic_results": ["opened", "partial", "blocked", "unchanged"],
+      "required_dialogue_domains": ["off_topic_request"],
+      "required_keywords": ["blood", "feed", "feeding", "bite", "drink from", "drink your blood"]
+    }
+  ]
+}

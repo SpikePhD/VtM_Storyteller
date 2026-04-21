@@ -6,6 +6,16 @@ from .social_models import NPCSocialState
 
 
 @dataclass
+class NPCDialogueProfile:
+    background_summary: str = ""
+    public_persona: str = ""
+    private_history_summary: str = ""
+    motivations: list[str] = field(default_factory=list)
+    speaking_style: str = ""
+    relationship_context: str = ""
+
+
+@dataclass
 class Player:
     id: str
     name: str
@@ -33,6 +43,7 @@ class NPC:
     investigation_hint: str = ""
     schedule: dict[str, str] = field(default_factory=dict)
     traits: dict[str, str] = field(default_factory=dict)
+    dialogue_profile: NPCDialogueProfile = field(default_factory=NPCDialogueProfile)
     social_state: NPCSocialState = field(default_factory=NPCSocialState)
 
     def __post_init__(self) -> None:

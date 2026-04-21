@@ -152,13 +152,12 @@ class DialogueEndToEndTests(unittest.TestCase):
         self.assertNotIn("paper trail", result.output_text.lower())
         self.assertNotEqual(turn.dialogue_adjudication.topic_status, DialogueTopicStatus.PRODUCTIVE)
 
-    def test_renderer_fallback_still_returns_safe_dialogue_when_main_renderer_raises(self) -> None:
+    def test_renderer_failure_returns_explicit_safe_error_when_main_renderer_raises(self) -> None:
         session = GameSession(dialogue_renderer=FailingDialogueRenderer())
 
         result, _, turn = self._run_dialogue_turn(session, "Jonas, what happened at the dock?")
 
-        self.assertIn("dock", result.output_text.lower())
-        self.assertIn("paper trail", result.output_text.lower())
+        self.assertIn("dialogue rendering failed", result.output_text.lower())
         self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
 
     def test_malformed_interpreted_dialogue_payload_cannot_mutate_world_state(self) -> None:

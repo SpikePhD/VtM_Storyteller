@@ -5,7 +5,8 @@ from unittest.mock import Mock, patch
 
 from vampire_storyteller.cli import build_dialogue_renderer
 from vampire_storyteller.config import AppConfig
-from vampire_storyteller.dialogue_renderer import DialogueRenderInput
+from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput
+from vampire_storyteller.models import NPCDialogueProfile
 from vampire_storyteller.openai_dialogue_renderer import OpenAIDialogueRenderer
 from vampire_storyteller.command_models import ConversationStance
 from vampire_storyteller.social_models import (
@@ -43,6 +44,7 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                 adjudication_resolution_kind="allowed",
                 conversation_stance="neutral",
                 conversation_subtopic=None,
+                continuity_cue="follow_up_on_missing_ledger",
                 npc_trust_level=0,
                 plot_name="Missing Ledger",
                 plot_stage="hook",
@@ -53,6 +55,21 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                 check_difficulty=None,
                 consequence_messages=(),
                 applied_effects=(),
+                npc_profile=NPCDialogueProfile(
+                    background_summary="Jonas trades in local knowledge.",
+                    public_persona="a wary informant",
+                    private_history_summary="He knows the dockside well.",
+                    motivations=["stay useful"],
+                    speaking_style="quiet and economical",
+                    relationship_context="He is testing Mara.",
+                ),
+                authorized_fact_cards=(
+                    DialogueFactCard(
+                        fact_id="jonas_missing_ledger_lead",
+                        kind="lead",
+                        summary="He confirms that the missing ledger's trail begins at North Dockside.",
+                    ),
+                ),
                 social_outcome=SocialOutcomePacket(
                     outcome_kind=SocialOutcomeKind.REVEAL,
                     stance_shift=SocialStanceShift(
@@ -81,12 +98,14 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertEqual(called_kwargs["model"], "gpt-4.1-mini")
         prompt = called_kwargs["input"]
         self.assertIn("social_outcome packet as the authoritative contract", prompt)
+        self.assertIn("authorized_fact_cards are the only plot-facing facts", prompt)
         self.assertIn("Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, checks, or state changes.", prompt)
         self.assertIn('"npc_name":"Jonas Reed"', prompt)
         self.assertIn('"dialogue_domain":"lead_topic"', prompt)
         self.assertIn('"outcome_kind":"reveal"', prompt)
         self.assertIn('"check_result"', prompt)
         self.assertIn('"plot_name":"Missing Ledger"', prompt)
+        self.assertIn('"authorized_fact_cards"', prompt)
 
     def test_shared_dialogue_renderer_helper_uses_openai_model_from_runtime_config(self) -> None:
         with patch("vampire_storyteller.cli.OpenAIDialogueRenderer") as mock_renderer_ctor:

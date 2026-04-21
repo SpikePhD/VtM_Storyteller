@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from .data_paths import ADVENTURE_ID, get_adventure_root
-from .models import Location, NPC, Player, PlotThread
+from .models import Location, NPC, NPCDialogueProfile, Player, PlotThread
 from .command_models import ConversationStance
 from .social_models import NPCSocialState, TopicSensitivity
 from .world_state import WorldState
@@ -82,6 +82,7 @@ class Adv1NpcDefinition:
     investigation_hint: str
     traits: dict[str, str]
     schedule: dict[str, str]
+    dialogue_profile: NPCDialogueProfile
 
 
 @dataclass(frozen=True, slots=True)
@@ -128,8 +129,29 @@ class Adv1DialogueHookDefinition:
     repeatable: bool
     required_dialogue_acts: list[str]
     story_flags_to_add: list[str]
-    dialogue_text: str
-    blocked_text: str
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueFactDefinition:
+    fact_id: str
+    npc_id: str
+    plot_id: str | None
+    subtopic: str | None
+    summary: str
+    kind: str
+    required_plot_stages: tuple[str, ...]
+    required_story_flags: tuple[str, ...]
+    allowed_outcome_kinds: tuple[str, ...]
+    allowed_topic_results: tuple[str, ...]
+    requires_check_success: bool | None
+    required_dialogue_domains: tuple[str, ...]
+    required_dialogue_acts: tuple[str, ...]
+    required_keywords: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueFactState:
+    fact_definitions: tuple[Adv1DialogueFactDefinition, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,6 +293,27 @@ def load_adv1_dialogue_hook_definitions(adventure_root: Path | None = None) -> l
             raise AdventureContentError("Adventure dialogue hook entries must be JSON objects.")
         definitions.append(_dialogue_hook_definition_from_dict(hook_data))
     return definitions
+
+
+def load_adv1_dialogue_fact_definitions(adventure_root: Path | None = None) -> Adv1DialogueFactState:
+    root = get_adventure_root() if adventure_root is None else Path(adventure_root)
+    data = _read_json(root / "npcs" / "dialogue_facts.json")
+    fact_entries = data.get("facts")
+    if not isinstance(fact_entries, list):
+        raise AdventureContentError("Adventure field 'facts' must be a JSON array.")
+
+    definitions: list[Adv1DialogueFactDefinition] = []
+    seen_fact_ids: set[str] = set()
+    for fact_data in fact_entries:
+        if not isinstance(fact_data, dict):
+            raise AdventureContentError("Adventure dialogue fact entries must be JSON objects.")
+        definition = _dialogue_fact_definition_from_dict(fact_data)
+        if definition.fact_id in seen_fact_ids:
+            raise AdventureContentError(f"Adventure dialogue facts must not duplicate fact_id '{definition.fact_id}'.")
+        seen_fact_ids.add(definition.fact_id)
+        definitions.append(definition)
+
+    return Adv1DialogueFactState(fact_definitions=tuple(definitions))
 
 
 def load_adv1_dialogue_social_state(adventure_root: Path | None = None) -> Adv1DialogueSocialState:
@@ -504,6 +547,7 @@ def _npc_from_dict(data: dict[str, Any]) -> NPC:
         investigation_hint=_require_str(data, "investigation_hint"),
         schedule=dict(data.get("schedule", {})),
         traits=dict(data.get("traits", {})),
+        dialogue_profile=_dialogue_profile_from_dict(data.get("dialogue_profile")),
         social_state=NPCSocialState(
             relationship_to_player=attitude_to_player,
             trust=trust_level,
@@ -527,6 +571,7 @@ def _npc_definition_from_dict(data: dict[str, Any]) -> Adv1NpcDefinition:
         investigation_hint=_require_str(data, "investigation_hint"),
         traits=_require_string_mapping(data, "traits"),
         schedule=_require_string_mapping(data, "schedule"),
+        dialogue_profile=_dialogue_profile_from_dict(data.get("dialogue_profile")),
     )
 
 
@@ -597,7 +642,23 @@ def _npc_from_definition(definition: Adv1NpcDefinition) -> NPC:
         investigation_hint=definition.investigation_hint,
         schedule=dict(definition.schedule),
         traits=dict(definition.traits),
+        dialogue_profile=definition.dialogue_profile,
         social_state=definition.social_state,
+    )
+
+
+def _dialogue_profile_from_dict(data: Any) -> NPCDialogueProfile:
+    if data is None:
+        return NPCDialogueProfile()
+    if not isinstance(data, dict):
+        raise AdventureContentError("Adventure field 'dialogue_profile' must be a JSON object.")
+    return NPCDialogueProfile(
+        background_summary=_require_optional_profile_str(data, "background_summary"),
+        public_persona=_require_optional_profile_str(data, "public_persona"),
+        private_history_summary=_require_optional_profile_str(data, "private_history_summary"),
+        motivations=_require_optional_string_list(data, "motivations"),
+        speaking_style=_require_optional_profile_str(data, "speaking_style"),
+        relationship_context=_require_optional_profile_str(data, "relationship_context"),
     )
 
 
@@ -734,8 +795,33 @@ def _dialogue_hook_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueHoo
         repeatable=_require_bool(data, "repeatable"),
         required_dialogue_acts=_require_string_list(data, "required_dialogue_acts") if "required_dialogue_acts" in data else [],
         story_flags_to_add=_require_string_list(data, "story_flags_to_add") if "story_flags_to_add" in data else [],
-        dialogue_text=_require_str(data, "dialogue_text"),
-        blocked_text=_require_str(data, "blocked_text"),
+    )
+
+
+def _dialogue_fact_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueFactDefinition:
+    kind = _require_str(data, "kind")
+    if kind not in {"lead", "background", "boundary", "redirect", "refusal_basis"}:
+        raise AdventureContentError(
+            "Adventure field 'kind' must be one of 'lead', 'background', 'boundary', 'redirect', or 'refusal_basis'."
+        )
+    requires_check_success = data.get("requires_check_success")
+    if requires_check_success is not None and not isinstance(requires_check_success, bool):
+        raise AdventureContentError("Adventure field 'requires_check_success' must be a boolean when present.")
+    return Adv1DialogueFactDefinition(
+        fact_id=_require_str(data, "fact_id"),
+        npc_id=_require_str(data, "npc_id"),
+        plot_id=_optional_str(data.get("plot_id"), "plot_id"),
+        subtopic=_optional_str(data.get("subtopic"), "subtopic"),
+        summary=_require_str(data, "summary"),
+        kind=kind,
+        required_plot_stages=tuple(_require_optional_string_list(data, "required_plot_stages")),
+        required_story_flags=tuple(_require_optional_string_list(data, "required_story_flags")),
+        allowed_outcome_kinds=tuple(_require_optional_string_list(data, "allowed_outcome_kinds")),
+        allowed_topic_results=tuple(_require_optional_string_list(data, "allowed_topic_results")),
+        requires_check_success=requires_check_success,
+        required_dialogue_domains=tuple(_require_optional_string_list(data, "required_dialogue_domains")),
+        required_dialogue_acts=tuple(_require_optional_string_list(data, "required_dialogue_acts")),
+        required_keywords=tuple(_require_optional_string_list(data, "required_keywords")),
     )
 
 
@@ -752,6 +838,12 @@ def _require_string_list(data: dict[str, Any], field_name: str) -> list[str]:
     return validated_values
 
 
+def _require_optional_string_list(data: dict[str, Any], field_name: str) -> list[str]:
+    if field_name not in data:
+        return []
+    return _require_string_list(data, field_name)
+
+
 def _require_int_mapping(data: dict[str, Any], field_name: str) -> dict[str, int]:
     mapping = _require_mapping(data, field_name)
     validated_mapping: dict[str, int] = {}
@@ -762,3 +854,19 @@ def _require_int_mapping(data: dict[str, Any], field_name: str) -> dict[str, int
             raise AdventureContentError(f"Adventure field '{field_name}' must use integer values.")
         validated_mapping[key] = value
     return validated_mapping
+
+
+def _require_optional_profile_str(data: dict[str, Any], field_name: str) -> str:
+    value = data.get(field_name, "")
+    if not isinstance(value, str):
+        raise AdventureContentError(f"Adventure field '{field_name}' must be a string.")
+    return value.strip()
+
+
+def _optional_str(value: Any, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise AdventureContentError(f"Adventure field '{field_name}' must be a string when present.")
+    normalized = value.strip()
+    return normalized or None

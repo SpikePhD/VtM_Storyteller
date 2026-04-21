@@ -27,6 +27,17 @@
         "Point Mara toward the dock if pressed"
       ],
       "investigation_hint": "Jonas knows the dock matters, but he will not say why unless trust is earned.",
+      "dialogue_profile": {
+        "background_summary": "Jonas Reed survives by trading small pieces of street knowledge without letting anyone think they own him.",
+        "public_persona": "a wary neighborhood informant who keeps public conversations short",
+        "private_history_summary": "He knows the dockside routines well enough to fear being seen there with the wrong company.",
+        "motivations": [
+          "Stay useful without becoming visible",
+          "Keep leverage over the Missing Ledger lead until trust is earned"
+        ],
+        "speaking_style": "quiet and economical",
+        "relationship_context": "He thinks Mara might be worth helping, but not until she proves she can handle pressure without exposing him."
+      },
       "traits": {
         "voice": "quiet",
         "behavior": "observant"
@@ -61,6 +72,17 @@
         "Watch for anyone asking about the ledger"
       ],
       "investigation_hint": "Sister Eliza will only mention the ledger after Mara has seen the church.",
+      "dialogue_profile": {
+        "background_summary": "Sister Eliza keeps records and people with the same measured caution.",
+        "public_persona": "a guarded haven keeper who watches before she speaks",
+        "private_history_summary": "She has learned that every ledger attracts the wrong sort of curiosity.",
+        "motivations": [
+          "Protect the church records",
+          "Measure Mara before giving anything away"
+        ],
+        "speaking_style": "measured and restrained",
+        "relationship_context": "She does not trust Mara yet, but she is willing to test her."
+      },
       "traits": {
         "voice": "measured",
         "behavior": "watchful"
