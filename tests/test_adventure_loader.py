@@ -9,6 +9,7 @@ import unittest
 from vampire_storyteller.adventure_loader import (
     AdventureContentError,
     load_adv1_adventure_metadata,
+    load_adv1_dialogue_dossiers,
     load_adv1_dialogue_fact_definitions,
     load_adv1_dialogue_hook_definitions,
     load_adv1_location_definitions,
@@ -165,6 +166,29 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertTrue(jonas.stage_definitions[0].topic_definitions["dock"].persuade_check_required)
         self.assertEqual(jonas.stage_definitions[1].required_story_flags, ["jonas_shared_dock_lead"])
         self.assertFalse(jonas.stage_definitions[1].topic_definitions["dock"].persuade_check_required)
+
+    def test_dialogue_dossier_loader_reads_adv1_file(self) -> None:
+        dossier_state = load_adv1_dialogue_dossiers()
+
+        self.assertIn("npc_1", dossier_state.npc_definitions)
+        jonas = dossier_state.npc_definitions["npc_1"]
+        self.assertEqual(jonas.npc_id, "npc_1")
+        self.assertIn("wary neighborhood informant", jonas.public_persona.lower())
+        self.assertIn("dockside routines", jonas.private_history_summary.lower())
+        self.assertEqual(jonas.speaking_style, "quiet and economical")
+        self.assertIn("handle pressure", jonas.relationship_context.lower())
+        self.assertEqual(jonas.motivations, (
+            "Stay useful without becoming visible",
+            "Keep leverage over the Missing Ledger lead until trust is earned",
+        ))
+        self.assertEqual(jonas.social_baseline.relationship_to_player, "wary")
+        self.assertEqual(jonas.social_baseline.trust, 0)
+        self.assertEqual(jonas.social_baseline.current_conversation_stance, "neutral")
+        self.assertEqual(jonas.topic_groups[0].group_id, "dockside_leads")
+        self.assertEqual(jonas.topic_groups[0].topics, ("dock", "ledger"))
+        self.assertEqual(jonas.topic_groups[0].sensitivity, "sensitive")
+        self.assertEqual(jonas.topic_groups[0].taboo_topics, ("blood",))
+        self.assertEqual(jonas.revealable_fact_groups[0].fact_ids, ("jonas_missing_ledger_lead",))
 
     def test_plot_progression_definition_loader_reads_talk_branch(self) -> None:
         progression = load_adv1_plot_progression_rules()
@@ -428,6 +452,34 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_dialogue_hook_definitions(temp_root)
 
         self.assertIn("Adventure field 'repeatable'", str(ctx.exception))
+
+    def test_missing_dialogue_dossier_social_baseline_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            dossier_path = temp_root / "npcs" / "dialogue_dossiers.json"
+            dossier_data = json.loads(dossier_path.read_text(encoding="utf-8"))
+            del dossier_data["dialogue_dossiers"][0]["social_baseline"]["respect"]
+            dossier_path.write_text(json.dumps(dossier_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_dialogue_dossiers(temp_root)
+
+        self.assertIn("Adventure field 'respect'", str(ctx.exception))
+
+    def test_invalid_dialogue_dossier_topic_groups_shape_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            dossier_path = temp_root / "npcs" / "dialogue_dossiers.json"
+            dossier_data = json.loads(dossier_path.read_text(encoding="utf-8"))
+            dossier_data["dialogue_dossiers"][0]["topic_groups"] = {}
+            dossier_path.write_text(json.dumps(dossier_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_dialogue_dossiers(temp_root)
+
+        self.assertIn("Adventure field 'topic_groups' must be a JSON array", str(ctx.exception))
 
     def test_malformed_world_state_seed_file_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

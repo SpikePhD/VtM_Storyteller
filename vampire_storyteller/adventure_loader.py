@@ -183,6 +183,50 @@ class Adv1DialogueSocialState:
     npc_definitions: dict[str, Adv1DialogueSocialNpcDefinition]
 
 
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueDossierSocialBaseline:
+    relationship_to_player: str
+    trust: int
+    hostility: int
+    fear: int
+    respect: int
+    willingness_to_cooperate: int
+    current_conversation_stance: str
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueDossierTopicGroup:
+    group_id: str
+    topics: tuple[str, ...]
+    sensitivity: str
+    taboo_topics: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueDossierFactGroup:
+    group_id: str
+    fact_ids: tuple[str, ...]
+    summary: str
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueDossierDefinition:
+    npc_id: str
+    public_persona: str
+    private_history_summary: str
+    speaking_style: str
+    relationship_context: str
+    motivations: tuple[str, ...]
+    social_baseline: Adv1DialogueDossierSocialBaseline
+    topic_groups: tuple[Adv1DialogueDossierTopicGroup, ...]
+    revealable_fact_groups: tuple[Adv1DialogueDossierFactGroup, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class Adv1DialogueDossierState:
+    npc_definitions: dict[str, Adv1DialogueDossierDefinition]
+
+
 def load_adv1_world_state(adventure_root: Path | None = None) -> WorldState:
     root = get_adventure_root() if adventure_root is None else Path(adventure_root)
     load_adv1_adventure_metadata(root)
@@ -333,6 +377,25 @@ def load_adv1_dialogue_social_state(adventure_root: Path | None = None) -> Adv1D
         definitions[definition.npc_id] = definition
 
     return Adv1DialogueSocialState(npc_definitions=definitions)
+
+
+def load_adv1_dialogue_dossiers(adventure_root: Path | None = None) -> Adv1DialogueDossierState:
+    root = get_adventure_root() if adventure_root is None else Path(adventure_root)
+    data = _read_json(root / "npcs" / "dialogue_dossiers.json")
+    dossier_entries = data.get("dialogue_dossiers")
+    if not isinstance(dossier_entries, list):
+        raise AdventureContentError("Adventure field 'dialogue_dossiers' must be a JSON array.")
+
+    definitions: dict[str, Adv1DialogueDossierDefinition] = {}
+    for dossier_data in dossier_entries:
+        if not isinstance(dossier_data, dict):
+            raise AdventureContentError("Adventure dialogue dossier entries must be JSON objects.")
+        definition = _dialogue_dossier_definition_from_dict(dossier_data)
+        if definition.npc_id in definitions:
+            raise AdventureContentError(f"Adventure dialogue dossiers must not duplicate npc_id '{definition.npc_id}'.")
+        definitions[definition.npc_id] = definition
+
+    return Adv1DialogueDossierState(npc_definitions=definitions)
 
 
 def load_adv1_npc_definitions(adventure_root: Path | None = None) -> list[Adv1NpcDefinition]:
@@ -627,6 +690,83 @@ def _dialogue_social_topic_definition_from_dict(data: dict[str, Any]) -> Adv1Dia
         topic=_require_str(data, "topic"),
         topic_status=topic_status,
         persuade_check_required=_require_bool(data, "persuade_check_required"),
+    )
+
+
+def _dialogue_dossier_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueDossierDefinition:
+    topic_group_entries = data.get("topic_groups")
+    if not isinstance(topic_group_entries, list):
+        raise AdventureContentError("Adventure field 'topic_groups' must be a JSON array.")
+
+    topic_groups: list[Adv1DialogueDossierTopicGroup] = []
+    seen_topic_group_ids: set[str] = set()
+    for topic_group_data in topic_group_entries:
+        if not isinstance(topic_group_data, dict):
+            raise AdventureContentError("Adventure topic group entries must be JSON objects.")
+        topic_group = _dialogue_dossier_topic_group_from_dict(topic_group_data)
+        if topic_group.group_id in seen_topic_group_ids:
+            raise AdventureContentError(
+                f"Adventure topic groups must not duplicate group_id '{topic_group.group_id}'."
+            )
+        seen_topic_group_ids.add(topic_group.group_id)
+        topic_groups.append(topic_group)
+
+    revealable_fact_group_entries = data.get("revealable_fact_groups")
+    if not isinstance(revealable_fact_group_entries, list):
+        raise AdventureContentError("Adventure field 'revealable_fact_groups' must be a JSON array.")
+
+    revealable_fact_groups: list[Adv1DialogueDossierFactGroup] = []
+    seen_fact_group_ids: set[str] = set()
+    for fact_group_data in revealable_fact_group_entries:
+        if not isinstance(fact_group_data, dict):
+            raise AdventureContentError("Adventure revealable fact group entries must be JSON objects.")
+        fact_group = _dialogue_dossier_fact_group_from_dict(fact_group_data)
+        if fact_group.group_id in seen_fact_group_ids:
+            raise AdventureContentError(
+                f"Adventure revealable fact groups must not duplicate group_id '{fact_group.group_id}'."
+            )
+        seen_fact_group_ids.add(fact_group.group_id)
+        revealable_fact_groups.append(fact_group)
+
+    return Adv1DialogueDossierDefinition(
+        npc_id=_require_str(data, "npc_id"),
+        public_persona=_require_str(data, "public_persona"),
+        private_history_summary=_require_str(data, "private_history_summary"),
+        speaking_style=_require_str(data, "speaking_style"),
+        relationship_context=_require_str(data, "relationship_context"),
+        motivations=tuple(_require_string_list(data, "motivations")),
+        social_baseline=_dialogue_dossier_social_baseline_from_dict(_require_mapping(data, "social_baseline")),
+        topic_groups=tuple(topic_groups),
+        revealable_fact_groups=tuple(revealable_fact_groups),
+    )
+
+
+def _dialogue_dossier_social_baseline_from_dict(data: dict[str, Any]) -> Adv1DialogueDossierSocialBaseline:
+    return Adv1DialogueDossierSocialBaseline(
+        relationship_to_player=_require_str(data, "relationship_to_player"),
+        trust=_require_int(data, "trust"),
+        hostility=_require_int(data, "hostility"),
+        fear=_require_int(data, "fear"),
+        respect=_require_int(data, "respect"),
+        willingness_to_cooperate=_require_int(data, "willingness_to_cooperate"),
+        current_conversation_stance=_require_str(data, "current_conversation_stance"),
+    )
+
+
+def _dialogue_dossier_topic_group_from_dict(data: dict[str, Any]) -> Adv1DialogueDossierTopicGroup:
+    return Adv1DialogueDossierTopicGroup(
+        group_id=_require_str(data, "group_id"),
+        topics=tuple(_require_string_list(data, "topics")),
+        sensitivity=_require_str(data, "sensitivity"),
+        taboo_topics=tuple(_require_string_list(data, "taboo_topics")),
+    )
+
+
+def _dialogue_dossier_fact_group_from_dict(data: dict[str, Any]) -> Adv1DialogueDossierFactGroup:
+    return Adv1DialogueDossierFactGroup(
+        group_id=_require_str(data, "group_id"),
+        fact_ids=tuple(_require_string_list(data, "fact_ids")),
+        summary=_require_str(data, "summary"),
     )
 
 

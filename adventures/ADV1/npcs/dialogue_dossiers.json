@@ -1,0 +1,45 @@
+{
+  "dialogue_dossiers": [
+    {
+      "npc_id": "npc_1",
+      "public_persona": "a wary neighborhood informant who keeps public conversations short",
+      "private_history_summary": "Jonas Reed survives by trading street knowledge without letting anyone own him, and the dockside routines make him nervous because he has seen the wrong company there.",
+      "speaking_style": "quiet and economical",
+      "relationship_context": "He thinks Mara might be worth helping, but only after she proves she can handle pressure without exposing him.",
+      "motivations": [
+        "Stay useful without becoming visible",
+        "Keep leverage over the Missing Ledger lead until trust is earned"
+      ],
+      "social_baseline": {
+        "relationship_to_player": "wary",
+        "trust": 0,
+        "hostility": 1,
+        "fear": 0,
+        "respect": 4,
+        "willingness_to_cooperate": 3,
+        "current_conversation_stance": "neutral"
+      },
+      "topic_groups": [
+        {
+          "group_id": "dockside_leads",
+          "topics": ["dock", "ledger"],
+          "sensitivity": "sensitive",
+          "taboo_topics": ["blood"]
+        },
+        {
+          "group_id": "practical_cover",
+          "topics": ["taxi"],
+          "sensitivity": "open",
+          "taboo_topics": ["blood"]
+        }
+      ],
+      "revealable_fact_groups": [
+        {
+          "group_id": "missing_ledger_lead",
+          "fact_ids": ["jonas_missing_ledger_lead"],
+          "summary": "Jonas can admit the paper trail begins at North Dockside once trust is earned."
+        }
+      ]
+    }
+  ]
+}

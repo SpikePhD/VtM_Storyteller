@@ -7,3 +7,4 @@
 - Softened Jonas packet-first realization for small talk and follow-up turns so the Missing Ledger lane sounds less scripted without changing backend truth.
 - Replaced Jonas' remaining backend-authored reply text path with dossier/profile data plus authorized fact cards, and made talk realization packet-first without hook dialogue strings.
 - Added CLI-first transcript dialogue mode for active NPC conversations, with direct-speech realization, conversation banners, and focus-aware prompts.
+- Added the first authored NPC dialogue dossier schema in ADV1 plus a Jonas example, with loader validation and focused tests.
