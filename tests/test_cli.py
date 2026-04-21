@@ -138,6 +138,39 @@ class CliTranscriptTests(unittest.TestCase):
         self.assertIn("Dialogue rendering: deterministic", banner)
         self.assertIn("Mixed mode: yes", banner)
 
+    def test_deterministic_runtime_is_explicit_and_not_a_hidden_fallback(self) -> None:
+        runtime = build_runtime_composition(
+            AppConfig(
+                openai_api_key=None,
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=False,
+                use_openai_dialogue_intent_adapter=False,
+                use_openai_dialogue_renderer=False,
+                use_openai_storyteller_mode=False,
+            )
+        )
+
+        banner = _build_runtime_banner(
+            AppConfig(
+                openai_api_key=None,
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=False,
+                use_openai_dialogue_intent_adapter=False,
+                use_openai_dialogue_renderer=False,
+                use_openai_storyteller_mode=False,
+            ),
+            runtime,
+        )
+
+        self.assertEqual(runtime.mode_label, "Deterministic")
+        self.assertEqual(runtime.scene_label, "deterministic")
+        self.assertEqual(runtime.dialogue_intent_label, "deterministic")
+        self.assertEqual(runtime.dialogue_render_label, "deterministic")
+        self.assertIn("Mode: Deterministic", banner)
+        self.assertIn("Dialogue rendering: deterministic", banner)
+        self.assertIn("Storyteller preset: no", banner)
+        self.assertIn("Mixed mode: no", banner)
+
     def test_full_openai_storyteller_mode_without_renderer_availability_fails_loudly(self) -> None:
         with patch("vampire_storyteller.cli.OpenAISceneNarrativeProvider") as mock_scene_ctor:
             with patch("vampire_storyteller.cli.OpenAIDialogueIntentAdapter") as mock_intent_ctor:

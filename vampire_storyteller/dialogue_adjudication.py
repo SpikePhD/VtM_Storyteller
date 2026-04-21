@@ -3,10 +3,11 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 
-from .adventure_loader import load_adv1_dialogue_social_state, load_adv1_plot_progression_rules
+from .adventure_loader import load_adv1_dialogue_hook_definitions, load_adv1_dialogue_social_state, load_adv1_plot_progression_rules
 from .command_models import ConversationStance, DialogueAct, DialogueMetadata, TalkCommand
 from .dialogue_domain import DialogueDomain, classify_dialogue_domain
 from .dialogue_subtopic import DialogueSubtopic
+from .dialogue_progression_hooks import apply_dialogue_progression_hooks, find_dialogue_hook
 from .social_resolution import SocialResolutionEvaluation, evaluate_topic_openness
 from .social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from .world_state import WorldState
@@ -166,6 +167,43 @@ def adjudicate_dialogue_talk(world_state: WorldState, command: TalkCommand) -> D
             plot_id=plot_rules.plot_id,
             plot_stage=current_stage,
             story_flags=story_flags,
+        )
+    hooks = load_adv1_dialogue_hook_definitions()
+    dialogue_hook = find_dialogue_hook(
+        hooks,
+        npc,
+        current_stage,
+        dialogue_act if metadata is not None else None,
+        command.conversation_stance,
+        plot_rules.plot_id,
+    )
+    if metadata is None and dialogue_hook is None and dialogue_domain is DialogueDomain.LEAD_TOPIC:
+        return DialogueAdjudicationOutcome(
+            resolution_kind=DialogueAdjudicationResolutionKind.BLOCKED,
+            topic_status=DialogueTopicStatus.UNKNOWN,
+            dialogue_domain=dialogue_domain,
+            check_required=False,
+            reason_code="talk_hook_missing",
+            explanation=f"Talk is blocked: {npc.name} has said what he will say for now.",
+            blocked_feedback=f"Talk is blocked: {npc.name} has said what he will say for now.",
+            conversation_stance=ConversationStance.NEUTRAL,
+            social_outcome=_build_social_outcome(
+                outcome_kind=SocialOutcomeKind.DISENGAGE,
+                previous_stance=command.conversation_stance,
+                next_stance=ConversationStance.NEUTRAL,
+                check_required=False,
+                topic_result=TopicResult.BLOCKED,
+                reason_code="talk_hook_missing",
+            ),
+        )
+
+    if dialogue_domain is DialogueDomain.LEAD_TOPIC:
+        apply_dialogue_progression_hooks(
+            world_state,
+            npc,
+            metadata,
+            command.conversation_stance,
+            dialogue_domain,
         )
     if command.conversation_stance is ConversationStance.GUARDED and not evaluation.check_required and dialogue_act not in (DialogueAct.GREET, DialogueAct.ASK):
         evaluation = SocialResolutionEvaluation(

@@ -13,3 +13,4 @@
 - Made OpenAI dialogue mode mandatory at render time so missing dialogue LLMs now hard-fail dialogue turns instead of falling back to deterministic NPC speech.
 - Onboarded Sister Eliza onto the shared dossier-backed dialogue slice, including church-records facts and generic non-Jonas follow-up routing.
 - Added bounded meta-conversation classification for Jonas stance challenges so hostile/help-attitude questions now route into a distinct dialogue domain instead of the lead-content lane.
+- Retired the legacy talk-output generator from the live conversation path; backend hook progression now happens in adjudication while packet-driven rendering remains the only realization step.
