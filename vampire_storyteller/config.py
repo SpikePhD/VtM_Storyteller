@@ -21,6 +21,7 @@ class AppConfig:
     use_openai_scene_provider: bool
     use_openai_dialogue_intent_adapter: bool
     use_openai_dialogue_renderer: bool
+    use_openai_storyteller_mode: bool = False
 
 
 def load_config(
@@ -34,6 +35,7 @@ def load_config(
 
     merged_runtime_config = {**runtime_config, **local_runtime_config}
     openai_model = _coerce_str(merged_runtime_config.get("openai_model"), DEFAULT_OPENAI_MODEL)
+    use_openai_storyteller_mode = _coerce_bool(merged_runtime_config.get("use_openai_storyteller_mode"), False)
     use_openai_scene_provider = _coerce_bool(merged_runtime_config.get("use_openai_scene_provider"), False)
     use_openai_dialogue_intent_adapter = _coerce_bool(merged_runtime_config.get("use_openai_dialogue_intent_adapter"), False)
     use_openai_dialogue_renderer = _coerce_bool(merged_runtime_config.get("use_openai_dialogue_renderer"), False)
@@ -41,6 +43,7 @@ def load_config(
     return AppConfig(
         openai_api_key=openai_api_key,
         openai_model=openai_model,
+        use_openai_storyteller_mode=use_openai_storyteller_mode,
         use_openai_scene_provider=use_openai_scene_provider,
         use_openai_dialogue_intent_adapter=use_openai_dialogue_intent_adapter,
         use_openai_dialogue_renderer=use_openai_dialogue_renderer,

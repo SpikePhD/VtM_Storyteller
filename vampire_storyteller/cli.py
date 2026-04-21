@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import dataclass
+
 from .config import AppConfig, load_config
 from .data_paths import ADVENTURE_ID, ADVENTURE_ROOT, get_default_save_path
 from .dialogue_renderer import DeterministicDialogueRenderer, DialogueRenderer
@@ -18,6 +20,19 @@ class _UnavailableOpenAIDialogueRenderer:
 
     def render_dialogue(self, render_input) -> str:
         raise RuntimeError(self._reason)
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeComposition:
+    scene_provider: SceneNarrativeProvider
+    dialogue_intent_adapter: DialogueIntentAdapter
+    dialogue_renderer: DialogueRenderer
+    mode_label: str
+    scene_label: str
+    dialogue_intent_label: str
+    dialogue_render_label: str
+    notices: tuple[str, ...] = ()
+    full_openai_storyteller_mode: bool = False
 
 
 def build_scene_provider(config: AppConfig | None = None) -> tuple[SceneNarrativeProvider, str | None]:
@@ -76,15 +91,81 @@ def build_dialogue_renderer(config: AppConfig | None = None) -> tuple[DialogueRe
         return _UnavailableOpenAIDialogueRenderer(reason), reason
 
 
-def run_cli() -> None:
-    config = load_config()
-    scene_provider, notice = build_scene_provider(config)
+def build_runtime_composition(config: AppConfig | None = None) -> RuntimeComposition:
+    config = load_config() if config is None else config
+    if config.use_openai_storyteller_mode:
+        return _build_full_openai_storyteller_composition(config)
+
+    scene_provider, scene_notice = build_scene_provider(config)
     dialogue_intent_adapter, dialogue_notice = build_dialogue_intent_adapter(config)
     dialogue_renderer, renderer_notice = build_dialogue_renderer(config)
-    print(_build_runtime_banner(config, scene_provider, dialogue_intent_adapter, dialogue_renderer, notice, dialogue_notice, renderer_notice))
+    notices = tuple(notice for notice in (scene_notice, dialogue_notice, renderer_notice) if notice is not None)
+    return RuntimeComposition(
+        scene_provider=scene_provider,
+        dialogue_intent_adapter=dialogue_intent_adapter,
+        dialogue_renderer=dialogue_renderer,
+        mode_label=_mode_label_for_mixed_runtime(config),
+        scene_label=_component_label(scene_provider, "OpenAI", "deterministic"),
+        dialogue_intent_label=_component_label(dialogue_intent_adapter, "OpenAI", "deterministic"),
+        dialogue_render_label=_dialogue_render_label(config, dialogue_renderer),
+        notices=notices,
+        full_openai_storyteller_mode=False,
+    )
+
+
+def _build_full_openai_storyteller_composition(config: AppConfig) -> RuntimeComposition:
+    if not config.openai_api_key:
+        raise RuntimeError("Full OpenAI storyteller mode requires OPENAI_API_KEY.")
+
+    try:
+        scene_provider = OpenAISceneNarrativeProvider(api_key=config.openai_api_key, model=config.openai_model)
+        dialogue_intent_adapter = OpenAIDialogueIntentAdapter(api_key=config.openai_api_key, model=config.openai_model)
+        dialogue_renderer = OpenAIDialogueRenderer(api_key=config.openai_api_key, model=config.openai_model)
+    except Exception as exc:
+        raise RuntimeError(f"Full OpenAI storyteller mode failed to initialize: {exc}") from exc
+
+    return RuntimeComposition(
+        scene_provider=scene_provider,
+        dialogue_intent_adapter=dialogue_intent_adapter,
+        dialogue_renderer=dialogue_renderer,
+        mode_label="OpenAI storyteller",
+        scene_label="OpenAI",
+        dialogue_intent_label="OpenAI",
+        dialogue_render_label="OpenAI",
+        notices=(),
+        full_openai_storyteller_mode=True,
+    )
+
+
+def _mode_label_for_mixed_runtime(config: AppConfig) -> str:
+    if config.use_openai_scene_provider or config.use_openai_dialogue_intent_adapter or config.use_openai_dialogue_renderer:
+        return "Mixed"
+    return "Deterministic"
+
+
+def _component_label(component: object, openai_label: str, deterministic_label: str) -> str:
+    return openai_label if isinstance(component, (OpenAISceneNarrativeProvider, OpenAIDialogueIntentAdapter)) else deterministic_label
+
+
+def _dialogue_render_label(config: AppConfig, dialogue_renderer: DialogueRenderer) -> str:
+    if isinstance(dialogue_renderer, OpenAIDialogueRenderer):
+        return "OpenAI"
+    if config.use_openai_dialogue_renderer:
+        return "OpenAI (unavailable)"
+    return "deterministic"
+
+
+def run_cli() -> None:
+    config = load_config()
+    runtime = build_runtime_composition(config)
+    print(_build_runtime_banner(config, runtime))
     print()
 
-    session = GameSession(scene_provider=scene_provider, dialogue_intent_adapter=dialogue_intent_adapter, dialogue_renderer=dialogue_renderer)
+    session = GameSession(
+        scene_provider=runtime.scene_provider,
+        dialogue_intent_adapter=runtime.dialogue_intent_adapter,
+        dialogue_renderer=runtime.dialogue_renderer,
+    )
     print("Vampire: The Masquerade storyteller prototype")
     print("Type help for commands.")
     print()
@@ -132,43 +213,29 @@ def _format_cli_result(result) -> str:
 
 def _build_runtime_banner(
     config: AppConfig,
-    scene_provider: SceneNarrativeProvider,
-    dialogue_intent_adapter: DialogueIntentAdapter,
-    dialogue_renderer: DialogueRenderer,
-    notice: str | None,
-    dialogue_notice: str | None,
-    renderer_notice: str | None,
+    runtime: RuntimeComposition,
 ) -> str:
-    runtime_mode = "OpenAI" if isinstance(scene_provider, OpenAISceneNarrativeProvider) else "deterministic"
-    dialogue_mode = "OpenAI" if isinstance(dialogue_intent_adapter, OpenAIDialogueIntentAdapter) else "deterministic"
-    dialogue_render_mode = "OpenAI" if config.use_openai_dialogue_renderer else "deterministic"
     lines = [
         "Runtime",
         f"Adventure: {ADVENTURE_ID}",
         f"Root: {ADVENTURE_ROOT.as_posix()}",
-        f"Mode: {runtime_mode}",
-        f"Dialogue intent: {dialogue_mode}",
-        f"Dialogue rendering: {dialogue_render_mode}",
-        f"Provider: {scene_provider.__class__.__name__}",
+        f"Mode: {runtime.mode_label}",
+        f"Scene narration: {runtime.scene_label}",
+        f"Dialogue intent: {runtime.dialogue_intent_label}",
+        f"Dialogue rendering: {runtime.dialogue_render_label}",
+        f"Provider: {runtime.scene_provider.__class__.__name__}",
     ]
-    if config.use_openai_scene_provider or isinstance(scene_provider, OpenAISceneNarrativeProvider):
+    if config.use_openai_storyteller_mode or config.use_openai_scene_provider or isinstance(runtime.scene_provider, OpenAISceneNarrativeProvider):
         lines.append(f"Model: {config.openai_model}")
-    if config.use_openai_dialogue_intent_adapter or isinstance(dialogue_intent_adapter, OpenAIDialogueIntentAdapter):
+    if config.use_openai_storyteller_mode or config.use_openai_dialogue_intent_adapter or isinstance(runtime.dialogue_intent_adapter, OpenAIDialogueIntentAdapter):
         lines.append(f"Dialogue model: {config.openai_model}")
-    if config.use_openai_dialogue_renderer or isinstance(dialogue_renderer, OpenAIDialogueRenderer):
+    if config.use_openai_storyteller_mode or config.use_openai_dialogue_renderer or isinstance(runtime.dialogue_renderer, OpenAIDialogueRenderer):
         lines.append(f"Dialogue render model: {config.openai_model}")
-    lines.append(f"Fallback: {'yes' if notice is not None else 'no'}")
-    if notice is not None:
+    lines.append(f"Storyteller preset: {'yes' if config.use_openai_storyteller_mode else 'no'}")
+    lines.append(f"Mixed mode: {'yes' if runtime.mode_label == 'Mixed' else 'no'}")
+    lines.append(f"Fallback: {'yes' if runtime.notices else 'no'}")
+    for notice in runtime.notices:
         lines.append(f"Notice: {notice}")
-    lines.append(f"Dialogue fallback: {'yes' if dialogue_notice is not None else 'no'}")
-    if dialogue_notice is not None:
-        lines.append(f"Dialogue notice: {dialogue_notice}")
-    if config.use_openai_dialogue_renderer:
-        lines.append("Dialogue render fallback: no (disabled by design in OpenAI dialogue mode)")
-    else:
-        lines.append(f"Dialogue render fallback: {'yes' if renderer_notice is not None else 'no'}")
-    if renderer_notice is not None:
-        lines.append(f"Dialogue render notice: {renderer_notice}")
     lines.append(f"Save: {get_default_save_path().as_posix()}")
     return "\n".join(lines)
 

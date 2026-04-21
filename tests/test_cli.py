@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import Mock, patch
 
-from vampire_storyteller.cli import _build_cli_prompt, _build_runtime_banner, _format_cli_result
+from vampire_storyteller.cli import _build_cli_prompt, _build_runtime_banner, _format_cli_result, build_runtime_composition
 from vampire_storyteller.config import AppConfig
 from vampire_storyteller.command_result import CommandResult, DialoguePresentation
 from vampire_storyteller.game_session import GameSession
@@ -65,26 +66,96 @@ class CliTranscriptTests(unittest.TestCase):
     def test_non_dialogue_result_stays_plain(self) -> None:
         self.assertEqual(_format_cli_result(CommandResult(output_text="Unsupported freeform input.")), "Unsupported freeform input.")
 
-    def test_runtime_banner_marks_openai_dialogue_rendering_as_mandatory(self) -> None:
+    def test_full_openai_storyteller_mode_uses_all_openai_components(self) -> None:
+        with patch("vampire_storyteller.cli.OpenAISceneNarrativeProvider") as mock_scene_ctor:
+            with patch("vampire_storyteller.cli.OpenAIDialogueIntentAdapter") as mock_intent_ctor:
+                with patch("vampire_storyteller.cli.OpenAIDialogueRenderer") as mock_renderer_ctor:
+                    runtime = build_runtime_composition(
+                        AppConfig(
+                            openai_api_key="test-key",
+                            openai_model="gpt-4.1-mini",
+                            use_openai_scene_provider=False,
+                            use_openai_dialogue_intent_adapter=False,
+                            use_openai_dialogue_renderer=False,
+                            use_openai_storyteller_mode=True,
+                        )
+                    )
+
+        self.assertTrue(runtime.full_openai_storyteller_mode)
+        self.assertEqual(runtime.mode_label, "OpenAI storyteller")
+        self.assertEqual(runtime.scene_label, "OpenAI")
+        self.assertEqual(runtime.dialogue_intent_label, "OpenAI")
+        self.assertEqual(runtime.dialogue_render_label, "OpenAI")
+        self.assertEqual(runtime.notices, ())
+        mock_scene_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
+        mock_intent_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
+        mock_renderer_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
+
         banner = _build_runtime_banner(
             AppConfig(
                 openai_api_key="test-key",
                 openai_model="gpt-4.1-mini",
                 use_openai_scene_provider=False,
                 use_openai_dialogue_intent_adapter=False,
-                use_openai_dialogue_renderer=True,
+                use_openai_dialogue_renderer=False,
+                use_openai_storyteller_mode=True,
             ),
-            DeterministicSceneNarrativeProvider(),
-            object(),
-            object(),
-            None,
-            None,
-            "OpenAI dialogue renderer requested but OPENAI_API_KEY is missing; deterministic dialogue rendering is disabled in OpenAI dialogue mode, so dialogue turns will fail explicitly.",
+            runtime,
         )
 
+        self.assertIn("Mode: OpenAI storyteller", banner)
+        self.assertIn("Scene narration: OpenAI", banner)
+        self.assertIn("Dialogue intent: OpenAI", banner)
         self.assertIn("Dialogue rendering: OpenAI", banner)
-        self.assertIn("Dialogue render fallback: no (disabled by design in OpenAI dialogue mode)", banner)
-        self.assertIn("Dialogue render notice:", banner)
+        self.assertIn("Storyteller preset: yes", banner)
+        self.assertIn("Mixed mode: no", banner)
+        self.assertNotIn("deterministic", banner.lower())
+
+    def test_mixed_runtime_is_reported_explicitly_as_mixed(self) -> None:
+        runtime = build_runtime_composition(
+            AppConfig(
+                openai_api_key="test-key",
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=True,
+                use_openai_dialogue_intent_adapter=True,
+                use_openai_dialogue_renderer=False,
+            )
+        )
+
+        banner = _build_runtime_banner(
+            AppConfig(
+                openai_api_key="test-key",
+                openai_model="gpt-4.1-mini",
+                use_openai_scene_provider=True,
+                use_openai_dialogue_intent_adapter=True,
+                use_openai_dialogue_renderer=False,
+            ),
+            runtime,
+        )
+
+        self.assertEqual(runtime.mode_label, "Mixed")
+        self.assertIn("Mode: Mixed", banner)
+        self.assertIn("Dialogue rendering: deterministic", banner)
+        self.assertIn("Mixed mode: yes", banner)
+
+    def test_full_openai_storyteller_mode_without_renderer_availability_fails_loudly(self) -> None:
+        with patch("vampire_storyteller.cli.OpenAISceneNarrativeProvider") as mock_scene_ctor:
+            with patch("vampire_storyteller.cli.OpenAIDialogueIntentAdapter") as mock_intent_ctor:
+                with patch("vampire_storyteller.cli.OpenAIDialogueRenderer", side_effect=RuntimeError("renderer failed")):
+                    with self.assertRaisesRegex(RuntimeError, "Full OpenAI storyteller mode failed to initialize"):
+                        build_runtime_composition(
+                            AppConfig(
+                                openai_api_key="test-key",
+                                openai_model="gpt-4.1-mini",
+                                use_openai_scene_provider=False,
+                                use_openai_dialogue_intent_adapter=False,
+                                use_openai_dialogue_renderer=False,
+                                use_openai_storyteller_mode=True,
+                            )
+                        )
+
+        mock_scene_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
+        mock_intent_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
 
 
 if __name__ == "__main__":

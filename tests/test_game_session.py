@@ -8,9 +8,11 @@ from unittest.mock import patch
 from vampire_storyteller.action_resolution import ActionBlockReason, NormalizationSource, TurnOutcomeKind
 from vampire_storyteller.dice_engine import DeterministicCheckKind
 from vampire_storyteller.dice_engine import DeterministicCheckResolution
+from vampire_storyteller.config import AppConfig
 from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, TalkCommand
 from vampire_storyteller.command_result import CommandResult
+from vampire_storyteller.cli import build_runtime_composition
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
 from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput
@@ -19,6 +21,7 @@ from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.models import NPCDialogueProfile
 from vampire_storyteller.narrative_provider import SceneNarrativeProvider
 from vampire_storyteller.social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
+from vampire_storyteller.narrative_provider import DeterministicSceneNarrativeProvider
 from vampire_storyteller.world_state import WorldState
 
 
@@ -70,6 +73,20 @@ class RecordingDialogueRenderer:
     def render_dialogue(self, render_input: DialogueRenderInput) -> str:
         self.render_inputs.append(render_input)
         return "The church records can wait for you."
+
+
+class RecordingOpenAISceneProvider:
+    def render_scene(self, world_state: WorldState) -> str:
+        return "OpenAI scene narration."
+
+
+class RecordingOpenAIDialogueRenderer:
+    def __init__(self) -> None:
+        self.render_inputs: list[DialogueRenderInput] = []
+
+    def render_dialogue(self, render_input: DialogueRenderInput) -> str:
+        self.render_inputs.append(render_input)
+        return "OpenAI dialogue line."
 
 
 class FailingDialogueRenderer:
@@ -424,6 +441,38 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("eliza_church_records_lead", [fact.fact_id for fact in last_render_input.authorized_fact_cards])
         self.assertIn("eliza_church_records_follow_up", [fact.fact_id for fact in last_render_input.authorized_fact_cards])
         self.assertNotIn("Unsupported freeform input", result.output_text)
+
+    def test_full_openai_storyteller_session_uses_non_deterministic_components(self) -> None:
+        with patch("vampire_storyteller.cli.OpenAISceneNarrativeProvider", return_value=RecordingOpenAISceneProvider()) as mock_scene_ctor:
+            with patch("vampire_storyteller.cli.OpenAIDialogueIntentAdapter", return_value=RecordingDialogueIntentAdapter()) as mock_intent_ctor:
+                with patch("vampire_storyteller.cli.OpenAIDialogueRenderer", return_value=RecordingOpenAIDialogueRenderer()) as mock_renderer_ctor:
+                    runtime = build_runtime_composition(
+                        AppConfig(
+                            openai_api_key="test-key",
+                            openai_model="gpt-4.1-mini",
+                            use_openai_scene_provider=False,
+                            use_openai_dialogue_intent_adapter=False,
+                            use_openai_dialogue_renderer=False,
+                            use_openai_storyteller_mode=True,
+                        )
+                    )
+
+        self.assertEqual(runtime.mode_label, "OpenAI storyteller")
+        self.assertEqual(runtime.dialogue_render_label, "OpenAI")
+        self.assertFalse(any("deterministic" in notice.lower() for notice in runtime.notices))
+        self.assertNotIsInstance(runtime.scene_provider, DeterministicSceneNarrativeProvider)
+        mock_scene_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
+        mock_intent_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
+        mock_renderer_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
+
+        session = GameSession(
+            scene_provider=runtime.scene_provider,
+            dialogue_intent_adapter=runtime.dialogue_intent_adapter,
+            dialogue_renderer=runtime.dialogue_renderer,
+        )
+        startup_text = session.get_startup_text()
+        self.assertIn("OpenAI scene narration.", startup_text)
+        self.assertNotIn("deterministic", startup_text.lower())
 
     def test_missing_ledger_follow_up_stays_in_the_same_subtopic(self) -> None:
         session = GameSession()
