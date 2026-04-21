@@ -26,13 +26,17 @@ from .conversation_context import ConversationContext
 from .data_paths import ensure_adventure_directories, get_default_save_path
 from .dialogue_adjudication import DialogueAdjudicationOutcome, DialogueTopicStatus, adjudicate_dialogue_talk
 from .dialogue_domain import DialogueDomain
-from .dialogue_renderer import DialogueRenderInput, DeterministicDialogueRenderer, DialogueRenderer, build_dialogue_render_input
-from .dialogue_intent_adapter import DialogueIntentAdapter, NullDialogueIntentAdapter
+from .dialogue_renderer import DialogueRenderInput, DialogueRenderer, build_dialogue_render_input
+from .dialogue_intent_adapter import DialogueIntentAdapter
 from .dialogue_subtopic import DialogueSubtopic, detect_dialogue_subtopic
 from .dice_engine import DeterministicCheckKind, DeterministicCheckSpecification, resolve_deterministic_check
 from .input_interpreter import InputInterpreter, InterpretedInput
 from .models import EventLogEntry
-from .narrative_provider import DeterministicSceneNarrativeProvider, SceneNarrativeProvider
+from .narrative_provider import SceneNarrativeProvider
+from .config import load_config
+from .openai_dialogue_renderer import OpenAIDialogueRenderer
+from .openai_narrative_provider import OpenAISceneNarrativeProvider
+from .dialogue_intent_adapter import OpenAIDialogueIntentAdapter
 from .npc_engine import update_npcs_for_current_time
 from .plot_engine import advance_plots
 from .sample_world import build_sample_world
@@ -52,11 +56,23 @@ class GameSession:
         save_path: str | Path | None = None,
     ) -> None:
         self._world_state = world_state if world_state is not None else build_sample_world()
-        self._scene_provider = scene_provider if scene_provider is not None else DeterministicSceneNarrativeProvider()
-        self._fallback_scene_provider = DeterministicSceneNarrativeProvider()
+        config = load_config()
+        self._scene_provider = (
+            scene_provider
+            if scene_provider is not None
+            else OpenAISceneNarrativeProvider(api_key=config.openai_api_key or "", model=config.openai_model)
+        )
         self._input_interpreter = InputInterpreter()
-        self._dialogue_intent_adapter = dialogue_intent_adapter if dialogue_intent_adapter is not None else NullDialogueIntentAdapter()
-        self._dialogue_renderer = dialogue_renderer if dialogue_renderer is not None else DeterministicDialogueRenderer()
+        self._dialogue_intent_adapter = (
+            dialogue_intent_adapter
+            if dialogue_intent_adapter is not None
+            else OpenAIDialogueIntentAdapter(api_key=config.openai_api_key or "", model=config.openai_model)
+        )
+        self._dialogue_renderer = (
+            dialogue_renderer
+            if dialogue_renderer is not None
+            else OpenAIDialogueRenderer(api_key=config.openai_api_key or "", model=config.openai_model)
+        )
         self._last_interpreted_input: InterpretedInput | None = None
         self._last_normalized_action: NormalizedActionInput | None = None
         self._last_action_resolution: ActionResolutionTurn | None = None
@@ -985,11 +1001,7 @@ class GameSession:
         )
 
     def _render_scene_text(self) -> str:
-        try:
-            return self._scene_provider.render_scene(self._world_state)
-        except Exception:
-            self._scene_provider = self._fallback_scene_provider
-            return self._fallback_scene_provider.render_scene(self._world_state)
+        return self._scene_provider.render_scene(self._world_state)
 
     def _build_resolution_epilogue(self) -> str:
         plot_id = load_adv1_plot_investigation_rules().plot_id

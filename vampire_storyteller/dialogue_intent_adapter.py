@@ -78,7 +78,7 @@ class OpenAIDialogueIntentAdapter:
         context_json = json.dumps(asdict(context), ensure_ascii=True, separators=(",", ":"))
         return "\n".join(
             [
-                "You classify dialogue intent for a deterministic game engine.",
+                "You classify dialogue intent for the OpenAI storyteller backend.",
                 "Use only the supplied JSON context as source of truth.",
                 "Return exactly one JSON object with only these keys: dialogue_act, target_npc_text, topic, tone.",
                 "Do not add markdown, comments, or any extra keys.",

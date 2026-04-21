@@ -7,7 +7,7 @@
 4. Implement Event Log
 5. Implement canonical World State ownership
 
-## Phase 2: Deterministic Rules and Consequences
+## Phase 2: Rules and Consequences
 6. Implement Action Resolution Contract
 7. Implement Adjudication Engine
 8. Implement Dice Engine
@@ -24,7 +24,7 @@
 ## Phase 4: LLM Realization
 16. Implement Outcome Packet Builder
 17. Implement Dialogue / Narrative Realizer
-18. Add safe fallback rendering
+18. Add explicit OpenAI storyteller failure handling
 19. Test bounded interpretation and realization paths
 
 ## Phase 5: GUI

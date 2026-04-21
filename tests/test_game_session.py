@@ -15,7 +15,7 @@ from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.cli import build_runtime_composition
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
-from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput
+from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput, DeterministicDialogueRenderer
 from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.models import NPCDialogueProfile
@@ -23,6 +23,7 @@ from vampire_storyteller.narrative_provider import SceneNarrativeProvider
 from vampire_storyteller.social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from vampire_storyteller.narrative_provider import DeterministicSceneNarrativeProvider
 from vampire_storyteller.world_state import WorldState
+from vampire_storyteller.dialogue_intent_adapter import NullDialogueIntentAdapter
 
 
 class RecordingSceneProvider(SceneNarrativeProvider):
@@ -89,12 +90,41 @@ class RecordingOpenAIDialogueRenderer:
         return "OpenAI dialogue line."
 
 
+class DefaultOpenAISceneNarrativeProvider(DeterministicSceneNarrativeProvider):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
+
+
+class DefaultOpenAIDialogueIntentAdapter(NullDialogueIntentAdapter):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__()
+
+
+class DefaultOpenAIDialogueRenderer:
+    def __init__(self, *args, **kwargs) -> None:
+        self._renderer = DeterministicDialogueRenderer()
+
+    def render_dialogue(self, render_input: DialogueRenderInput) -> str:
+        return self._renderer.render_dialogue(render_input)
+
+
 class FailingDialogueRenderer:
     def render_dialogue(self, render_input) -> str:
         raise RuntimeError("OpenAI dialogue renderer unavailable")
 
 
 class GameSessionTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self._scene_patch = patch("vampire_storyteller.game_session.OpenAISceneNarrativeProvider", DefaultOpenAISceneNarrativeProvider)
+        self._intent_patch = patch("vampire_storyteller.game_session.OpenAIDialogueIntentAdapter", DefaultOpenAIDialogueIntentAdapter)
+        self._renderer_patch = patch("vampire_storyteller.game_session.OpenAIDialogueRenderer", DefaultOpenAIDialogueRenderer)
+        self._scene_patch.start()
+        self._intent_patch.start()
+        self._renderer_patch.start()
+        self.addCleanup(self._scene_patch.stop)
+        self.addCleanup(self._intent_patch.stop)
+        self.addCleanup(self._renderer_patch.stop)
+
     def test_default_session_builds_successfully(self) -> None:
         session = GameSession()
         world = session.get_world_state()
@@ -495,16 +525,12 @@ class GameSessionTests(unittest.TestCase):
                         AppConfig(
                             openai_api_key="test-key",
                             openai_model="gpt-4.1-mini",
-                            use_openai_scene_provider=False,
-                            use_openai_dialogue_intent_adapter=False,
-                            use_openai_dialogue_renderer=False,
-                            use_openai_storyteller_mode=True,
                         )
                     )
 
         self.assertEqual(runtime.mode_label, "OpenAI storyteller")
         self.assertEqual(runtime.dialogue_render_label, "OpenAI")
-        self.assertFalse(any("deterministic" in notice.lower() for notice in runtime.notices))
+        self.assertEqual(runtime.notices, ())
         self.assertNotIsInstance(runtime.scene_provider, DeterministicSceneNarrativeProvider)
         mock_scene_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
         mock_intent_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")

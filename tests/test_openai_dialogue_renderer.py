@@ -160,15 +160,21 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                 AppConfig(
                     openai_api_key="test-key",
                     openai_model="gpt-4.1-mini",
-                    use_openai_scene_provider=False,
-                    use_openai_dialogue_intent_adapter=False,
-                    use_openai_dialogue_renderer=True,
                 )
             )
 
         self.assertIsNone(notice)
         mock_renderer_ctor.assert_called_once_with(api_key="test-key", model="gpt-4.1-mini")
         self.assertIs(renderer, mock_renderer_ctor.return_value)
+
+    def test_shared_dialogue_renderer_helper_requires_an_api_key(self) -> None:
+        with self.assertRaisesRegex(RuntimeError, "requires OPENAI_API_KEY"):
+            build_dialogue_renderer(
+                AppConfig(
+                    openai_api_key=None,
+                    openai_model="gpt-4.1-mini",
+                )
+            )
 
 
 if __name__ == "__main__":

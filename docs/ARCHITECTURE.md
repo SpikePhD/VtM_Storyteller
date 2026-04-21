@@ -32,7 +32,7 @@ Stores:
 - story flags
 - social variables and topic knowledge
 
-### 4. Deterministic Simulation Systems
+### 4. Simulation Systems
 - time engine
 - movement engine
 - NPC scheduler
@@ -83,7 +83,7 @@ Typical fields include:
 5. Deterministic checks, rolls, and consequences
 6. State update
 7. Structured outcome packet build
-8. LLM realization / fallback rendering
+8. LLM realization
 9. Wait for next input
 
 ## Interaction Model

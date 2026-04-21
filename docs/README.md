@@ -5,9 +5,9 @@
 This project is a GUI-based single-player Vampire: The Masquerade storytelling application.
 
 The system combines:
-- deterministic simulation (world state, time, rules, checks, consequences)
+- deterministic backend truth (world state, time, rules, checks, consequences)
 - deterministic social state (relationship, trust, hostility, secrecy, topic gating, willingness)
-- LLM-based realization (scene description, NPC dialogue, tone, atmosphere, and storyteller feel)
+- OpenAI storyteller realization (scene description, NPC dialogue, tone, atmosphere, and storyteller feel)
 
 The player-facing goal is to make the experience feel natural-language-first:
 - players can write thoughts, intentions, descriptive actions, and dialogue in their own words
@@ -97,7 +97,7 @@ Underlying resolution:
 - Backend: Python
 - GUI: PySide6 (Qt for Python)
 - Storage: JSON / SQLite
-- LLM: Local model (primary), OpenAI API (optional fallback)
+- LLM: OpenAI API
 
 ## Version 1 Goal
 

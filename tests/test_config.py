@@ -26,31 +26,14 @@ class ConfigTests(unittest.TestCase):
         self.assertIsInstance(config, AppConfig)
         self.assertIsNone(config.openai_api_key)
         self.assertEqual(config.openai_model, "gpt-4.1-mini")
-        self.assertFalse(config.use_openai_scene_provider)
-        self.assertFalse(config.use_openai_dialogue_intent_adapter)
-        self.assertFalse(config.use_openai_dialogue_renderer)
 
-    def test_load_config_reads_runtime_json_and_dotenv_secret(self) -> None:
+    def test_load_config_reads_openai_model_and_dotenv_secret(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             config_path = temp_path / "app_config.json"
             local_config_path = temp_path / "app_config.local.json"
             dotenv_path = temp_path / ".env"
-            config_path.write_text(
-                json.dumps(
-                    {
-                        "openai_model": "gpt-4.1",
-                        "use_openai_scene_provider": False,
-                        "use_openai_dialogue_intent_adapter": True,
-                        "use_openai_dialogue_renderer": False,
-                    }
-                ),
-                encoding="utf-8",
-            )
-            local_config_path.write_text(
-                json.dumps({"use_openai_scene_provider": True, "use_openai_dialogue_renderer": True}),
-                encoding="utf-8",
-            )
+            config_path.write_text(json.dumps({"openai_model": "gpt-4.1"}), encoding="utf-8")
             dotenv_path.write_text("OPENAI_API_KEY=test-key\n", encoding="utf-8")
 
             with patch.dict(os.environ, {}, clear=True):
@@ -62,26 +45,13 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(config.openai_api_key, "test-key")
         self.assertEqual(config.openai_model, "gpt-4.1")
-        self.assertTrue(config.use_openai_scene_provider)
-        self.assertTrue(config.use_openai_dialogue_intent_adapter)
-        self.assertTrue(config.use_openai_dialogue_renderer)
 
     def test_environment_secret_overrides_dotenv_secret(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)
             config_path = temp_path / "app_config.json"
             dotenv_path = temp_path / ".env"
-            config_path.write_text(
-                json.dumps(
-                    {
-                        "openai_model": "gpt-4.1-mini",
-                        "use_openai_scene_provider": True,
-                        "use_openai_dialogue_intent_adapter": False,
-                        "use_openai_dialogue_renderer": False,
-                    }
-                ),
-                encoding="utf-8",
-            )
+            config_path.write_text(json.dumps({"openai_model": "gpt-4.1-mini"}), encoding="utf-8")
             dotenv_path.write_text("OPENAI_API_KEY=file-key\n", encoding="utf-8")
 
             with patch.dict(os.environ, {"OPENAI_API_KEY": "env-key"}, clear=True):
@@ -89,9 +59,6 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(config.openai_api_key, "env-key")
         self.assertEqual(config.openai_model, "gpt-4.1-mini")
-        self.assertTrue(config.use_openai_scene_provider)
-        self.assertFalse(config.use_openai_dialogue_intent_adapter)
-        self.assertFalse(config.use_openai_dialogue_renderer)
 
 
 if __name__ == "__main__":

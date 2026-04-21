@@ -4,7 +4,7 @@
 
 The system is composed of logical modules, not autonomous gameplay agents.
 
-The project now treats dialogue as a **deterministic social simulation plus LLM realization**:
+The project now treats dialogue as **deterministic social simulation plus OpenAI realization**:
 - the deterministic layer owns truth, rules, legality, checks, consequences, plot gates, and state mutation
 - the LLM owns interpretation within bounded schemas and expressive realization of scenes and dialogue
 - the project should avoid scaling through hand-authored deterministic dialogue scripts for every utterance
@@ -71,7 +71,7 @@ Each module has a narrow responsibility and should hand structured outputs to th
 
 ### 11. Dialogue / Narrative Realizer
 - turns structured outcome packets into player-facing prose
-- may use a local model or API model
+- uses the OpenAI storyteller model
 - renders tone, atmosphere, NPC voice, and dialogue flow
 - must not invent legality, plot progression, check results, or state changes
 

@@ -3,7 +3,7 @@
 ## Goal
 
 Build a playable vertical slice proving that:
-- deterministic simulation and LLM realization can coexist
+- deterministic simulation and OpenAI storyteller realization can coexist
 - deterministic social state can drive flexible NPC dialogue
 - a dynamic story bible can be maintained
 - a GUI can present a coherent experience
@@ -32,7 +32,7 @@ Build a playable vertical slice proving that:
 - dice system
 - deterministic social resolution
 - bounded intent extraction
-- LLM dialogue and scene realization
+- OpenAI dialogue and scene realization
 
 ### Story
 - 1 short chronicle arc
@@ -68,7 +68,7 @@ The system is successful if:
 
 ## Player Experience
 
-The player should be able to write thoughts, intentions, descriptive actions, and dialogue in ordinary language. The engine then resolves that input into deterministic simulation and social outcomes, and the LLM realizes those outcomes as natural narration and dialogue.
+The player should be able to write thoughts, intentions, descriptive actions, and dialogue in ordinary language. The engine then resolves that input into deterministic simulation and social outcomes, and OpenAI realizes those outcomes as natural narration and dialogue.
 
 Example:
 

@@ -14,3 +14,4 @@
 - Onboarded Sister Eliza onto the shared dossier-backed dialogue slice, including church-records facts and generic non-Jonas follow-up routing.
 - Added bounded meta-conversation classification for Jonas stance challenges so hostile/help-attitude questions now route into a distinct dialogue domain instead of the lead-content lane.
 - Retired the legacy talk-output generator from the live conversation path; backend hook progression now happens in adjudication while packet-driven rendering remains the only realization step.
+- Removed the remaining runtime mode switches and fallback selectors so the app now builds and reports one OpenAI storyteller path only, with config/docs cleaned to match.

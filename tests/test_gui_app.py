@@ -88,11 +88,11 @@ class GuiAppTests(unittest.TestCase):
 
     def test_controller_prepends_startup_notice_when_provided(self) -> None:
         session = FakeSession()
-        controller = GuiSessionController(session=session, startup_notice="OpenAI scene provider unavailable; using deterministic scenes.")
+        controller = GuiSessionController(session=session, startup_notice="OpenAI storyteller startup notice.")
 
         startup_text = controller.startup_text()
 
-        self.assertTrue(startup_text.startswith("OpenAI scene provider unavailable; using deterministic scenes."))
+        self.assertTrue(startup_text.startswith("OpenAI storyteller startup notice."))
         self.assertIn("startup scene", startup_text)
 
     def test_run_gui_uses_shared_provider_selection_path(self) -> None:
