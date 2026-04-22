@@ -17,6 +17,7 @@ from vampire_storyteller.conversation_context import DialogueHistoryEntry, Dialo
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
 from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput, DeterministicDialogueRenderer
+from vampire_storyteller.dialogue_intent_adapter import DialogueIntentProposal
 from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.models import NPCDialogueProfile
@@ -24,7 +25,7 @@ from vampire_storyteller.narrative_provider import SceneNarrativeProvider
 from vampire_storyteller.social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from vampire_storyteller.narrative_provider import DeterministicSceneNarrativeProvider
 from vampire_storyteller.world_state import WorldState
-from vampire_storyteller.dialogue_intent_adapter import NullDialogueIntentAdapter
+from vampire_storyteller.input_interpreter import InputInterpreter
 
 
 class RecordingSceneProvider(SceneNarrativeProvider):
@@ -98,9 +99,168 @@ class DefaultOpenAISceneNarrativeProvider(DeterministicSceneNarrativeProvider):
         super().__init__()
 
 
-class DefaultOpenAIDialogueIntentAdapter(NullDialogueIntentAdapter):
+class DefaultOpenAIDialogueIntentAdapter:
     def __init__(self, *args, **kwargs) -> None:
-        super().__init__()
+        self._classifier = InputInterpreter()
+
+    def propose_dialogue_intent(self, context) -> DialogueIntentProposal:
+        normalized_text = self._classifier._normalize_text(context.raw_input)
+        speech_text = context.raw_input
+        normalized_speech_text = self._classifier._normalize_text(speech_text)
+        dialogue_act = self._classifier._classify_dialogue_act(context.raw_input, normalized_text, speech_text, normalized_speech_text)
+        dialogue_move = self._classifier._classify_dialogue_move(
+            context.raw_input,
+            normalized_text,
+            speech_text,
+            normalized_speech_text,
+            dialogue_act,
+        )
+        if any(
+            phrase in normalized_text
+            for phrase in (
+                "hostile",
+                "repeating what i am saying",
+                "you just did",
+                "that sounds wrong",
+            )
+        ):
+            dialogue_act = DialogueAct.ACCUSE
+            dialogue_move = DialogueMove.CLARIFY
+        target_npc_text = context.conversation_focus_npc_name or "Jonas Reed"
+        topic = self._infer_topic(context.raw_input, normalized_text, dialogue_act)
+        tone = self._infer_tone(dialogue_act, dialogue_move, normalized_text)
+        return DialogueIntentProposal(
+            dialogue_act=dialogue_act.value,
+            dialogue_move=dialogue_move.value,
+            target_npc_text=target_npc_text,
+            topic=topic,
+            tone=tone,
+        )
+
+    def _infer_topic(self, raw_input: str, normalized_text: str, dialogue_act: DialogueAct) -> str:
+        if any(
+            phrase in normalized_text
+            for phrase in (
+                "need blood",
+                "give me blood",
+                "feed me",
+                "feed off",
+                "vampire",
+                "blood",
+            )
+        ):
+            return "blood"
+
+        if any(
+            phrase in normalized_text
+            for phrase in (
+                "back me up",
+                "backup",
+                "back up",
+                "watch my back",
+                "cover me",
+                "stay nearby",
+                "stay close",
+                "wait nearby",
+                "wait in the car",
+                "stay in the car",
+            )
+        ):
+            return "backup"
+
+        if any(
+            phrase in normalized_text
+            for phrase in (
+                "spare change",
+                "taxi fare",
+                "cab fare",
+                "money to pay",
+                "money for the taxi",
+                "money for the ride",
+                "money for the trip",
+                "pay for the taxi",
+                "pay for the ride",
+                "pay for the trip",
+                "pay the taxi",
+                "pay the fare",
+                "cash for the ride",
+                "cash for the trip",
+                "cover the fare",
+            )
+        ):
+            return "fare"
+
+        if any(
+            phrase in normalized_text
+            for phrase in (
+                "drive",
+                "ride",
+                "lift",
+                "drop me off",
+                "vehicle",
+                "have a car",
+                "got a car",
+                "spare car",
+                "transport",
+            )
+        ):
+            return "transport"
+
+        if any(
+            phrase in normalized_text
+            for phrase in (
+                "ledger",
+                "paper trail",
+                "receipt",
+                "broker",
+                "waterline",
+                "dock",
+                "docks",
+                "church records",
+                "records",
+                "what happened",
+                "what about",
+                "tell me more",
+                "trail",
+                "who are you",
+                "what do you do",
+                "more about you",
+            )
+        ):
+            return "missing_ledger"
+
+        if any(phrase in normalized_text for phrase in ("how are you", "hello", "hi", "hey", "good evening", "good morning", "good afternoon")):
+            return "small_talk"
+
+        if dialogue_act in {DialogueAct.ASK, DialogueAct.PERSUADE, DialogueAct.ACCUSE, DialogueAct.THREATEN}:
+            return "lead_topic"
+
+        return "conversation"
+
+    def _infer_tone(self, dialogue_act: DialogueAct, dialogue_move: DialogueMove, normalized_text: str) -> str:
+        if any(
+            phrase in normalized_text
+            for phrase in (
+                "hostile",
+                "repeating what i am saying",
+                "you just did",
+                "that sounds wrong",
+            )
+        ):
+            return "guarded"
+        if dialogue_act is DialogueAct.THREATEN:
+            return "tense"
+        if dialogue_act is DialogueAct.ACCUSE:
+            return "guarded"
+        if dialogue_act is DialogueAct.PERSUADE:
+            return "careful"
+        if dialogue_move in {DialogueMove.REACT, DialogueMove.BANTER}:
+            return "warm"
+        if dialogue_move is DialogueMove.CLARIFY:
+            return "guarded"
+        if "please" in normalized_text:
+            return "polite"
+        return "curious"
 
 
 class DefaultOpenAIDialogueRenderer:
@@ -518,12 +678,12 @@ class GameSessionTests(unittest.TestCase):
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
 
-    def test_active_conversation_freeform_follow_up_routes_into_dialogue_intent(self) -> None:
+    def test_active_conversation_declarative_line_routes_into_dialogue_intent_by_default(self) -> None:
         adapter = RecordingDialogueIntentAdapter()
         session = GameSession(dialogue_intent_adapter=adapter)
 
         session.process_input("Jonas, good evening.")
-        result = session.process_input("Can I have some money?")
+        result = session.process_input("Busy - got into a job that I did not really want to do")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
 
@@ -538,6 +698,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertIsNotNone(turn.dialogue_adjudication)
         self.assertIsNotNone(result.dialogue_presentation)
         self.assertGreaterEqual(len(adapter.calls), 1)
+        self.assertIn("Busy - got into a job that I did not really want to do", adapter.calls[-1])
 
     def test_active_conversation_explicit_world_action_stays_on_existing_path(self) -> None:
         adapter = RecordingDialogueIntentAdapter()

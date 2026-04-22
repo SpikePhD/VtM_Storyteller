@@ -314,9 +314,33 @@ class InputInterpreter:
         if self._looks_like_canonical_talk_command(raw_input):
             return None
 
-        npc_matches = self._match_npc_candidates(normalized_text, world_state)
-        has_active_conversation = conversation_focus_npc_id is not None or stale_conversation_focus_npc_id is not None or conversation_subtopic is not None
+        has_active_conversation = conversation_focus_npc_id is not None or conversation_subtopic is not None
         explicit_non_dialogue_action = self._looks_like_explicit_non_dialogue_action(normalized_text, raw_input, world_state)
+        if has_active_conversation and not explicit_non_dialogue_action:
+            adapter_result = self._interpret_dialogue_intent_proposal(
+                raw_input,
+                normalized_text,
+                world_state,
+                conversation_focus_npc_id,
+                dialogue_intent_adapter,
+                recent_dialogue_history,
+            )
+            if adapter_result is not None:
+                return adapter_result
+
+            if stale_conversation_focus_npc_id is not None:
+                return self._failure(
+                    match_reason="active conversation line matched a stale conversation focus",
+                    failure_reason=stale_conversation_focus_reason
+                    or "Talk is blocked: the previous conversation focus is no longer valid.",
+                )
+
+            return self._failure(
+                match_reason="active conversation line could not be classified by the dialogue intent adapter",
+                failure_reason="Talk is blocked: the dialogue intent adapter did not produce a usable dialogue action.",
+            )
+
+        npc_matches = self._match_npc_candidates(normalized_text, world_state)
         has_talk_cue = (
             bool(npc_matches)
             or self._looks_like_dialogue_entry(normalized_text, raw_input)
@@ -358,16 +382,17 @@ class InputInterpreter:
             speech_text = self._extract_speech_text(raw_input, npc_match["matched_text"])
             return self._build_talk_result(raw_input, normalized_text, npc, speech_text, npc_match["matched_text"])
 
-        adapter_result = self._interpret_dialogue_intent_proposal(
-            raw_input,
-            normalized_text,
-            world_state,
-            conversation_focus_npc_id,
-            dialogue_intent_adapter,
-            recent_dialogue_history,
-        )
-        if adapter_result is not None:
-            return adapter_result
+        if dialogue_intent_adapter is not None and self._contains_any(normalized_text, self._SPEECH_VERB_PHRASES):
+            adapter_result = self._interpret_dialogue_intent_proposal(
+                raw_input,
+                normalized_text,
+                world_state,
+                conversation_focus_npc_id,
+                dialogue_intent_adapter,
+                recent_dialogue_history,
+            )
+            if adapter_result is not None:
+                return adapter_result
 
         if self._looks_like_follow_up(normalized_text) or self._contains_any(normalized_text, self._FOCUSLESS_ACTIVE_CONVERSATION_PHRASES) or (
             has_active_conversation and self._looks_like_active_conversation_follow_up(normalized_text, raw_input, conversation_subtopic)

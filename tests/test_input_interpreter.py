@@ -20,16 +20,99 @@ class InputInterpreterTests(unittest.TestCase):
     class RecordingDialogueIntentAdapter:
         def __init__(self) -> None:
             self.contexts: list[DialogueIntentContext] = []
+            self._classifier = InputInterpreter()
 
         def propose_dialogue_intent(self, context: DialogueIntentContext) -> DialogueIntentProposal:
             self.contexts.append(context)
-            return DialogueIntentProposal(
-                dialogue_act="ask",
-                dialogue_move="continue",
-                target_npc_text=context.conversation_focus_npc_name or "Jonas Reed",
-                topic="missing_ledger",
-                tone="curious",
+            normalized_text = self._classifier._normalize_text(context.raw_input)
+            speech_text = context.raw_input
+            normalized_speech_text = self._classifier._normalize_text(speech_text)
+            dialogue_act = self._classifier._classify_dialogue_act(context.raw_input, normalized_text, speech_text, normalized_speech_text)
+            dialogue_move = self._classifier._classify_dialogue_move(
+                context.raw_input,
+                normalized_text,
+                speech_text,
+                normalized_speech_text,
+                dialogue_act,
             )
+            return DialogueIntentProposal(
+                dialogue_act=dialogue_act.value,
+                dialogue_move=dialogue_move.value,
+                target_npc_text=context.conversation_focus_npc_name or "Jonas Reed",
+                topic=self._infer_topic(normalized_text, dialogue_act),
+                tone=self._infer_tone(dialogue_act, dialogue_move, normalized_text),
+            )
+
+        def _infer_topic(self, normalized_text: str, dialogue_act: DialogueAct) -> str:
+            if any(
+                phrase in normalized_text
+                for phrase in (
+                    "ledger",
+                    "paper trail",
+                    "dock",
+                    "docks",
+                    "church records",
+                    "records",
+                    "trail",
+                )
+            ):
+                return "missing_ledger"
+            if any(
+                phrase in normalized_text
+                for phrase in (
+                    "back me up",
+                    "backup",
+                    "back up",
+                    "stay nearby",
+                    "wait nearby",
+                    "stay close",
+                    "stay in the car",
+                    "come along",
+                )
+            ):
+                return "backup"
+            if any(
+                phrase in normalized_text
+                for phrase in (
+                    "drive",
+                    "ride",
+                    "lift",
+                    "vehicle",
+                    "car",
+                    "drop me off",
+                    "transport",
+                )
+            ):
+                return "transport"
+            if any(phrase in normalized_text for phrase in ("blood", "feed", "vampire")):
+                return "blood"
+            if dialogue_act in {DialogueAct.ASK, DialogueAct.PERSUADE, DialogueAct.ACCUSE, DialogueAct.THREATEN}:
+                return "lead_topic"
+            return "conversation"
+
+        def _infer_tone(self, dialogue_act: DialogueAct, dialogue_move: DialogueMove, normalized_text: str) -> str:
+            if dialogue_act is DialogueAct.THREATEN:
+                return "tense"
+            if dialogue_act is DialogueAct.ACCUSE:
+                return "guarded"
+            if dialogue_act is DialogueAct.PERSUADE:
+                return "careful"
+            if dialogue_move in {DialogueMove.REACT, DialogueMove.BANTER}:
+                return "warm"
+            if dialogue_move is DialogueMove.CLARIFY:
+                return "guarded"
+            if "please" in normalized_text:
+                return "polite"
+            return "curious"
+
+    def _interpret_with_active_dialogue_adapter(self, raw_input: str, **kwargs):
+        adapter = self.RecordingDialogueIntentAdapter()
+        result = self.interpreter.interpret(raw_input, self.world_state, dialogue_intent_adapter=adapter, **kwargs)
+        return result, adapter
+
+    class UnusableDialogueIntentAdapter:
+        def propose_dialogue_intent(self, context: DialogueIntentContext) -> DialogueIntentProposal | None:
+            return None
 
     def test_freeform_careful_look_maps_to_look(self) -> None:
         result = self.interpreter.interpret("I take a careful look around.", self.world_state)
@@ -270,7 +353,7 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(normalized.canonical_command_text, "talk npc_1")
 
     def test_follow_up_uses_conversation_focus(self) -> None:
-        result = self.interpreter.interpret("Why?", self.world_state, conversation_focus_npc_id="npc_1")
+        result, _adapter = self._interpret_with_active_dialogue_adapter("Why?", conversation_focus_npc_id="npc_1")
 
         self.assertFalse(result.fallback_to_parser)
         self.assertEqual(result.normalized_intent, "talk")
@@ -278,7 +361,7 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
 
     def test_follow_up_what_do_you_mean_uses_conversation_focus(self) -> None:
-        result = self.interpreter.interpret("What do you mean?", self.world_state, conversation_focus_npc_id="npc_1")
+        result, _adapter = self._interpret_with_active_dialogue_adapter("What do you mean?", conversation_focus_npc_id="npc_1")
 
         self.assertFalse(result.fallback_to_parser)
         self.assertEqual(result.normalized_intent, "talk")
@@ -286,7 +369,7 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
 
     def test_follow_up_skeptical_line_uses_conversation_focus(self) -> None:
-        result = self.interpreter.interpret("I don't believe you.", self.world_state, conversation_focus_npc_id="npc_1")
+        result, _adapter = self._interpret_with_active_dialogue_adapter("I don't believe you.", conversation_focus_npc_id="npc_1")
 
         self.assertFalse(result.fallback_to_parser)
         self.assertEqual(result.normalized_intent, "talk")
@@ -294,7 +377,7 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
 
     def test_follow_up_that_sounds_wrong_uses_conversation_focus(self) -> None:
-        result = self.interpreter.interpret("That sounds wrong.", self.world_state, conversation_focus_npc_id="npc_1")
+        result, _adapter = self._interpret_with_active_dialogue_adapter("That sounds wrong.", conversation_focus_npc_id="npc_1")
 
         self.assertFalse(result.fallback_to_parser)
         self.assertEqual(result.normalized_intent, "talk")
@@ -302,9 +385,8 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
 
     def test_pronoun_follow_up_reuses_valid_conversation_focus(self) -> None:
-        result = self.interpreter.interpret(
+        result, _adapter = self._interpret_with_active_dialogue_adapter(
             "I turn back to her and continue.",
-            self.world_state,
             conversation_focus_npc_id="npc_1",
         )
 
@@ -316,7 +398,7 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertIn("continue", result.dialogue_metadata.utterance_text.lower())
 
     def test_backup_follow_up_uses_conversation_focus(self) -> None:
-        result = self.interpreter.interpret("I need you as a back up", self.world_state, conversation_focus_npc_id="npc_1")
+        result, _adapter = self._interpret_with_active_dialogue_adapter("I need you as a back up", conversation_focus_npc_id="npc_1")
 
         self.assertFalse(result.fallback_to_parser)
         self.assertEqual(result.normalized_intent, "talk")
@@ -341,9 +423,8 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(len(adapter.contexts), 1)
 
     def test_missing_ledger_follow_up_reuses_active_subtopic(self) -> None:
-        result = self.interpreter.interpret(
+        result, _adapter = self._interpret_with_active_dialogue_adapter(
             "What about it",
-            self.world_state,
             conversation_focus_npc_id="npc_1",
             conversation_subtopic=DialogueSubtopic.MISSING_LEDGER,
         )
@@ -357,9 +438,8 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
 
     def test_logistics_follow_up_with_acknowledgement_uses_conversation_focus(self) -> None:
-        result = self.interpreter.interpret(
+        result, _adapter = self._interpret_with_active_dialogue_adapter(
             "Yes we are. But I need you to back me up",
-            self.world_state,
             conversation_focus_npc_id="npc_1",
         )
 
@@ -368,10 +448,10 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.canonical_command, "talk npc_1")
 
-    def test_active_conversation_follow_up_routes_through_dialogue_intent(self) -> None:
+    def test_active_conversation_declarative_line_routes_through_dialogue_intent_by_default(self) -> None:
         adapter = self.RecordingDialogueIntentAdapter()
         result = self.interpreter.interpret(
-            "I need help, I don't know how to reach there.",
+            "Just coming to say hi to an old friend...",
             self.world_state,
             conversation_focus_npc_id="npc_1",
             dialogue_intent_adapter=adapter,
@@ -382,9 +462,10 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.target_reference, "npc_1")
         self.assertIsNotNone(result.dialogue_metadata)
         assert result.dialogue_metadata is not None
-        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.GREET)
         self.assertEqual(len(adapter.contexts), 1)
         self.assertEqual(adapter.contexts[0].conversation_focus_npc_id, "npc_1")
+        self.assertEqual(adapter.contexts[0].raw_input, "Just coming to say hi to an old friend...")
 
     def test_active_conversation_explicit_world_action_stays_on_existing_path(self) -> None:
         adapter = self.RecordingDialogueIntentAdapter()
@@ -400,10 +481,23 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.canonical_command, "look")
         self.assertEqual(adapter.contexts, [])
 
-    def test_missing_ledger_statement_follow_up_uses_active_conversation_focus(self) -> None:
+    def test_active_conversation_unusable_adapter_fails_explicitly(self) -> None:
+        adapter = self.UnusableDialogueIntentAdapter()
         result = self.interpreter.interpret(
-            "I need you to tell me what you know about the missing ledger",
+            "I need help, I don't know how to reach there.",
             self.world_state,
+            conversation_focus_npc_id="npc_1",
+            dialogue_intent_adapter=adapter,
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertIsNone(result.canonical_command)
+        self.assertIsNotNone(result.failure_reason)
+        self.assertIn("dialogue intent adapter", result.failure_reason or "")
+
+    def test_missing_ledger_statement_follow_up_uses_active_conversation_focus(self) -> None:
+        result, _adapter = self._interpret_with_active_dialogue_adapter(
+            "I need you to tell me what you know about the missing ledger",
             conversation_focus_npc_id="npc_1",
         )
 

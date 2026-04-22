@@ -1,5 +1,6 @@
 ## 2026-04-22
 - Added bounded active-conversation history plus per-NPC previous-interactions summaries for Jonas dialogue, and threaded both into intent and render payloads without changing deterministic adjudication or state ownership.
+- Switched active-conversation input routing to LLM-first dialogue intent by default, with only explicit world actions bypassing the intent gateway.
 ## 2026-04-20
 - Added authored ADV1 dialogue social-state loading for Jonas and wired adjudication to consult it for topic availability, guarded acts, and persuade check requirements.
 - Added bounded Missing Ledger subtopic carryover for Jonas dialogue, with carry, override, and clear behavior tied to session focus.

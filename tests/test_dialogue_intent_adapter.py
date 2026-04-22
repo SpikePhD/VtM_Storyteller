@@ -220,18 +220,19 @@ class DialogueIntentAdapterTests(unittest.TestCase):
 
         self.assertIsNone(proposal)
 
-    def test_unavailable_adapter_falls_back_to_deterministic_behavior(self) -> None:
+    def test_unavailable_adapter_fails_active_conversation_explicitly(self) -> None:
         session = GameSession(dialogue_intent_adapter=NullDialogueIntentAdapter())
 
         session.process_input("Jonas, good evening.")
         result = session.process_input("I turn back to her and continue.")
 
-        self.assertTrue(result.output_text.strip())
-        self.assertIsNotNone(result.dialogue_presentation)
-        assert result.dialogue_presentation is not None
-        self.assertEqual(result.dialogue_presentation.npc_display_name, "Jonas Reed")
-        self.assertEqual(session.get_last_interpreted_input().target_reference, "npc_1")
-        self.assertEqual(session.get_last_interpreted_input().dialogue_metadata.dialogue_act, DialogueAct.UNKNOWN)
+        self.assertIn("Talk is blocked", result.output_text)
+        self.assertIn("dialogue intent adapter", result.output_text.lower())
+        self.assertFalse(result.render_scene)
+        self.assertIsNone(result.dialogue_presentation)
+        self.assertIsNotNone(session.get_last_interpreted_input())
+        assert session.get_last_interpreted_input() is not None
+        self.assertIsNone(session.get_last_interpreted_input().canonical_command)
 
     def test_adapter_cannot_mutate_world_state_by_itself(self) -> None:
         context = build_dialogue_intent_context(build_sample_world(), "We need to talk about the dock.")
