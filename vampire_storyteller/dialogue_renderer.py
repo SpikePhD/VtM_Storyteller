@@ -11,7 +11,7 @@ from .dialogue_adjudication import DialogueAdjudicationOutcome
 from .dialogue_context_assembler import assemble_dialogue_context
 from .adventure_loader import Adv1DialogueDossierDefinition
 from .models import NPCDialogueProfile
-from .social_models import SocialOutcomeKind, SocialOutcomePacket, TopicResult
+from .social_models import LogisticsCommitment, SocialOutcomeKind, SocialOutcomePacket, TopicResult
 from .world_state import WorldState
 
 
@@ -59,6 +59,7 @@ class DialogueRenderInput:
     authorized_fact_cards: tuple[DialogueFactCard, ...]
     social_outcome: SocialOutcomePacket | None = None
     dialogue_move: str = "none"
+    logistics_commitment: LogisticsCommitment = LogisticsCommitment.NONE
 
 
 def build_dialogue_render_input(
@@ -116,6 +117,7 @@ def build_dialogue_render_input(
         authorized_fact_cards=context.authorized_fact_cards,
         social_outcome=context.social_outcome,
         dialogue_move=metadata.dialogue_move.value if metadata is not None else "none",
+        logistics_commitment=social_outcome.logistics_commitment if social_outcome is not None else LogisticsCommitment.NONE,
     )
 
 
@@ -224,7 +226,7 @@ class DeterministicDialogueRenderer:
             return "If you've got a question, ask it plainly."
         if _is_background_prompt(render_input):
             return _render_background_prompt(render_input)
-        if render_input.dialogue_domain == "travel_proposal":
+        if render_input.logistics_commitment is not LogisticsCommitment.NONE or render_input.dialogue_domain == "travel_proposal":
             return _render_travel_boundary(render_input, packet)
         if render_input.dialogue_domain == "off_topic_request":
             return _render_off_topic_boundary(render_input)
@@ -351,9 +353,39 @@ def _render_background_prompt(render_input: DialogueRenderInput) -> str:
 
 
 def _render_travel_boundary(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
+    commitment = render_input.logistics_commitment
+    normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
+    fare_terms = any(keyword in normalized for keyword in ("fare", "taxi", "cab", "spare change", "pay for the ride", "pay for the taxi", "cover the fare", "money for the ride", "money for the taxi"))
+
+    if commitment is LogisticsCommitment.ABSOLUTE_REFUSAL:
+        if fare_terms:
+            return "No. I am not financing the ride."
+        return "No. Absolutely not."
+
+    if commitment is LogisticsCommitment.DECLINE_JOIN:
+        if fare_terms:
+            return "No. I am not covering the fare."
+        if any(keyword in normalized for keyword in ("drive", "ride", "car", "vehicle", "lift")):
+            return "No. I am not driving you there."
+        if any(keyword in normalized for keyword in ("backup", "stay nearby", "stay close", "wait nearby", "wait in the car", "stay in the car")):
+            return "No. I will not go with you."
+        return "No. I will not go with you."
+
+    if commitment is LogisticsCommitment.HIDDEN_SUPPORT:
+        return "I can stay out of sight, but I will not join you."
+
+    if commitment is LogisticsCommitment.INDIRECT_SUPPORT:
+        if fare_terms:
+            return "I may help indirectly, but I am not financing the ride."
+        if any(keyword in normalized for keyword in ("drive", "ride", "car", "vehicle", "lift")):
+            return "I may help indirectly, but I am not driving you."
+        if any(keyword in normalized for keyword in ("backup", "stay nearby", "stay close", "wait nearby", "wait in the car", "stay in the car")):
+            return "I may help indirectly, but I am not staying on as your backup."
+        return "I may help indirectly, but not in person."
+
     if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
-        return "I'll stay nearby if things go bad, but I'm not riding with you and I'm not showing up there as your visible accomplice."
-    return "No. If the dock matters, you go. I'm not turning myself into your ride or your visible accomplice."
+        return "I may help indirectly, but I am not coming with you."
+    return "No. I will not go with you."
 
 
 def _render_off_topic_boundary(render_input: DialogueRenderInput) -> str:

@@ -33,6 +33,14 @@ class TopicResult(str, Enum):
     UNCHANGED = "unchanged"
 
 
+class LogisticsCommitment(str, Enum):
+    NONE = "none"
+    ABSOLUTE_REFUSAL = "absolute_refusal"
+    DECLINE_JOIN = "decline_join"
+    INDIRECT_SUPPORT = "indirect_support"
+    HIDDEN_SUPPORT = "hidden_support"
+
+
 @dataclass(slots=True)
 class NPCSocialState:
     relationship_to_player: str = "unknown"
@@ -82,3 +90,4 @@ class SocialOutcomePacket:
     state_effects: tuple[str, ...]
     plot_effects: tuple[str, ...]
     reason_code: str
+    logistics_commitment: LogisticsCommitment = LogisticsCommitment.NONE

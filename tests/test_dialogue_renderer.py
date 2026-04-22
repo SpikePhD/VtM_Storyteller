@@ -19,6 +19,7 @@ from vampire_storyteller.dice_engine import DeterministicCheckKind, Deterministi
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.dialogue_adjudication import adjudicate_dialogue_talk
 from vampire_storyteller.social_models import (
+    LogisticsCommitment,
     SocialCheckResult,
     SocialOutcomeKind,
     SocialOutcomePacket,
@@ -53,6 +54,7 @@ def _make_render_input(
     authorized_fact_cards: tuple[DialogueFactCard, ...] = (),
     utterance_text: str = "Jonas, what happened at the dock?",
     speech_text: str = "what happened at the dock?",
+    logistics_commitment: LogisticsCommitment = LogisticsCommitment.NONE,
 ) -> DialogueRenderInput:
     return DialogueRenderInput(
         npc_id=npc_id,
@@ -109,7 +111,9 @@ def _make_render_input(
             state_effects=(),
             plot_effects=plot_effects,
             reason_code="test_packet",
+            logistics_commitment=logistics_commitment,
         ),
+        logistics_commitment=logistics_commitment,
     )
 
 
@@ -176,6 +180,59 @@ class DialogueRendererTests(unittest.TestCase):
 
         self.assertTrue(result.output_text.strip())
         self.assertNotIn("paper trail", result.output_text.lower())
+        self.assertNotIn("coming with you", result.output_text.lower())
+        self.assertNotIn("stay nearby", result.output_text.lower())
+        self.assertNotIn("visible accomplice", result.output_text.lower())
+
+    def test_travel_boundary_refusal_renders_as_absolute_refusal(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.REFUSE,
+            topic_result=TopicResult.BLOCKED,
+            dialogue_domain="travel_proposal",
+            utterance_text="Jonas, are you coming with?",
+            speech_text="are you coming with?",
+            logistics_commitment=LogisticsCommitment.ABSOLUTE_REFUSAL,
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertIn("absolutely not", output.lower())
+        self.assertNotIn("coming with you", output.lower())
+
+    def test_travel_boundary_indirect_support_stays_bounded(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.COOPERATE,
+            topic_result=TopicResult.PARTIAL,
+            dialogue_domain="travel_proposal",
+            utterance_text="Ok, start your car, you are driving me there.",
+            speech_text="ok, start your car, you are driving me there.",
+            logistics_commitment=LogisticsCommitment.INDIRECT_SUPPORT,
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertIn("indirectly", output.lower())
+        self.assertIn("not driving you", output.lower())
+        self.assertNotIn("coming with you", output.lower())
+
+    def test_travel_boundary_hidden_support_stays_out_of_sight(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.COOPERATE,
+            topic_result=TopicResult.PARTIAL,
+            dialogue_domain="travel_proposal",
+            utterance_text="I know you are dependable and you work well. Just come with.",
+            speech_text="i know you are dependable and you work well. just come with.",
+            logistics_commitment=LogisticsCommitment.HIDDEN_SUPPORT,
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertIn("out of sight", output.lower())
+        self.assertNotIn("coming with you", output.lower())
+        self.assertNotIn("stay nearby", output.lower())
 
     def test_taxi_money_support_refusal_renders_from_structured_domain_outcome(self) -> None:
         session = GameSession()

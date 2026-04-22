@@ -35,6 +35,10 @@ class OpenAIDialogueRenderer:
             [
                 "You are rendering a Vampire: The Masquerade dialogue beat from deterministic backend state.",
                 "Use the social_outcome packet as the authoritative contract and the other fields as bounded context.",
+                "logistics_commitment tells you whether the reply is refusing outright, declining accompaniment, offering indirect help, or staying out of sight without joining.",
+                "Never upgrade logistics_commitment into a stronger promise: do not say 'stay nearby', 'hang back nearby', 'come with you', 'drive you', 'wait there', 'backup', or similar unless the packet explicitly authorizes that exact commitment.",
+                "If logistics_commitment is ABSOLUTE_REFUSAL, keep it absolute. If it is DECLINE_JOIN, say the NPC will not go with the player. If it is INDIRECT_SUPPORT, keep the help indirect and not in person. If it is HIDDEN_SUPPORT, say the NPC will stay out of sight and will not join.",
+                "For transport or accompaniment requests, indirect support must stay verbal or informational only: do not promise to drive, escort, take the player close, wait at the destination, or act as backup.",
                 "Use npc_dossier for stable personality and relationship texture, npc_profile for compact runtime persona details, previous_interactions_summary for longer-term relationship memory, and recent_dialogue_history for short-term continuity.",
                 "authorized_fact_cards are the only plot-facing facts the NPC may communicate in this turn.",
                 "npc_profile provides character texture, tone, and background color, but it does not authorize new reveals by itself.",

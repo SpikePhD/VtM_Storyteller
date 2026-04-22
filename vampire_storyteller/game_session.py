@@ -17,7 +17,7 @@ from .action_resolution import (
 from .adjudication_engine import adjudicate_command
 from .adventure_loader import load_adv1_plot_investigation_rules, load_adv1_plot_progression_rules
 from .command_dispatcher import execute_command
-from .command_models import Command, ConversationStance, DialogueAct, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
+from .command_models import Command, ConversationStance, DialogueAct, DialogueMetadata, InvestigateCommand, LoadCommand, MoveCommand, SaveCommand, TalkCommand, WaitCommand
 from .exceptions import CommandParseError
 from .command_parser import parse_command
 from .command_result import CommandResult, DialoguePresentation
@@ -41,7 +41,7 @@ from .npc_engine import update_npcs_for_current_time
 from .plot_engine import advance_plots
 from .sample_world import build_sample_world
 from .serialization import load_world_state, save_world_state
-from .social_models import SocialCheckResult, SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
+from .social_models import LogisticsCommitment, SocialCheckResult, SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
 from .social_resolution import evaluate_topic_openness
 from .world_state import WorldState
 
@@ -118,6 +118,7 @@ class GameSession:
                     result=self._render_talk_result(command, result, dialogue_adjudication, check_outcome, consequence_summary, previous_focus_npc_id),
                     dialogue_adjudication=dialogue_adjudication,
                     social_outcome=self._finalize_social_outcome_packet(
+                        command,
                         dialogue_adjudication,
                         result.conversation_stance or dialogue_adjudication.conversation_stance,
                         check_outcome,
@@ -129,7 +130,7 @@ class GameSession:
             if not dialogue_adjudication.is_allowed:
                 result = self._materialize_dialogue_adjudication_result(command, dialogue_adjudication)
                 result = self._render_talk_result(command, result, dialogue_adjudication, None, ActionConsequenceSummary(), previous_focus_npc_id)
-                turn = self._build_dialogue_adjudication_resolution_turn(normalized_action, dialogue_adjudication, result)
+                turn = self._build_dialogue_adjudication_resolution_turn(command, normalized_action, dialogue_adjudication, result)
                 self._last_action_resolution = turn
                 return result
 
@@ -171,7 +172,13 @@ class GameSession:
                 consequence_summary=ActionConsequenceSummary(),
                 result=result,
                 dialogue_adjudication=dialogue_adjudication,
-                social_outcome=dialogue_adjudication.social_outcome if dialogue_adjudication is not None else None,
+                social_outcome=self._finalize_social_outcome_packet(
+                    command,
+                    dialogue_adjudication,
+                    result.conversation_stance or dialogue_adjudication.conversation_stance,
+                    None,
+                    ActionConsequenceSummary(),
+                ) if dialogue_adjudication is not None else None,
             )
             self._last_action_resolution = turn
             return result
@@ -199,7 +206,13 @@ class GameSession:
             consequence_summary=consequence_summary,
             result=final_result,
             dialogue_adjudication=dialogue_adjudication,
-            social_outcome=dialogue_adjudication.social_outcome if dialogue_adjudication is not None else None,
+            social_outcome=self._finalize_social_outcome_packet(
+                command,
+                dialogue_adjudication,
+                final_result.conversation_stance or dialogue_adjudication.conversation_stance,
+                check_outcome,
+                consequence_summary,
+            ) if dialogue_adjudication is not None else None,
         )
         self._last_action_resolution = turn
         return final_result
@@ -432,6 +445,7 @@ class GameSession:
 
     def _build_dialogue_adjudication_resolution_turn(
         self,
+        command: TalkCommand,
         normalized_action: NormalizedActionInput,
         dialogue_adjudication: DialogueAdjudicationOutcome,
         result: CommandResult,
@@ -456,6 +470,7 @@ class GameSession:
             dialogue_presentation=result.dialogue_presentation,
             dialogue_adjudication=dialogue_adjudication,
             social_outcome=self._finalize_social_outcome_packet(
+                command,
                 dialogue_adjudication,
                 result.conversation_stance or dialogue_adjudication.conversation_stance,
                 None,
@@ -535,6 +550,7 @@ class GameSession:
 
         try:
             render_social_outcome = self._finalize_social_outcome_packet(
+                command,
                 dialogue_adjudication,
                 result.conversation_stance or dialogue_adjudication.conversation_stance,
                 check,
@@ -842,6 +858,7 @@ class GameSession:
 
     def _finalize_social_outcome_packet(
         self,
+        command: TalkCommand,
         dialogue_adjudication: DialogueAdjudicationOutcome,
         final_stance: ConversationStance,
         check: ActionCheckOutcome | None,
@@ -864,14 +881,17 @@ class GameSession:
         topic_result = base_packet.topic_result
         outcome_kind = base_packet.outcome_kind
         state_effects, plot_effects = self._split_social_effects(consequence_summary.applied_effects)
+        logistics_commitment = self._derive_logistics_commitment(command, dialogue_adjudication, outcome_kind, topic_result)
 
         if check is not None:
             if check.is_success:
                 topic_result = TopicResult.OPENED if dialogue_adjudication.topic_status is DialogueTopicStatus.PRODUCTIVE else TopicResult.PARTIAL
                 outcome_kind = SocialOutcomeKind.REVEAL if plot_effects else SocialOutcomeKind.COOPERATE
+                logistics_commitment = self._derive_logistics_commitment(command, dialogue_adjudication, outcome_kind, topic_result)
             else:
                 topic_result = TopicResult.BLOCKED if dialogue_adjudication.topic_status is DialogueTopicStatus.REFUSED else TopicResult.PARTIAL
                 outcome_kind = SocialOutcomeKind.REFUSE
+                logistics_commitment = self._derive_logistics_commitment(command, dialogue_adjudication, outcome_kind, topic_result)
 
         return SocialOutcomePacket(
             outcome_kind=outcome_kind,
@@ -885,7 +905,106 @@ class GameSession:
             state_effects=state_effects,
             plot_effects=plot_effects,
             reason_code=base_packet.reason_code,
+            logistics_commitment=logistics_commitment,
         )
+
+    def _derive_logistics_commitment(
+        self,
+        command: TalkCommand,
+        dialogue_adjudication: DialogueAdjudicationOutcome,
+        outcome_kind: SocialOutcomeKind,
+        topic_result: TopicResult,
+    ) -> LogisticsCommitment:
+        subtopic = detect_dialogue_subtopic(command.dialogue_metadata) or command.conversation_subtopic
+        logistics_text = self._normalize_dialogue_topic(self._dialogue_metadata_text(command.dialogue_metadata))
+        has_logistics_request = subtopic in {
+            DialogueSubtopic.BACKUP_OR_STAY_NEARBY,
+            DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT,
+            DialogueSubtopic.FARE_OR_MONEY_SUPPORT,
+        } or any(
+            keyword in logistics_text
+            for keyword in (
+                "back me up",
+                "back up",
+                "backup",
+                "watch my back",
+                "cover me",
+                "stay nearby",
+                "stay close",
+                "wait nearby",
+                "wait in the car",
+                "stay in the car",
+                "come along",
+                "come with",
+                "coming with",
+                "join me",
+                "drive",
+                "ride",
+                "lift",
+                "car",
+                "vehicle",
+                "transport",
+                "fare",
+                "taxi",
+                "cab",
+                "spare change",
+                "pay for the ride",
+                "pay for the taxi",
+            )
+        )
+        if not has_logistics_request:
+            return LogisticsCommitment.NONE
+
+        if topic_result is TopicResult.BLOCKED or outcome_kind in {SocialOutcomeKind.REFUSE, SocialOutcomeKind.DISENGAGE, SocialOutcomeKind.THREATEN}:
+            return LogisticsCommitment.ABSOLUTE_REFUSAL
+
+        if subtopic is None:
+            if any(
+                keyword in logistics_text
+                for keyword in (
+                    "backup",
+                    "back up",
+                    "stay nearby",
+                    "stay close",
+                    "wait nearby",
+                    "stay in the car",
+                    "wait in the car",
+                    "come along",
+                    "come with",
+                    "coming with",
+                    "join me",
+                    "cover me",
+                    "watch my back",
+                )
+            ):
+                subtopic = DialogueSubtopic.BACKUP_OR_STAY_NEARBY
+            elif any(keyword in logistics_text for keyword in ("drive", "ride", "lift", "car", "vehicle", "drop me off", "transport")):
+                subtopic = DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT
+            elif any(keyword in logistics_text for keyword in ("fare", "taxi", "cab", "money for the ride", "money for the taxi", "spare change", "pay for the ride", "pay for the taxi")):
+                subtopic = DialogueSubtopic.FARE_OR_MONEY_SUPPORT
+
+        if subtopic is DialogueSubtopic.BACKUP_OR_STAY_NEARBY:
+            return LogisticsCommitment.HIDDEN_SUPPORT
+        if subtopic is DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT:
+            return LogisticsCommitment.INDIRECT_SUPPORT if topic_result is TopicResult.OPENED else LogisticsCommitment.DECLINE_JOIN
+        if subtopic is DialogueSubtopic.FARE_OR_MONEY_SUPPORT:
+            return LogisticsCommitment.INDIRECT_SUPPORT if topic_result is TopicResult.OPENED else LogisticsCommitment.ABSOLUTE_REFUSAL
+
+        if topic_result is TopicResult.OPENED:
+            return LogisticsCommitment.INDIRECT_SUPPORT
+        if topic_result is TopicResult.PARTIAL:
+            return LogisticsCommitment.DECLINE_JOIN
+        return LogisticsCommitment.ABSOLUTE_REFUSAL
+
+    def _dialogue_metadata_text(self, dialogue_metadata: DialogueMetadata | None) -> str:
+        if dialogue_metadata is None:
+            return ""
+        parts = (
+            dialogue_metadata.utterance_text,
+            dialogue_metadata.speech_text,
+            dialogue_metadata.topic,
+        )
+        return " ".join(part.lower().replace("-", " ") for part in parts if part).strip()
 
     def _split_social_effects(self, applied_effects: tuple[str, ...]) -> tuple[tuple[str, ...], tuple[str, ...]]:
         plot_effects = tuple(

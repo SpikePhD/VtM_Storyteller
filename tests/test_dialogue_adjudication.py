@@ -12,7 +12,7 @@ from vampire_storyteller.dialogue_domain import DialogueDomain
 from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.sample_world import build_sample_world
-from vampire_storyteller.social_models import SocialOutcomeKind, TopicResult, TopicSensitivity
+from vampire_storyteller.social_models import LogisticsCommitment, SocialOutcomeKind, TopicResult, TopicSensitivity
 
 
 class DialogueAdjudicationTests(unittest.TestCase):
@@ -236,6 +236,31 @@ class DialogueAdjudicationTests(unittest.TestCase):
         assert turn.social_outcome is not None
         self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.COOPERATE)
         self.assertEqual(turn.social_outcome.topic_result, TopicResult.UNCHANGED)
+
+    def test_travel_request_turn_records_bounded_logistics_commitment(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, good evening.")
+        result = session.process_input("Jonas, are you coming with?")
+        turn = session.get_last_action_resolution()
+
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("coming with you", result.output_text.lower())
+        self.assertNotIn("stay nearby", result.output_text.lower())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.social_outcome)
+        assert turn.social_outcome is not None
+        self.assertIn(
+            turn.social_outcome.logistics_commitment,
+            {
+                LogisticsCommitment.ABSOLUTE_REFUSAL,
+                LogisticsCommitment.DECLINE_JOIN,
+                LogisticsCommitment.INDIRECT_SUPPORT,
+                LogisticsCommitment.HIDDEN_SUPPORT,
+            },
+        )
+        self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.NONE)
 
 
 if __name__ == "__main__":
