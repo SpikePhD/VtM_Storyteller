@@ -187,6 +187,58 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                 )
             )
 
+    def test_renderer_rewrites_direct_echo_into_a_terse_repair_line(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = "That is what I said."
+        renderer = OpenAIDialogueRenderer(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+
+        output = renderer.render_dialogue(
+            DialogueRenderInput(
+                npc_id="npc_1",
+                npc_name="Jonas Reed",
+                npc_role="Informant",
+                player_name="Mara Vale",
+                location_name="Blackthorn Cafe",
+                utterance_text="Jonas, that is what I said.",
+                speech_text="that is what I said.",
+                dialogue_act="unknown",
+                dialogue_move="clarify",
+                dialogue_domain="meta_conversation",
+                topic_status="refused",
+                adjudication_resolution_kind="allowed",
+                conversation_stance="guarded",
+                conversation_subtopic=None,
+                continuity_cue=None,
+                npc_trust_level=0,
+                plot_name="Missing Ledger",
+                plot_stage="hook",
+                lead_flag_active=False,
+                check_kind=None,
+                check_is_success=None,
+                check_successes=None,
+                check_difficulty=None,
+                consequence_messages=(),
+                applied_effects=(),
+                npc_profile=NPCDialogueProfile(
+                    background_summary="Jonas trades in local knowledge.",
+                    public_persona="a wary informant",
+                    private_history_summary="He knows the dockside well.",
+                    motivations=["stay useful"],
+                    speaking_style="quiet and economical",
+                    relationship_context="He is testing Mara.",
+                ),
+                npc_dossier=None,
+                conversation_memory=DialogueMemoryContext(
+                    previous_interactions_summary="Mara and Jonas have talked before about the dock.",
+                    recent_dialogue_history=(),
+                ),
+                authorized_fact_cards=(),
+                social_outcome=None,
+            )
+        )
+
+        self.assertEqual(output, "I meant what I said.")
+
     def test_shared_dialogue_renderer_helper_uses_openai_model_from_runtime_config(self) -> None:
         with patch("vampire_storyteller.cli.OpenAIDialogueRenderer") as mock_renderer_ctor:
             renderer, notice = build_dialogue_renderer(

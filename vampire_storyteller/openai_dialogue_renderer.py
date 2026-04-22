@@ -20,7 +20,10 @@ class OpenAIDialogueRenderer:
         output_text = getattr(response, "output_text", "")
         if not isinstance(output_text, str) or not output_text.strip():
             raise RuntimeError("OpenAI dialogue response did not contain text")
-        return output_text.strip()
+        cleaned_output = output_text.strip()
+        if self._is_direct_echo(render_input, cleaned_output):
+            return self._render_anti_echo_repair(render_input)
+        return cleaned_output
 
     def _create_client(self, api_key: str) -> Any:
         try:
@@ -59,6 +62,7 @@ class OpenAIDialogueRenderer:
                 "If dialogue_move is react or banter, reply to the player's tone or greeting, not by repeating their exact wording.",
                 "If the line is a statement like 'that is what I said' or 'you are looping', answer with terse pushback or acknowledgement, not a mirrored phrase or a question.",
                 "If the line sounds like 'Sounds like this is more than just a missing ledger', keep it in the conversation without echoing the sentence back or asking what the player needs.",
+                "If you feel tempted to repeat the player's exact sentence, rewrite it into a fresh in-character line instead of echoing it.",
                 "Examples:",
                 "- 'Sounds like this is more than just a missing ledger' -> terse skepticism, not a mirrored question.",
                 "- 'that is what I said' -> terse pushback or acknowledgement, not a follow-up question.",
@@ -76,6 +80,33 @@ class OpenAIDialogueRenderer:
             ]
         )
 
+    def _is_direct_echo(self, render_input: DialogueRenderInput, output_text: str) -> bool:
+        normalized_output = _normalize_text(output_text)
+        if not normalized_output:
+            return False
+
+        candidate_texts = (
+            render_input.utterance_text,
+            render_input.speech_text,
+        )
+        for candidate in candidate_texts:
+            normalized_candidate = _normalize_text(candidate)
+            if normalized_candidate and normalized_output == normalized_candidate:
+                return True
+        return False
+
+    def _render_anti_echo_repair(self, render_input: DialogueRenderInput) -> str:
+        if render_input.dialogue_move == "clarify":
+            return "I meant what I said."
+        if render_input.dialogue_move == "continue":
+            return "All right."
+        if render_input.dialogue_move == "react":
+            normalized = _normalize_text(f"{render_input.utterance_text} {render_input.speech_text}")
+            if any(phrase in normalized for phrase in ("hello", "hi", "good evening", "good morning", "good afternoon")):
+                return "Hey."
+            return "Fair enough."
+        return "No more details here."
+
 
 def _to_jsonable(value: Any) -> Any:
     if is_dataclass(value):
@@ -89,3 +120,7 @@ def _to_jsonable(value: Any) -> Any:
     if isinstance(value, list):
         return [_to_jsonable(item) for item in value]
     return value
+
+
+def _normalize_text(raw_input: str) -> str:
+    return " ".join("".join(character.lower() if character.isalnum() else " " for character in raw_input).split())
