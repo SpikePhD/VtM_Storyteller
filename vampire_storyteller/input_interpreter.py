@@ -249,6 +249,9 @@ class InputInterpreter:
         return self._fallback("no freeform interpretation rule matched")
 
     def _interpret_observation(self, normalized_text: str) -> InterpretedInput | None:
+        if "look like" in normalized_text or "look to you" in normalized_text:
+            if "what does" in normalized_text or "how do i know" in normalized_text or "prove it" in normalized_text:
+                return None
         if self._contains_any(normalized_text, self._LOW_INTENSITY_OBSERVATION_PHRASES):
             return InterpretedInput(
                 normalized_intent="look",

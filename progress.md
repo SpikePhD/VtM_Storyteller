@@ -1,4 +1,5 @@
 ## 2026-04-22
+- Hardened guarded-turn focus persistence so suspicion and challenge follow-ups stay addressed to Jonas instead of falling into the no-valid-NPC failure path.
 - Hardened Jonas logistics/cooperation outcomes so accompaniment, backup, transport, and fare requests resolve into bounded refusal or partial-cooperation packets without implying stronger commitments than the backend authorizes.
 - Hardened the active-conversation dialogue-intent path so Jonas follow-up lines like declarative statements, pressure, and help requests stay in dialogue even when the adapter returns unusable output.
 - Tightened the OpenAI dialogue-intent prompt and added move normalization plus a local fallback repair path for active-conversation turns without changing backend truth ownership.

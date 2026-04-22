@@ -567,6 +567,20 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertTrue(result.no_active_conversation)
         self.assertIsNone(result.canonical_command)
 
+    def test_look_like_challenge_follow_up_uses_conversation_focus(self) -> None:
+        result, _adapter = self._interpret_with_active_dialogue_adapter(
+            'Fine. What does "prove it" look like to you?',
+            conversation_focus_npc_id="npc_1",
+            conversation_subtopic=DialogueSubtopic.MISSING_LEDGER,
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        assert result.dialogue_metadata is not None
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+
     def test_backup_follow_up_without_focus_returns_no_active_conversation_result(self) -> None:
         result = self.interpreter.interpret("I need you as a back up", self.world_state)
 

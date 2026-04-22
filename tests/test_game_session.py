@@ -902,6 +902,25 @@ class GameSessionTests(unittest.TestCase):
             or "guarded" in result.output_text.lower()
         )
 
+    def test_guarded_refusal_keeps_focus_for_prove_it_follow_up(self) -> None:
+        session = GameSession()
+
+        session.process_input("Hello Jonas")
+        session.process_input("That sounds heavier than usual. Someone got you looking over your shoulder?")
+        session.process_input("Then give me the short version. What happened at the docks?")
+        session.process_input("You’re not keeping quiet for my sake. You’re scared. Of who?")
+        result = session.process_input('Fine. What does "prove it" look like to you?')
+        turn = session.get_last_action_resolution()
+
+        self.assertNotIn("could not identify a valid NPC", result.output_text.lower())
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.conversation_focus_npc_id, "npc_1")
+        self.assertIn(turn.dialogue_adjudication.dialogue_domain, {DialogueDomain.LEAD_TOPIC, DialogueDomain.LEAD_PRESSURE})
+
     def test_backup_follow_up_stays_in_dialogue_without_repeating_name(self) -> None:
         session = GameSession()
 
