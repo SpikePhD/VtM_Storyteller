@@ -612,9 +612,10 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.REACT)
         self.assertIn(
             result.output_text.lower(),
-            {"evening.", "all right.", "noted.", "fair enough.", "i'm holding up. you needed something specific?"},
+            {"evening.", "all right.", "noted.", "fair enough.", "i'm holding up."},
         )
         self.assertNotIn("coming to say hi", result.output_text.lower())
+        self.assertNotIn("?", result.output_text)
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
@@ -649,6 +650,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
         self.assertNotIn("paper trail", result.output_text.lower())
         self.assertNotIn("you just did", result.output_text.lower())
+        self.assertNotIn("?", result.output_text)
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
@@ -680,6 +682,40 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
         self.assertNotIn("repeating what i am saying", result.output_text.lower())
+        self.assertTrue(result.output_text.strip())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+
+    def test_statement_style_meta_looping_keeps_jonas_focused_without_echoing_or_questioning(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        result = session.process_input("You are looping.")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
+        self.assertNotIn("you are looping", result.output_text.lower())
+        self.assertNotIn("?", result.output_text)
+        self.assertTrue(result.output_text.strip())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+
+    def test_statement_style_observation_line_stays_in_dialogue_without_echoing_or_questioning(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        result = session.process_input("Sounds like this is more than just a missing ledger.")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertIn(interpreted.dialogue_metadata.dialogue_move, {DialogueMove.REACT, DialogueMove.CLARIFY})
+        self.assertNotIn("sounds like this is more than just a missing ledger", result.output_text.lower())
+        self.assertNotIn("?", result.output_text)
         self.assertTrue(result.output_text.strip())
         self.assertIsNotNone(turn)
         assert turn is not None

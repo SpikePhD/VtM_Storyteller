@@ -506,6 +506,23 @@ class DialogueRendererTests(unittest.TestCase):
 
         self.assertTrue(output.strip())
         self.assertNotIn("coming to say hi", output.lower())
+        self.assertNotIn("?", output)
+
+    def test_statement_react_move_does_not_default_to_a_follow_up_question(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.COOPERATE,
+            topic_result=TopicResult.UNCHANGED,
+            dialogue_act="greet",
+            dialogue_move="react",
+            utterance_text="Jonas, how are you holding up?",
+            speech_text="how are you holding up?",
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertEqual(output, "I'm holding up.")
+        self.assertNotIn("?", output)
 
     def test_statement_continue_move_renders_without_echoing_player_text(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -543,6 +560,25 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertTrue(output.strip())
         self.assertNotIn("you just did", output.lower())
         self.assertNotIn("paper trail", output.lower())
+        self.assertNotIn("?", output)
+
+    def test_statement_clarify_meta_looping_renders_without_echoing_player_text_or_question(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.DEFLECT,
+            topic_result=TopicResult.PARTIAL,
+            dialogue_domain="meta_conversation",
+            dialogue_act="unknown",
+            dialogue_move="clarify",
+            utterance_text="Jonas, you are looping.",
+            speech_text="you are looping.",
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertTrue(output.strip())
+        self.assertNotIn("you are looping", output.lower())
+        self.assertNotIn("?", output)
 
     def test_statement_banter_move_renders_without_echoing_player_text(self) -> None:
         renderer = DeterministicDialogueRenderer()

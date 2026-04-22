@@ -211,7 +211,7 @@ class DeterministicDialogueRenderer:
 
         if _is_small_talk(render_input):
             if "how are you" in f"{render_input.utterance_text} {render_input.speech_text}".lower() or "how are things" in f"{render_input.utterance_text} {render_input.speech_text}".lower():
-                return "I'm holding up. You needed something specific?"
+                return "I'm holding up."
             return "Evening."
 
         if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
@@ -256,10 +256,10 @@ class DeterministicDialogueRenderer:
 
 
 def _is_small_talk(render_input: DialogueRenderInput) -> bool:
-    if render_input.dialogue_act not in {"greet", "ask"}:
-        return False
-    normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
-    return any(phrase in normalized for phrase in ("hello", "hi", "good evening", "how are you", "how's it going", "how are things"))
+        if render_input.dialogue_act not in {"greet", "ask"}:
+            return False
+        normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
+        return any(phrase in normalized for phrase in ("hello", "hi", "good evening", "how are you", "how's it going", "how are things"))
 
 
 def _is_statement_react(render_input: DialogueRenderInput) -> bool:
@@ -281,7 +281,7 @@ def _is_statement_clarify(render_input: DialogueRenderInput) -> bool:
 def _render_statement_react(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
     normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
     if "how are you" in normalized or "how are things" in normalized or "how is it going" in normalized:
-        return "I'm holding up. You needed something specific?"
+        return "I'm holding up."
     if "hello" in normalized or "hi" in normalized or "good evening" in normalized or "good morning" in normalized or "good afternoon" in normalized:
         return "Evening."
     if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:

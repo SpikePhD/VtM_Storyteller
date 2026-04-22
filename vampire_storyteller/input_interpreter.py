@@ -201,6 +201,20 @@ class InputInterpreter:
         "chit chat",
     )
 
+    _ACTIVE_CONVERSATION_META_CLARIFY_PHRASES = (
+        "that is what i said",
+        "that is what i meant",
+        "you are looping",
+        "youre looping",
+        "you keep looping",
+        "you keep repeating",
+        "you are repeating yourself",
+        "youre repeating yourself",
+        "sounds like",
+        "looks like",
+        "seems like",
+    )
+
     def interpret(
         self,
         raw_input: str,
@@ -1121,6 +1135,14 @@ class InputInterpreter:
                 "that is not what i meant",
                 "thats not what i meant",
                 "i meant",
+                "that is what i said",
+                "that is what i meant",
+                "you are looping",
+                "youre looping",
+                "you keep looping",
+                "you keep repeating",
+                "you are repeating yourself",
+                "youre repeating yourself",
             ),
         ):
             return DialogueMove.CLARIFY
@@ -1158,6 +1180,9 @@ class InputInterpreter:
                 "good morning",
                 "good afternoon",
                 "just saying hi",
+                "sounds like",
+                "looks like",
+                "seems like",
             ),
         ):
             return DialogueMove.REACT
@@ -1373,6 +1398,13 @@ class InputInterpreter:
                 "that sounds wrong",
                 "you just did",
                 "what do you know",
+                "that is what i said",
+                "you are looping",
+                "youre looping",
+                "you keep repeating",
+                "sounds like",
+                "looks like",
+                "seems like",
             ),
         ):
             return "guarded"

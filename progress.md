@@ -1,4 +1,5 @@
 ## 2026-04-22
+- Hardened Jonas statement and observation dialogue so meta pushback, insinuations, and short remarks stay in dialogue without echoing the player or defaulting to follow-up questions.
 - Hardened guarded-turn focus persistence so suspicion and challenge follow-ups stay addressed to Jonas instead of falling into the no-valid-NPC failure path.
 - Hardened Jonas logistics/cooperation outcomes so accompaniment, backup, transport, and fare requests resolve into bounded refusal or partial-cooperation packets without implying stronger commitments than the backend authorizes.
 - Hardened the active-conversation dialogue-intent path so Jonas follow-up lines like declarative statements, pressure, and help requests stay in dialogue even when the adapter returns unusable output.
