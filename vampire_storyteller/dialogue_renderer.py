@@ -284,7 +284,11 @@ def _render_statement_react(render_input: DialogueRenderInput, packet: SocialOut
         return "Evening."
     if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
         return "That's enough. We're done here."
-    return "I'm listening."
+    if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
+        return "All right."
+    if packet.outcome_kind is SocialOutcomeKind.DEFLECT:
+        return "Noted."
+    return "Fair enough."
 
 
 def _render_statement_banter(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
@@ -292,16 +296,22 @@ def _render_statement_banter(render_input: DialogueRenderInput, packet: SocialOu
         return "That's enough. We're done here."
     normalized = f"{render_input.utterance_text} {render_input.speech_text}".lower()
     if "there you are" in normalized:
-        return "I'm listening."
-    return "You found me."
+        return "You found me."
+    if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
+        return "All right."
+    return "Fair enough."
 
 
 def _render_statement_continue(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
     if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
         return "That's enough. We're done here."
     if render_input.dialogue_domain == "lead_topic" and packet.topic_result in {TopicResult.OPENED, TopicResult.UNCHANGED, TopicResult.PARTIAL}:
-        return "Go on."
-    return "I'm listening. Go on."
+        if _has_fact(render_input, "lead"):
+            return "Start with the dock."
+        return "All right. Start from the part that matters."
+    if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
+        return "All right."
+    return "Start with the part that matters."
 
 
 def _render_statement_clarify(render_input: DialogueRenderInput, packet: SocialOutcomePacket) -> str:
@@ -380,7 +390,7 @@ def _render_cooperate(render_input: DialogueRenderInput) -> str:
         return "Start with the dock. That's the cleanest lead I've got for you."
     if _has_fact(render_input, "background"):
         return _render_background_prompt(render_input)
-    return "I'm listening. Keep it narrow."
+    return "Keep it narrow."
 
 
 def _render_deflect(render_input: DialogueRenderInput) -> str:

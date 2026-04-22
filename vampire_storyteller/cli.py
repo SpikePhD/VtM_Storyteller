@@ -111,12 +111,11 @@ def run_cli() -> None:
 def _build_cli_prompt(session: GameSession) -> str:
     focus_npc_id = session.get_conversation_focus_npc_id()
     if focus_npc_id is None:
-        return "> "
+        return "Action > "
     npc = session.get_world_state().npcs.get(focus_npc_id)
     if npc is None:
-        return "> "
-    prompt_name = npc.name.split()[0] if npc.name.strip() else "Talk"
-    return f"{prompt_name} > "
+        return "Action > "
+    return "Player > "
 
 
 def _format_cli_result(result) -> str:

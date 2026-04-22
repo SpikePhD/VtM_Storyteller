@@ -466,7 +466,8 @@ class DialogueRendererTests(unittest.TestCase):
 
         self.assertTrue(output.strip())
         self.assertNotIn("sure. tell me", output.lower())
-        self.assertIn(output.lower(), {"i'm listening. go on.", "go on."})
+        self.assertNotIn("go on", output.lower())
+        self.assertNotIn("i'm listening", output.lower())
 
     def test_statement_clarify_move_renders_without_echoing_player_text(self) -> None:
         renderer = DeterministicDialogueRenderer()

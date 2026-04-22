@@ -15,14 +15,14 @@ class CliTranscriptTests(unittest.TestCase):
     def test_prompt_defaults_without_active_conversation(self) -> None:
         session = GameSession()
 
-        self.assertEqual(_build_cli_prompt(session), "> ")
+        self.assertEqual(_build_cli_prompt(session), "Action > ")
 
-    def test_prompt_uses_focused_npc_name(self) -> None:
+    def test_prompt_uses_player_prompt_during_active_conversation(self) -> None:
         session = GameSession()
 
         session.process_input("Jonas, hello")
 
-        self.assertEqual(_build_cli_prompt(session), "Jonas > ")
+        self.assertEqual(_build_cli_prompt(session), "Player > ")
 
     def test_transcript_format_adds_banner_on_focus_change(self) -> None:
         formatted = _format_cli_result(
@@ -57,6 +57,22 @@ class CliTranscriptTests(unittest.TestCase):
             formatted,
             'Player: "What happened at the dock?"\nJonas Reed: "North Dockside. That\'s where the paper trail begins."',
         )
+
+    def test_transcript_format_keeps_consistent_player_and_npc_labels(self) -> None:
+        formatted = _format_cli_result(
+            CommandResult(
+                output_text="Evening.",
+                dialogue_presentation=DialoguePresentation(
+                    player_utterance="Hello Jonas",
+                    npc_display_name="Jonas Reed",
+                    focus_changed=True,
+                ),
+            )
+        )
+
+        self.assertIn('Conversation: Jonas Reed', formatted)
+        self.assertIn('Player: "Hello Jonas"', formatted)
+        self.assertIn('Jonas Reed: "Evening."', formatted)
 
     def test_full_openai_storyteller_mode_uses_openai_components(self) -> None:
         with patch("vampire_storyteller.cli.OpenAISceneNarrativeProvider") as mock_scene_ctor:

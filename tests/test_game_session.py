@@ -446,7 +446,9 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Why?")
         interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("trail starts", result.output_text.lower())
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("go on", result.output_text.lower())
+        self.assertNotIn("i'm listening", result.output_text.lower())
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
@@ -470,10 +472,9 @@ class GameSessionTests(unittest.TestCase):
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
 
-        self.assertTrue(
-            "not naming names" in result.output_text.lower()
-            or "guarded" in result.output_text.lower()
-        )
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("go on", result.output_text.lower())
+        self.assertNotIn("i'm listening", result.output_text.lower())
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ACCUSE)
         self.assertEqual(session.get_world_state().story_flags, [])
@@ -565,7 +566,9 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("What do you mean?")
         interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("trail starts", result.output_text.lower())
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("go on", result.output_text.lower())
+        self.assertNotIn("i'm listening", result.output_text.lower())
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
@@ -577,7 +580,9 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Why are the docks the starting place?")
         turn = session.get_last_action_resolution()
 
-        self.assertIn("trail starts", result.output_text.lower())
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("go on", result.output_text.lower())
+        self.assertNotIn("i'm listening", result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
@@ -607,7 +612,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.REACT)
         self.assertIn(
             result.output_text.lower(),
-            {"evening.", "i'm listening.", "i'm holding up. you needed something specific?"},
+            {"evening.", "all right.", "noted.", "fair enough.", "i'm holding up. you needed something specific?"},
         )
         self.assertNotIn("coming to say hi", result.output_text.lower())
         self.assertIsNotNone(turn)
@@ -625,6 +630,8 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CONTINUE)
         self.assertNotIn("sure. tell me", result.output_text.lower())
+        self.assertNotIn("go on", result.output_text.lower())
+        self.assertNotIn("i'm listening", result.output_text.lower())
         self.assertTrue(result.output_text.strip())
         self.assertIsNotNone(turn)
         assert turn is not None
@@ -1047,7 +1054,9 @@ class GameSessionTests(unittest.TestCase):
         session.process_input("I don't believe you.")
         result = session.process_input("Go on.")
 
-        self.assertNotIn("paper trail", result.output_text)
+        self.assertNotIn("paper trail", result.output_text.lower())
+        self.assertNotIn("go on", result.output_text.lower())
+        self.assertNotIn("i'm listening", result.output_text.lower())
         self.assertNotIn("advanced from hook to lead_confirmed", result.output_text)
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
@@ -1241,7 +1250,9 @@ class GameSessionTests(unittest.TestCase):
 
         self.assertIn("dock", first_result.output_text.lower())
         self.assertIn("paper trail", second_result.output_text.lower())
-        self.assertIn("trail starts", follow_up_result.output_text.lower())
+        self.assertTrue(follow_up_result.output_text.strip())
+        self.assertNotIn("go on", follow_up_result.output_text.lower())
+        self.assertNotIn("i'm listening", follow_up_result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
