@@ -1,10 +1,25 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from .command_models import ConversationStance
 from .dialogue_subtopic import DialogueSubtopic
 from .world_state import WorldState
+
+
+MAX_RECENT_DIALOGUE_ENTRIES = 12
+
+
+@dataclass(frozen=True, slots=True)
+class DialogueHistoryEntry:
+    speaker: str
+    utterance_text: str
+
+
+@dataclass(frozen=True, slots=True)
+class DialogueMemoryContext:
+    previous_interactions_summary: str = ""
+    recent_dialogue_history: tuple[DialogueHistoryEntry, ...] = ()
 
 
 @dataclass
@@ -14,6 +29,7 @@ class ConversationContext:
     stale_focus_reason: str | None = None
     stance: ConversationStance = ConversationStance.NEUTRAL
     active_dialogue_subtopic: DialogueSubtopic | None = None
+    recent_dialogue_history: tuple[DialogueHistoryEntry, ...] = field(default_factory=tuple)
 
     @property
     def subtopic(self) -> DialogueSubtopic | None:
@@ -32,6 +48,7 @@ class ConversationContext:
         self.focus_npc_id = None
         self.stance = ConversationStance.NEUTRAL
         self.active_dialogue_subtopic = None
+        self.recent_dialogue_history = ()
 
     def reset(self) -> None:
         self.focus_npc_id = None
@@ -39,6 +56,7 @@ class ConversationContext:
         self.stale_focus_reason = None
         self.stance = ConversationStance.NEUTRAL
         self.active_dialogue_subtopic = None
+        self.recent_dialogue_history = ()
 
     def clear_subtopic(self) -> None:
         self.active_dialogue_subtopic = None
@@ -49,6 +67,8 @@ class ConversationContext:
         stance: ConversationStance = ConversationStance.NEUTRAL,
         subtopic: DialogueSubtopic | None = None,
     ) -> None:
+        if self.focus_npc_id != npc_id:
+            self.recent_dialogue_history = ()
         self.focus_npc_id = npc_id
         self.stale_focus_npc_id = None
         self.stale_focus_reason = None
@@ -57,6 +77,24 @@ class ConversationContext:
 
     def replace_focus(self, npc_id: str) -> None:
         self.set_focus(npc_id, self.stance, self.active_dialogue_subtopic)
+
+    def record_dialogue_utterance(self, speaker: str, utterance_text: str) -> None:
+        speaker_text = speaker.strip()
+        utterance = " ".join(utterance_text.strip().split())
+        if not speaker_text or not utterance:
+            return
+        history = self.recent_dialogue_history + (
+            DialogueHistoryEntry(speaker=speaker_text, utterance_text=utterance),
+        )
+        if len(history) > MAX_RECENT_DIALOGUE_ENTRIES:
+            history = history[-MAX_RECENT_DIALOGUE_ENTRIES:]
+        self.recent_dialogue_history = history
+
+    def build_memory_context(self, previous_interactions_summary: str = "") -> DialogueMemoryContext:
+        return DialogueMemoryContext(
+            previous_interactions_summary=" ".join(previous_interactions_summary.strip().split()),
+            recent_dialogue_history=self.recent_dialogue_history,
+        )
 
     def sync_with_world(self, world_state: WorldState) -> None:
         if self.focus_npc_id is None:

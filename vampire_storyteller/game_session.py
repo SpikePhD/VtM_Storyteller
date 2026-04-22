@@ -22,7 +22,7 @@ from .exceptions import CommandParseError
 from .command_parser import parse_command
 from .command_result import CommandResult, DialoguePresentation
 from .consequence_engine import apply_post_resolution_consequences
-from .conversation_context import ConversationContext
+from .conversation_context import ConversationContext, DialogueHistoryEntry
 from .data_paths import ensure_adventure_directories, get_default_save_path
 from .dialogue_adjudication import DialogueAdjudicationOutcome, DialogueTopicStatus, adjudicate_dialogue_talk
 from .dialogue_domain import DialogueDomain
@@ -225,6 +225,9 @@ class GameSession:
     def get_conversation_subtopic(self) -> DialogueSubtopic | None:
         return self._conversation_context.subtopic
 
+    def get_recent_dialogue_history(self) -> tuple[DialogueHistoryEntry, ...]:
+        return self._conversation_context.recent_dialogue_history
+
     def _interpret_input(self, raw_input: str) -> InterpretedInput:
         self._conversation_context.sync_with_world(self._world_state)
         return self._input_interpreter.interpret(
@@ -235,6 +238,7 @@ class GameSession:
             self._conversation_context.stale_focus_npc_id,
             self._conversation_context.stale_focus_reason,
             self._dialogue_intent_adapter,
+            self._conversation_context.recent_dialogue_history,
         )
 
     def _normalize_action(self, raw_input: str, interpretation: InterpretedInput) -> NormalizedActionInput:
@@ -543,6 +547,7 @@ class GameSession:
                 check,
                 consequence_summary,
                 render_social_outcome,
+                self._conversation_context.recent_dialogue_history,
             )
             if not self._supports_dialogue_rendering(render_input):
                 return result
@@ -552,6 +557,7 @@ class GameSession:
                 result,
                 previous_focus_npc_id,
             )
+            self._record_npc_dialogue_history(command, rendered_output)
         except Exception as exc:
             rendered_output = f"Dialogue rendering failed: no realized reply is available right now ({exc})."
             dialogue_presentation = None
@@ -747,6 +753,7 @@ class GameSession:
     ) -> CommandResult:
         npc = self._world_state.npcs.get(command.npc_id)
         assert npc is not None
+        self._record_player_dialogue_history(command)
         if consequence_summary.messages:
             output_text = "\n".join(consequence_summary.messages)
         elif dialogue_adjudication.topic_status is DialogueTopicStatus.REFUSED:
@@ -807,7 +814,22 @@ class GameSession:
             )
             if result.conversation_stance is not None:
                 self._sync_npc_social_state(result.conversation_focus_npc_id, result.conversation_stance)
+        self._record_player_dialogue_history(command)
         return result
+
+    def _record_player_dialogue_history(self, command: TalkCommand) -> None:
+        metadata = command.dialogue_metadata
+        if metadata is None:
+            return
+        player_utterance = metadata.speech_text or metadata.utterance_text
+        self._conversation_context.record_dialogue_utterance("player", player_utterance)
+
+    def _record_npc_dialogue_history(self, command: TalkCommand, npc_utterance_text: str) -> None:
+        if not npc_utterance_text.strip():
+            return
+        npc = self._world_state.npcs.get(command.npc_id)
+        speaker = npc.name if npc is not None else command.npc_id
+        self._conversation_context.record_dialogue_utterance(speaker, npc_utterance_text)
 
     def _sync_npc_social_state(self, npc_id: str, stance: ConversationStance) -> None:
         npc = self._world_state.npcs.get(npc_id)

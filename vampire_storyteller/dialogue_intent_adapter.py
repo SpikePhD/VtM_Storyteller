@@ -4,7 +4,9 @@ from dataclasses import asdict, dataclass
 import json
 from typing import Any, Protocol
 
+from .adventure_loader import Adv1DialogueDossierDefinition, AdventureContentError, load_adv1_dialogue_dossiers
 from .command_models import DialogueAct
+from .conversation_context import DialogueHistoryEntry, DialogueMemoryContext
 from .models import NPC
 from .world_state import WorldState
 
@@ -41,6 +43,8 @@ class DialogueIntentContext:
     present_npcs: tuple[DialogueIntentContextNPC, ...]
     conversation_focus_npc_id: str | None
     conversation_focus_npc_name: str | None
+    npc_dossier: Adv1DialogueDossierDefinition | None
+    conversation_memory: DialogueMemoryContext
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,6 +97,8 @@ class OpenAIDialogueIntentAdapter:
                 "Do not add markdown, comments, or any extra keys.",
                 "Allowed dialogue_act values: greet, ask, accuse, persuade, threaten, unknown.",
                 "Allowed dialogue_move values: none, react, continue, clarify, banter.",
+                "Use conversation_memory.recent_dialogue_history for immediate continuity and conversation_memory.previous_interactions_summary for longer-term tone and relationship context.",
+                "Do not invent facts, state changes, or reveals from memory; memory only helps classify intent within the supplied context.",
                 "Use dialogue_move for statement-shaped or conversational turns: react for acknowledgments and greetings, continue for invitations to keep talking, clarify for repairs or pushback, and banter for light social back-and-forth.",
                 "Do not invent NPCs, relationships, clue state, legality, check outcomes, or world mutations.",
                 "target_npc_text is the intended addressee only, not the topic or object being discussed.",
@@ -144,6 +150,7 @@ def build_dialogue_intent_context(
     world_state: WorldState,
     raw_input: str,
     conversation_focus_npc_id: str | None = None,
+    recent_dialogue_history: tuple[DialogueHistoryEntry, ...] = (),
 ) -> DialogueIntentContext:
     player_location_id = world_state.player.location_id or ""
     location = world_state.locations.get(player_location_id)
@@ -158,6 +165,16 @@ def build_dialogue_intent_context(
     focus_npc = world_state.npcs.get(conversation_focus_npc_id) if conversation_focus_npc_id is not None else None
     if focus_npc is not None and focus_npc.location_id != player_location_id:
         focus_npc = None
+    if focus_npc is None and len(present_npcs) == 1:
+        sole_present_npc = world_state.npcs.get(present_npcs[0].id)
+        if sole_present_npc is not None and sole_present_npc.location_id == player_location_id:
+            focus_npc = sole_present_npc
+
+    previous_interactions_summary = focus_npc.previous_interactions_summary if focus_npc is not None else ""
+    conversation_memory = DialogueMemoryContext(
+        previous_interactions_summary=previous_interactions_summary,
+        recent_dialogue_history=recent_dialogue_history,
+    )
 
     return DialogueIntentContext(
         raw_input=raw_input.strip(),
@@ -166,6 +183,8 @@ def build_dialogue_intent_context(
         present_npcs=present_npcs,
         conversation_focus_npc_id=focus_npc.id if focus_npc is not None else None,
         conversation_focus_npc_name=focus_npc.name if focus_npc is not None else None,
+        npc_dossier=_load_dialogue_dossier(focus_npc.id) if focus_npc is not None else None,
+        conversation_memory=conversation_memory,
     )
 
 
@@ -224,3 +243,11 @@ def npc_summary_list(npcs: tuple[DialogueIntentContextNPC, ...]) -> str:
 
 def npc_from_world_state(world_state: WorldState, npc_id: str) -> NPC | None:
     return world_state.npcs.get(npc_id)
+
+
+def _load_dialogue_dossier(npc_id: str) -> Adv1DialogueDossierDefinition | None:
+    try:
+        dossier_state = load_adv1_dialogue_dossiers()
+    except AdventureContentError:
+        return None
+    return dossier_state.npc_definitions.get(npc_id)

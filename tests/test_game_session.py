@@ -13,6 +13,7 @@ from vampire_storyteller.command_dispatcher import execute_command
 from vampire_storyteller.command_models import ConversationStance, DialogueAct, DialogueMove, TalkCommand
 from vampire_storyteller.command_result import CommandResult
 from vampire_storyteller.cli import build_runtime_composition
+from vampire_storyteller.conversation_context import DialogueHistoryEntry, DialogueMemoryContext
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
 from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput, DeterministicDialogueRenderer
@@ -324,6 +325,48 @@ class GameSessionTests(unittest.TestCase):
         assert turn.dialogue_adjudication is not None
         self.assertTrue(turn.dialogue_adjudication.is_guarded)
 
+    def test_recent_dialogue_history_records_and_trims_to_bounded_window(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, good evening.")
+        for _ in range(6):
+            session.process_input("Jonas, hello again.")
+
+        history = session.get_recent_dialogue_history()
+
+        self.assertLessEqual(len(history), 12)
+        self.assertEqual(len(history), 12)
+        self.assertEqual(history[-1].speaker, "Jonas Reed")
+        self.assertNotEqual(history[0].utterance_text, "good evening.")
+
+    def test_recent_dialogue_history_keeps_player_and_npc_lines(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        history = session.get_recent_dialogue_history()
+
+        self.assertEqual(len(history), 2)
+        self.assertEqual(history[0].speaker, "player")
+        self.assertEqual(history[0].utterance_text, "hello.")
+        self.assertEqual(history[1].speaker, "Jonas Reed")
+        self.assertTrue(history[1].utterance_text.strip())
+
+    def test_live_dialogue_render_context_receives_memory_layers(self) -> None:
+        renderer = RecordingDialogueRenderer()
+        session = GameSession(dialogue_renderer=renderer)
+
+        session.process_input("Jonas, good evening.")
+        session.process_input("What is going on, how are you?")
+
+        self.assertGreaterEqual(len(renderer.render_inputs), 2)
+        render_input = renderer.render_inputs[-1]
+        self.assertIsNotNone(render_input.npc_dossier)
+        assert render_input.npc_dossier is not None
+        self.assertEqual(render_input.npc_dossier.public_persona, "a wary neighborhood informant who keeps public conversations short")
+        self.assertIn("greeted Jonas", render_input.conversation_memory.previous_interactions_summary)
+        self.assertGreaterEqual(len(render_input.conversation_memory.recent_dialogue_history), 3)
+        self.assertEqual(render_input.conversation_memory.recent_dialogue_history[0].speaker, "player")
+
     def test_meta_conversation_stance_challenge_uses_distinct_domain(self) -> None:
         session = GameSession()
 
@@ -543,6 +586,13 @@ class GameSessionTests(unittest.TestCase):
                 motivations=["protect the church records"],
                 speaking_style="measured and restrained",
                 relationship_context="She is cautious with Mara.",
+            ),
+            npc_dossier=None,
+            conversation_memory=DialogueMemoryContext(
+                previous_interactions_summary="Mara has already visited the church once.",
+                recent_dialogue_history=(
+                    DialogueHistoryEntry(speaker="player", utterance_text="Hello."),
+                ),
             ),
             authorized_fact_cards=(
                 DialogueFactCard(

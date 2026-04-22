@@ -38,6 +38,7 @@ class NPC:
     location_id: str | None
     attitude_to_player: str
     trust_level: int = 0
+    previous_interactions_summary: str = ""
     consumed_dialogue_hooks: list[str] = field(default_factory=list)
     goals: list[str] = field(default_factory=list)
     investigation_hint: str = ""

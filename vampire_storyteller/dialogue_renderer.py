@@ -6,8 +6,10 @@ from typing import Protocol
 from .action_resolution import ActionCheckOutcome, ActionConsequenceSummary
 from .adventure_loader import load_adv1_dialogue_fact_definitions, load_adv1_plot_progression_rules
 from .command_models import TalkCommand
+from .conversation_context import DialogueHistoryEntry, DialogueMemoryContext
 from .dialogue_adjudication import DialogueAdjudicationOutcome
 from .dialogue_context_assembler import assemble_dialogue_context
+from .adventure_loader import Adv1DialogueDossierDefinition
 from .models import NPCDialogueProfile
 from .social_models import SocialOutcomeKind, SocialOutcomePacket, TopicResult
 from .world_state import WorldState
@@ -52,6 +54,8 @@ class DialogueRenderInput:
     consequence_messages: tuple[str, ...]
     applied_effects: tuple[str, ...]
     npc_profile: NPCDialogueProfile
+    npc_dossier: Adv1DialogueDossierDefinition | None
+    conversation_memory: DialogueMemoryContext
     authorized_fact_cards: tuple[DialogueFactCard, ...]
     social_outcome: SocialOutcomePacket | None = None
     dialogue_move: str = "none"
@@ -64,6 +68,7 @@ def build_dialogue_render_input(
     check: ActionCheckOutcome | None,
     consequence_summary: ActionConsequenceSummary,
     social_outcome: SocialOutcomePacket | None = None,
+    recent_dialogue_history: tuple[DialogueHistoryEntry, ...] = (),
 ) -> DialogueRenderInput:
     authorized_fact_cards = _select_authorized_fact_cards(
         world_state,
@@ -77,6 +82,7 @@ def build_dialogue_render_input(
         dialogue_adjudication,
         social_outcome,
         authorized_fact_cards,
+        recent_dialogue_history,
     )
     metadata = command.dialogue_metadata
     return DialogueRenderInput(
@@ -105,6 +111,8 @@ def build_dialogue_render_input(
         consequence_messages=consequence_summary.messages,
         applied_effects=consequence_summary.applied_effects,
         npc_profile=context.npc_profile,
+        npc_dossier=context.npc_dossier,
+        conversation_memory=context.conversation_memory,
         authorized_fact_cards=context.authorized_fact_cards,
         social_outcome=context.social_outcome,
         dialogue_move=metadata.dialogue_move.value if metadata is not None else "none",

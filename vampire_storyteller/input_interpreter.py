@@ -12,6 +12,7 @@ from .dialogue_intent_adapter import (
     is_non_specific_target,
     is_pronoun_like_target,
 )
+from .conversation_context import DialogueHistoryEntry
 from .dialogue_subtopic import DialogueSubtopic
 from .models import NPC
 from .world_state import WorldState
@@ -190,6 +191,7 @@ class InputInterpreter:
         stale_conversation_focus_npc_id: str | None = None,
         stale_conversation_focus_reason: str | None = None,
         dialogue_intent_adapter: DialogueIntentAdapter | None = None,
+        recent_dialogue_history: tuple[DialogueHistoryEntry, ...] = (),
     ) -> InterpretedInput:
         normalized_text = self._normalize_text(raw_input)
         if not normalized_text:
@@ -204,6 +206,7 @@ class InputInterpreter:
             stale_conversation_focus_npc_id,
             stale_conversation_focus_reason,
             dialogue_intent_adapter,
+            recent_dialogue_history,
         )
         if talk_result is not None:
             return talk_result
@@ -306,6 +309,7 @@ class InputInterpreter:
         stale_conversation_focus_npc_id: str | None,
         stale_conversation_focus_reason: str | None,
         dialogue_intent_adapter: DialogueIntentAdapter | None,
+        recent_dialogue_history: tuple[DialogueHistoryEntry, ...],
     ) -> InterpretedInput | None:
         if self._looks_like_canonical_talk_command(raw_input):
             return None
@@ -360,6 +364,7 @@ class InputInterpreter:
             world_state,
             conversation_focus_npc_id,
             dialogue_intent_adapter,
+            recent_dialogue_history,
         )
         if adapter_result is not None:
             return adapter_result
@@ -817,6 +822,7 @@ class InputInterpreter:
         world_state: WorldState,
         conversation_focus_npc_id: str | None,
         dialogue_intent_adapter: DialogueIntentAdapter | None,
+        recent_dialogue_history: tuple[DialogueHistoryEntry, ...],
     ) -> InterpretedInput | None:
         if dialogue_intent_adapter is None:
             return None
@@ -824,7 +830,12 @@ class InputInterpreter:
         has_explicit_npc_reference = bool(self._match_npc_candidates(normalized_text, world_state))
         explicit_addressee_hint = self._extract_explicit_addressee_hint(raw_input)
         proposal = dialogue_intent_adapter.propose_dialogue_intent(
-            build_dialogue_intent_context(world_state, raw_input, conversation_focus_npc_id)
+            build_dialogue_intent_context(
+                world_state,
+                raw_input,
+                conversation_focus_npc_id,
+                recent_dialogue_history,
+            )
         )
         if proposal is None:
             return None

@@ -77,6 +77,7 @@ class Adv1NpcDefinition:
     starting_location_id: str
     attitude_to_player: str
     trust_level: int
+    previous_interactions_summary: str
     social_state: NPCSocialState
     goals: list[str]
     investigation_hint: str
@@ -629,6 +630,7 @@ def _npc_definition_from_dict(data: dict[str, Any]) -> Adv1NpcDefinition:
         starting_location_id=_require_str(data, "starting_location_id"),
         attitude_to_player=attitude_to_player,
         trust_level=trust_level,
+        previous_interactions_summary=_require_optional_profile_str(data, "previous_interactions_summary"),
         social_state=social_state,
         goals=_require_string_list(data, "goals"),
         investigation_hint=_require_str(data, "investigation_hint"),
@@ -778,6 +780,7 @@ def _npc_from_definition(definition: Adv1NpcDefinition) -> NPC:
         location_id=definition.starting_location_id,
         attitude_to_player=definition.attitude_to_player,
         trust_level=definition.social_state.trust,
+        previous_interactions_summary=definition.previous_interactions_summary,
         goals=list(definition.goals),
         investigation_hint=definition.investigation_hint,
         schedule=dict(definition.schedule),

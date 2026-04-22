@@ -11,6 +11,7 @@ from vampire_storyteller.dialogue_intent_adapter import (
     OpenAIDialogueIntentAdapter,
     build_dialogue_intent_context,
 )
+from vampire_storyteller.conversation_context import DialogueHistoryEntry
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.models import NPC
 from vampire_storyteller.sample_world import build_sample_world
@@ -36,6 +37,14 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         self.assertEqual(proposal.topic, "dock")
         self.assertEqual(proposal.tone, "careful")
 
+        mock_client.responses.create.assert_called_once()
+        prompt = mock_client.responses.create.call_args.kwargs["input"]
+        self.assertIn("Use only the supplied JSON context as source of truth.", prompt)
+        self.assertIn("Use conversation_memory.recent_dialogue_history for immediate continuity", prompt)
+        self.assertIn("conversation_memory.previous_interactions_summary for longer-term tone", prompt)
+        self.assertIn('"previous_interactions_summary":"', prompt)
+        self.assertIn('"recent_dialogue_history":[', prompt)
+
         class StaticDialogueIntentAdapter:
             def propose_dialogue_intent(self, context: DialogueIntentContext) -> DialogueIntentProposal | None:
                 return DialogueIntentProposal(
@@ -60,6 +69,32 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         self.assertEqual(interpreted.dialogue_metadata.topic, "dock")
         self.assertEqual(interpreted.dialogue_metadata.tone, "careful")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.ASK)
+
+    def test_dialogue_intent_context_includes_jonas_memory_layer(self) -> None:
+        world = build_sample_world()
+        world.npcs["npc_1"].previous_interactions_summary = "Mara already asked Jonas about the dock once."
+
+        context = build_dialogue_intent_context(
+            world,
+            "Jonas, what happened at the dock?",
+            conversation_focus_npc_id="npc_1",
+            recent_dialogue_history=(
+                DialogueHistoryEntry(speaker="player", utterance_text="Hello Jonas."),
+                DialogueHistoryEntry(speaker="Jonas Reed", utterance_text="Evening."),
+            ),
+        )
+
+        self.assertIsNotNone(context.npc_dossier)
+        assert context.npc_dossier is not None
+        self.assertEqual(context.npc_dossier.public_persona, "a wary neighborhood informant who keeps public conversations short")
+        self.assertEqual(context.conversation_memory.previous_interactions_summary, "Mara already asked Jonas about the dock once.")
+        self.assertEqual(
+            context.conversation_memory.recent_dialogue_history,
+            (
+                DialogueHistoryEntry(speaker="player", utterance_text="Hello Jonas."),
+                DialogueHistoryEntry(speaker="Jonas Reed", utterance_text="Evening."),
+            ),
+        )
 
     def test_openai_adapter_on_single_present_npc_falls_back_from_bad_target_text(self) -> None:
         for target_text, raw_input in (

@@ -9,6 +9,7 @@ from .adventure_loader import (
     load_adv1_plot_progression_rules,
 )
 from .command_models import TalkCommand
+from .conversation_context import DialogueHistoryEntry, DialogueMemoryContext
 from .dialogue_adjudication import DialogueAdjudicationOutcome
 from .models import NPCDialogueProfile
 from .social_models import SocialOutcomePacket
@@ -31,6 +32,7 @@ class DialogueTurnContext:
     lead_flag_active: bool
     conversation_stance: str
     conversation_subtopic: str | None
+    conversation_memory: DialogueMemoryContext
     social_outcome: SocialOutcomePacket | None
     authorized_fact_cards: tuple[object, ...]
 
@@ -41,6 +43,7 @@ def assemble_dialogue_context(
     dialogue_adjudication: DialogueAdjudicationOutcome,
     social_outcome: SocialOutcomePacket | None,
     authorized_fact_cards: tuple[object, ...],
+    recent_dialogue_history: tuple[DialogueHistoryEntry, ...] = (),
 ) -> DialogueTurnContext:
     npc = world_state.npcs.get(command.npc_id)
     if npc is None:
@@ -67,6 +70,10 @@ def assemble_dialogue_context(
         lead_flag_active=plot_rules.talk_required_story_flag in set(world_state.story_flags),
         conversation_stance=dialogue_adjudication.conversation_stance.value,
         conversation_subtopic=command.conversation_subtopic.value if command.conversation_subtopic is not None else None,
+        conversation_memory=DialogueMemoryContext(
+            previous_interactions_summary=npc.previous_interactions_summary,
+            recent_dialogue_history=recent_dialogue_history,
+        ),
         social_outcome=social_outcome,
         authorized_fact_cards=authorized_fact_cards,
     )

@@ -14,6 +14,7 @@ from vampire_storyteller.dialogue_renderer import (
     DialogueRenderInput,
     build_dialogue_render_input,
 )
+from vampire_storyteller.conversation_context import DialogueHistoryEntry, DialogueMemoryContext
 from vampire_storyteller.dice_engine import DeterministicCheckKind, DeterministicCheckResolution
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.dialogue_adjudication import adjudicate_dialogue_talk
@@ -86,6 +87,14 @@ def _make_render_input(
             motivations=["stay useful", "avoid exposure"],
             speaking_style="quiet and economical",
             relationship_context="He is testing Mara.",
+        ),
+        npc_dossier=None,
+        conversation_memory=DialogueMemoryContext(
+            previous_interactions_summary="Mara has already checked in with Jonas once.",
+            recent_dialogue_history=(
+                DialogueHistoryEntry(speaker="player", utterance_text="Hello Jonas."),
+                DialogueHistoryEntry(speaker="Jonas Reed", utterance_text="Evening."),
+            ),
         ),
         authorized_fact_cards=authorized_fact_cards,
         social_outcome=SocialOutcomePacket(
@@ -295,6 +304,12 @@ class DialogueRendererTests(unittest.TestCase):
                 relationship_context="assembled relationship",
             ),
             npc_dossier=None,
+            conversation_memory=DialogueMemoryContext(
+                previous_interactions_summary="assembled summary",
+                recent_dialogue_history=(
+                    DialogueHistoryEntry(speaker="player", utterance_text="Hello."),
+                ),
+            ),
             player_name="Assembled Player",
             location_name="Assembled Cafe",
             plot_id="plot_1",
@@ -327,6 +342,11 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertEqual(render_input.npc_name, "Assembled Jonas")
         self.assertEqual(render_input.location_name, "Assembled Cafe")
         self.assertEqual(render_input.npc_profile.public_persona, "assembled persona")
+        self.assertEqual(render_input.conversation_memory.previous_interactions_summary, "assembled summary")
+        self.assertEqual(
+            render_input.conversation_memory.recent_dialogue_history,
+            (DialogueHistoryEntry(speaker="player", utterance_text="Hello."),),
+        )
         self.assertEqual(render_input.plot_stage, "lead_confirmed")
         self.assertEqual(render_input.conversation_subtopic, "missing_ledger")
         self.assertEqual(render_input.authorized_fact_cards[0].fact_id, "assembled_fact")
@@ -697,6 +717,11 @@ class DialogueRendererTests(unittest.TestCase):
                         motivations=["stay useful"],
                         speaking_style="quiet and economical",
                         relationship_context="He is testing Mara.",
+                    ),
+                    npc_dossier=None,
+                    conversation_memory=DialogueMemoryContext(
+                        previous_interactions_summary="Mara has already traded one greeting with Jonas.",
+                        recent_dialogue_history=(),
                     ),
                     authorized_fact_cards=(),
                     social_outcome=None,

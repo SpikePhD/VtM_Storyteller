@@ -23,6 +23,7 @@ class SerializationTests(unittest.TestCase):
         world.npcs["npc_1"].social_state.fear = 1
         world.npcs["npc_1"].social_state.respect = 4
         world.npcs["npc_1"].social_state.willingness_to_cooperate = 5
+        world.npcs["npc_1"].previous_interactions_summary = "Mara and Jonas have already traded one careful hello."
         world.npcs["npc_1"].social_state.topic_sensitivity["dock"] = TopicSensitivity.GUARDED
         world.npcs["npc_1"].consumed_dialogue_hooks = ["jonas_hook_trust_0"]
         world.npcs["npc_1"].goals.append("Trust Mara with the dock lead")
@@ -54,6 +55,7 @@ class SerializationTests(unittest.TestCase):
         self.assertEqual(loaded_world.npcs["npc_1"].social_state.relationship_to_player, "guarded")
         self.assertEqual(loaded_world.npcs["npc_1"].social_state.trust, 2)
         self.assertEqual(loaded_world.npcs["npc_1"].social_state.respect, 4)
+        self.assertEqual(loaded_world.npcs["npc_1"].previous_interactions_summary, "Mara and Jonas have already traded one careful hello.")
         self.assertEqual(loaded_world.npcs["npc_1"].social_state.topic_sensitivity["dock"], TopicSensitivity.GUARDED)
         self.assertEqual(loaded_world.npcs["npc_1"].consumed_dialogue_hooks, ["jonas_hook_trust_0"])
         self.assertEqual(loaded_world.locations["loc_cafe"].scene_hook, "A quieter clue.")

@@ -5,6 +5,7 @@ from unittest.mock import Mock, patch
 
 from vampire_storyteller.cli import build_dialogue_renderer
 from vampire_storyteller.config import AppConfig
+from vampire_storyteller.conversation_context import DialogueHistoryEntry, DialogueMemoryContext
 from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput
 from vampire_storyteller.models import NPCDialogueProfile
 from vampire_storyteller.openai_dialogue_renderer import OpenAIDialogueRenderer
@@ -64,6 +65,14 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                     speaking_style="quiet and economical",
                     relationship_context="He is testing Mara.",
                 ),
+                npc_dossier=None,
+                conversation_memory=DialogueMemoryContext(
+                    previous_interactions_summary="Mara and Jonas have talked before about the dock.",
+                    recent_dialogue_history=(
+                        DialogueHistoryEntry(speaker="player", utterance_text="Hello Jonas."),
+                        DialogueHistoryEntry(speaker="Jonas Reed", utterance_text="Evening."),
+                    ),
+                ),
                 authorized_fact_cards=(
                     DialogueFactCard(
                         fact_id="jonas_missing_ledger_lead",
@@ -105,6 +114,9 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertIn("Do not merely restate the player's line", prompt)
         self.assertIn("Use dialogue_move to shape the line", prompt)
         self.assertIn("If dialogue_move is continue", prompt)
+        self.assertIn("Use npc_dossier for stable personality and relationship texture", prompt)
+        self.assertIn("previous_interactions_summary for longer-term relationship memory", prompt)
+        self.assertIn("recent_dialogue_history for short-term continuity", prompt)
         self.assertIn("Do not invent clue state, plot advancement, trust changes, NPC presence, permissions, legality, checks, or state changes.", prompt)
         self.assertIn('"npc_name":"Jonas Reed"', prompt)
         self.assertIn('"dialogue_domain":"lead_topic"', prompt)
@@ -113,6 +125,9 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertIn('"check_result"', prompt)
         self.assertIn('"plot_name":"Missing Ledger"', prompt)
         self.assertIn('"authorized_fact_cards"', prompt)
+        self.assertIn('"npc_dossier"', prompt)
+        self.assertIn('"previous_interactions_summary":"Mara and Jonas have talked before about the dock."', prompt)
+        self.assertIn('"recent_dialogue_history":[', prompt)
 
     def test_renderer_hard_fails_when_openai_response_has_no_text(self) -> None:
         mock_client = Mock()
@@ -154,6 +169,11 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                         motivations=["stay useful"],
                         speaking_style="quiet and economical",
                         relationship_context="He is testing Mara.",
+                    ),
+                    npc_dossier=None,
+                    conversation_memory=DialogueMemoryContext(
+                        previous_interactions_summary="Mara and Jonas have talked before about the dock.",
+                        recent_dialogue_history=(),
                     ),
                     authorized_fact_cards=(),
                     social_outcome=None,

@@ -7,6 +7,7 @@
       "starting_location_id": "loc_cafe",
       "attitude_to_player": "wary",
       "trust_level": 0,
+      "previous_interactions_summary": "Mara has already greeted Jonas once, and he is still keeping the conversation short.",
       "social_state": {
         "relationship_to_player": "wary",
         "trust": 0,
@@ -54,6 +55,7 @@
       "starting_location_id": "loc_church",
       "attitude_to_player": "guarded",
       "trust_level": 1,
+      "previous_interactions_summary": "",
       "social_state": {
         "relationship_to_player": "guarded",
         "trust": 1,
