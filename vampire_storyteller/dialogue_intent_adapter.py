@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 import json
+import re
 from typing import Any, Protocol
 
 from .adventure_loader import Adv1DialogueDossierDefinition, AdventureContentError, load_adv1_dialogue_dossiers
@@ -77,7 +78,7 @@ class OpenAIDialogueIntentAdapter:
         output_text = getattr(response, "output_text", "")
         if not isinstance(output_text, str) or not output_text.strip():
             return None
-        return self._validate_proposal_text(output_text)
+        return self._validate_proposal_text(output_text, context)
 
     def _create_client(self, api_key: str) -> Any:
         try:
@@ -97,20 +98,32 @@ class OpenAIDialogueIntentAdapter:
                 "Do not add markdown, comments, or any extra keys.",
                 "Allowed dialogue_act values: greet, ask, accuse, persuade, threaten, unknown.",
                 "Allowed dialogue_move values: none, react, continue, clarify, banter.",
+                "The JSON must be directly parseable and must not be wrapped in prose or markdown fences.",
                 "Use conversation_memory.recent_dialogue_history for immediate continuity and conversation_memory.previous_interactions_summary for longer-term tone and relationship context.",
                 "Do not invent facts, state changes, or reveals from memory; memory only helps classify intent within the supplied context.",
-                "Use dialogue_move for statement-shaped or conversational turns: react for acknowledgments and greetings, continue for invitations to keep talking, clarify for repairs or pushback, and banter for light social back-and-forth.",
+                "Use dialogue_move for statement-shaped or conversational turns: react for acknowledgments and greetings, continue for invitations to keep talking or requests for help/info, clarify for repairs or pushback, and banter for light social back-and-forth.",
+                "If the player line is clearly still part of the conversation, return a usable dialogue proposal instead of none.",
+                "For declarative, relational, urgency, or pressure lines, keep the turn in dialogue and prefer continue, clarify, or react as appropriate.",
+                "Examples:",
+                "- 'Quite busy... with a job I want no part of' -> dialogue_act unknown, dialogue_move continue, topic conversation, tone guarded.",
+                "- 'But I need your help' -> dialogue_act persuade, dialogue_move continue, topic help, tone urgent.",
+                "- 'Listen I don't have time for this. What do you know' -> dialogue_act ask, dialogue_move continue, topic missing_ledger, tone urgent.",
+                "- 'A lot, as always. But I am not here to chitty chat. I need info' -> dialogue_act persuade, dialogue_move continue, topic information, tone impatient.",
                 "Do not invent NPCs, relationships, clue state, legality, check outcomes, or world mutations.",
                 "target_npc_text is the intended addressee only, not the topic or object being discussed.",
-                "If the target is unclear, choose unknown and keep target_npc_text empty or grounded in the addressee from the player input or active focus.",
+                "If the target is unclear, choose the active focus if one exists; otherwise use unknown and keep target_npc_text empty.",
                 "Context JSON:",
                 context_json,
             ]
         )
 
-    def _validate_proposal_text(self, output_text: str) -> DialogueIntentProposal | None:
+    def _validate_proposal_text(self, output_text: str, context: DialogueIntentContext) -> DialogueIntentProposal | None:
+        json_text = self._extract_json_text(output_text)
+        if json_text is None:
+            return None
+
         try:
-            payload = json.loads(output_text)
+            payload = json.loads(json_text)
         except json.JSONDecodeError:
             return None
 
@@ -133,17 +146,112 @@ class OpenAIDialogueIntentAdapter:
         if normalized_dialogue_act not in ALLOWED_DIALOGUE_ACTS:
             return None
 
-        normalized_dialogue_move = dialogue_move.strip().lower()
-        if normalized_dialogue_move not in ALLOWED_DIALOGUE_MOVES:
-            return None
+        normalized_dialogue_move = self._normalize_dialogue_move(
+            dialogue_act=normalized_dialogue_act,
+            dialogue_move=dialogue_move.strip().lower(),
+            raw_input=context.raw_input,
+        )
+        normalized_target_npc_text = target_npc_text.strip()
+        if not normalized_target_npc_text and context.conversation_focus_npc_name:
+            normalized_target_npc_text = context.conversation_focus_npc_name
 
         return DialogueIntentProposal(
             dialogue_act=normalized_dialogue_act,
             dialogue_move=normalized_dialogue_move,
-            target_npc_text=target_npc_text.strip(),
-            topic=topic.strip(),
-            tone=tone.strip(),
+            target_npc_text=normalized_target_npc_text,
+            topic=topic.strip() or "conversation",
+            tone=tone.strip() or "curious",
         )
+
+    def _extract_json_text(self, output_text: str) -> str | None:
+        stripped_text = output_text.strip()
+        fenced_match = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", stripped_text, flags=re.DOTALL | re.IGNORECASE)
+        if fenced_match is not None:
+            stripped_text = fenced_match.group(1).strip()
+
+        if stripped_text.startswith("{") and stripped_text.endswith("}"):
+            return stripped_text
+
+        json_match = re.search(r"\{.*\}", stripped_text, flags=re.DOTALL)
+        if json_match is None:
+            return None
+        return json_match.group(0).strip()
+
+    def _normalize_dialogue_move(self, dialogue_act: str, dialogue_move: str, raw_input: str) -> str:
+        if dialogue_move not in ALLOWED_DIALOGUE_MOVES:
+            dialogue_move = "none"
+
+        normalized_input = self._normalize_text(raw_input)
+        if dialogue_act == "greet":
+            return "react"
+
+        if dialogue_act in {"ask", "persuade"}:
+            if dialogue_move in {"continue", "clarify", "banter"}:
+                return dialogue_move
+            if self._contains_any(
+                normalized_input,
+                (
+                    "need your help",
+                    "need help",
+                    "need info",
+                    "i need your help",
+                    "i need you",
+                    "what do you know",
+                    "what happened",
+                    "tell me",
+                    "listen",
+                    "i do not have time",
+                    "i don't have time",
+                    "busy",
+                ),
+            ):
+                return "continue"
+            return "continue" if "?" in raw_input else "none"
+
+        if dialogue_act in {"accuse", "threaten"}:
+            if dialogue_move in {"clarify", "continue", "banter"}:
+                return dialogue_move
+            return "clarify" if self._contains_any(normalized_input, ("what do you know", "that sounds wrong", "not true", "i did not", "you just did")) else "none"
+
+        if dialogue_move in {"react", "continue", "clarify", "banter"}:
+            return dialogue_move
+
+        if self._contains_any(
+            normalized_input,
+            (
+                "just coming to say hi",
+                "coming to say hi",
+                "hello there",
+                "good evening",
+                "good morning",
+                "good afternoon",
+                "there you are",
+                "busy",
+                "need your help",
+                "need info",
+                "what do you know",
+                "what happened",
+            ),
+        ):
+            return "continue" if self._contains_any(normalized_input, ("need your help", "need info", "what do you know", "what happened", "busy")) else "react"
+
+        return "none"
+
+    def _normalize_text(self, raw_input: str) -> str:
+        return " ".join(re.sub(r"[^a-z0-9]+", " ", raw_input.lower()).split())
+
+    def _contains_any(self, normalized_text: str, phrases: tuple[str, ...]) -> bool:
+        return any(self._contains_phrase(normalized_text, phrase) for phrase in phrases)
+
+    def _contains_phrase(self, normalized_text: str, phrase: str) -> bool:
+        text_tokens = normalized_text.split()
+        phrase_tokens = self._normalize_text(phrase).split()
+        if not phrase_tokens:
+            return False
+        for start in range(0, len(text_tokens) - len(phrase_tokens) + 1):
+            if text_tokens[start : start + len(phrase_tokens)] == phrase_tokens:
+                return True
+        return False
 
 
 def build_dialogue_intent_context(

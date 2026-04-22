@@ -481,19 +481,43 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.canonical_command, "look")
         self.assertEqual(adapter.contexts, [])
 
-    def test_active_conversation_unusable_adapter_fails_explicitly(self) -> None:
+    def test_active_conversation_unusable_adapter_falls_back_to_local_dialogue_classification(self) -> None:
         adapter = self.UnusableDialogueIntentAdapter()
         result = self.interpreter.interpret(
-            "I need help, I don't know how to reach there.",
+            "But I need your help.",
             self.world_state,
             conversation_focus_npc_id="npc_1",
             dialogue_intent_adapter=adapter,
         )
 
         self.assertFalse(result.fallback_to_parser)
-        self.assertIsNone(result.canonical_command)
-        self.assertIsNotNone(result.failure_reason)
-        self.assertIn("dialogue intent adapter", result.failure_reason or "")
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        assert result.dialogue_metadata is not None
+        self.assertEqual(result.dialogue_metadata.dialogue_act, DialogueAct.PERSUADE)
+        self.assertEqual(result.dialogue_metadata.dialogue_move, DialogueMove.CONTINUE)
+        self.assertIsNone(result.failure_reason)
+
+    def test_active_conversation_pressure_line_stays_in_dialogue_after_adapter_failure(self) -> None:
+        adapter = self.UnusableDialogueIntentAdapter()
+        result = self.interpreter.interpret(
+            "Listen I don't have time for this. What do you know",
+            self.world_state,
+            conversation_focus_npc_id="npc_1",
+            dialogue_intent_adapter=adapter,
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        assert result.dialogue_metadata is not None
+        self.assertIn(result.dialogue_metadata.dialogue_act, {DialogueAct.ASK, DialogueAct.UNKNOWN})
+        self.assertEqual(result.dialogue_metadata.dialogue_move, DialogueMove.CONTINUE)
+        self.assertIsNone(result.failure_reason)
 
     def test_missing_ledger_statement_follow_up_uses_active_conversation_focus(self) -> None:
         result, _adapter = self._interpret_with_active_dialogue_adapter(

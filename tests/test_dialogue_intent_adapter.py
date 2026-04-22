@@ -44,6 +44,32 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         self.assertIn("conversation_memory.previous_interactions_summary for longer-term tone", prompt)
         self.assertIn('"previous_interactions_summary":"', prompt)
         self.assertIn('"recent_dialogue_history":[', prompt)
+        self.assertIn("Quite busy... with a job I want no part of", prompt)
+        self.assertIn("But I need your help", prompt)
+        self.assertIn("Listen I don't have time for this. What do you know", prompt)
+        self.assertIn("A lot, as always. But I am not here to chitty chat. I need info", prompt)
+
+    def test_adapter_repairs_weak_move_and_empty_target_into_usable_dialogue(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = (
+            '```json\n{"dialogue_act":"ask","dialogue_move":"none","target_npc_text":"","topic":"","tone":""}\n```'
+        )
+        adapter = OpenAIDialogueIntentAdapter(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+        context = build_dialogue_intent_context(
+            build_sample_world(),
+            "But I need your help.",
+            conversation_focus_npc_id="npc_1",
+        )
+
+        proposal = adapter.propose_dialogue_intent(context)
+
+        self.assertIsNotNone(proposal)
+        assert proposal is not None
+        self.assertEqual(proposal.dialogue_act, "ask")
+        self.assertEqual(proposal.dialogue_move, "continue")
+        self.assertEqual(proposal.target_npc_text, "Jonas Reed")
+        self.assertEqual(proposal.topic, "conversation")
+        self.assertEqual(proposal.tone, "curious")
 
         class StaticDialogueIntentAdapter:
             def propose_dialogue_intent(self, context: DialogueIntentContext) -> DialogueIntentProposal | None:
@@ -220,19 +246,21 @@ class DialogueIntentAdapterTests(unittest.TestCase):
 
         self.assertIsNone(proposal)
 
-    def test_unavailable_adapter_fails_active_conversation_explicitly(self) -> None:
+    def test_unavailable_adapter_falls_back_to_active_conversation_dialogue(self) -> None:
         session = GameSession(dialogue_intent_adapter=NullDialogueIntentAdapter())
 
         session.process_input("Jonas, good evening.")
         result = session.process_input("I turn back to her and continue.")
+        interpreted = session.get_last_interpreted_input()
 
-        self.assertIn("Talk is blocked", result.output_text)
-        self.assertIn("dialogue intent adapter", result.output_text.lower())
-        self.assertFalse(result.render_scene)
-        self.assertIsNone(result.dialogue_presentation)
-        self.assertIsNotNone(session.get_last_interpreted_input())
-        assert session.get_last_interpreted_input() is not None
-        self.assertIsNone(session.get_last_interpreted_input().canonical_command)
+        self.assertNotIn("Talk is blocked", result.output_text)
+        self.assertTrue(result.output_text.strip())
+        self.assertIsNotNone(result.dialogue_presentation)
+        self.assertIsNotNone(interpreted)
+        assert interpreted is not None
+        self.assertEqual(interpreted.target_reference, "npc_1")
+        self.assertEqual(interpreted.canonical_command, "talk npc_1")
+        self.assertIsNone(interpreted.failure_reason)
 
     def test_adapter_cannot_mutate_world_state_by_itself(self) -> None:
         context = build_dialogue_intent_context(build_sample_world(), "We need to talk about the dock.")

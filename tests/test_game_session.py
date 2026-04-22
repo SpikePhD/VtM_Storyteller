@@ -17,7 +17,7 @@ from vampire_storyteller.conversation_context import DialogueHistoryEntry, Dialo
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
 from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput, DeterministicDialogueRenderer
-from vampire_storyteller.dialogue_intent_adapter import DialogueIntentProposal
+from vampire_storyteller.dialogue_intent_adapter import DialogueIntentProposal, NullDialogueIntentAdapter
 from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.models import NPCDialogueProfile
@@ -706,6 +706,28 @@ class GameSessionTests(unittest.TestCase):
         self.assertIsNotNone(result.dialogue_presentation)
         self.assertGreaterEqual(len(adapter.calls), 1)
         self.assertIn("Busy - got into a job that I did not really want to do", adapter.calls[-1])
+
+    def test_active_conversation_pressure_lines_fall_back_when_adapter_is_unusable(self) -> None:
+        session = GameSession(dialogue_intent_adapter=NullDialogueIntentAdapter())
+
+        session.process_input("Jonas, hello.")
+        first_result = session.process_input("But I need your help.")
+        first_interpreted = session.get_last_interpreted_input()
+        second_result = session.process_input("Listen I don't have time for this. What do you know")
+        second_interpreted = session.get_last_interpreted_input()
+
+        self.assertFalse(first_result.render_scene)
+        self.assertFalse(second_result.render_scene)
+        self.assertEqual(first_interpreted.target_reference, "npc_1")
+        self.assertEqual(second_interpreted.target_reference, "npc_1")
+        self.assertEqual(first_interpreted.dialogue_metadata.dialogue_move, DialogueMove.CONTINUE)
+        self.assertEqual(second_interpreted.dialogue_metadata.dialogue_move, DialogueMove.CONTINUE)
+        self.assertEqual(first_interpreted.dialogue_metadata.dialogue_act, DialogueAct.PERSUADE)
+        self.assertIn(second_interpreted.dialogue_metadata.dialogue_act, {DialogueAct.ASK, DialogueAct.UNKNOWN})
+        self.assertTrue(first_result.output_text.strip())
+        self.assertTrue(second_result.output_text.strip())
+        self.assertIsNone(first_interpreted.failure_reason)
+        self.assertIsNone(second_interpreted.failure_reason)
 
     def test_active_conversation_explicit_world_action_stays_on_existing_path(self) -> None:
         adapter = RecordingDialogueIntentAdapter()

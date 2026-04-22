@@ -1,4 +1,6 @@
 ## 2026-04-22
+- Hardened the active-conversation dialogue-intent path so Jonas follow-up lines like declarative statements, pressure, and help requests stay in dialogue even when the adapter returns unusable output.
+- Tightened the OpenAI dialogue-intent prompt and added move normalization plus a local fallback repair path for active-conversation turns without changing backend truth ownership.
 - Added bounded active-conversation history plus per-NPC previous-interactions summaries for Jonas dialogue, and threaded both into intent and render payloads without changing deterministic adjudication or state ownership.
 - Switched active-conversation input routing to LLM-first dialogue intent by default, with only explicit world actions bypassing the intent gateway.
 - Reworked the CLI dialogue prompt to use `Action >` outside conversation and `Player >` during active dialogue, while keeping the transcript labels consistent.

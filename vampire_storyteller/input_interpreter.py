@@ -182,6 +182,25 @@ class InputInterpreter:
         "address",
     )
 
+    _ACTIVE_CONVERSATION_PRESSURE_PHRASES = (
+        "need your help",
+        "i need your help",
+        "need help",
+        "need info",
+        "i need info",
+        "i need you",
+        "what do you know",
+        "what happened",
+        "what else do you know",
+        "don't have time",
+        "do not have time",
+        "busy",
+        "not here to chit chat",
+        "not here to chitty chat",
+        "chitty chat",
+        "chit chat",
+    )
+
     def interpret(
         self,
         raw_input: str,
@@ -327,6 +346,16 @@ class InputInterpreter:
             )
             if adapter_result is not None:
                 return adapter_result
+
+            fallback_result = self._build_fallback_active_conversation_dialogue(
+                raw_input,
+                normalized_text,
+                world_state,
+                conversation_focus_npc_id,
+                conversation_subtopic,
+            )
+            if fallback_result is not None:
+                return fallback_result
 
             if stale_conversation_focus_npc_id is not None:
                 return self._failure(
@@ -548,12 +577,15 @@ class InputInterpreter:
 
         if self._contains_any(
             normalized_text,
-            ("i need you to", "i persuade", "i persuade jonas", "i persuade you"),
+            ("i need you to", "i persuade", "i persuade jonas", "i persuade you", "need your help", "need help", "need info"),
         ) or self._contains_any(
             normalized_speech_text,
             (
                 "trust me",
                 "help me",
+                "need your help",
+                "need help",
+                "need info",
                 "please",
                 "listen to me",
                 "work with me",
@@ -569,7 +601,7 @@ class InputInterpreter:
 
         if "?" in raw_input or self._contains_any(
             normalized_text,
-            ("i ask", "i ask jonas", "i ask you"),
+            ("i ask", "i ask jonas", "i ask you", "what do you know", "what happened", "tell me what you know"),
         ) or self._contains_any(
             normalized_speech_text,
             (
@@ -826,13 +858,15 @@ class InputInterpreter:
 
     def _looks_like_explicit_non_dialogue_action(self, normalized_text: str, raw_input: str, world_state: WorldState) -> bool:
         first_token = self._normalize_text(raw_input).split(" ", 1)[0] if raw_input.strip() else ""
-        if first_token in {"look", "status", "help", "move", "wait", "investigate", "save", "load", "quit"}:
+        if first_token in {"look", "move", "wait", "investigate", "save", "load", "quit"}:
             return True
         if self._interpret_wait(normalized_text) is not None:
             return True
         if self._interpret_observation(normalized_text) is not None:
             return True
         if self._interpret_move(normalized_text, world_state) is not None:
+            return True
+        if first_token in {"help", "status"}:
             return True
         return False
 
@@ -895,6 +929,72 @@ class InputInterpreter:
             canonical_command=f"talk {resolved_npc.id}",
             confidence=0.88 if dialogue_act is not DialogueAct.UNKNOWN else 0.76,
             match_reason=self._build_adapter_match_reason(proposal.target_npc_text, resolved_npc, resolution_source),
+            fallback_to_parser=False,
+            dialogue_metadata=metadata,
+        )
+
+    def _build_fallback_active_conversation_dialogue(
+        self,
+        raw_input: str,
+        normalized_text: str,
+        world_state: WorldState,
+        conversation_focus_npc_id: str | None,
+        conversation_subtopic: DialogueSubtopic | None,
+    ) -> InterpretedInput | None:
+        focus_npc = world_state.npcs.get(conversation_focus_npc_id) if conversation_focus_npc_id is not None else None
+        if focus_npc is None:
+            present_npcs = self._present_npcs(world_state)
+            if len(present_npcs) == 1:
+                focus_npc = present_npcs[0]
+
+        if focus_npc is None or focus_npc.location_id != world_state.player.location_id:
+            return None
+
+        dialogue_act = self._classify_dialogue_act(raw_input, normalized_text, raw_input.strip(), normalized_text)
+        dialogue_move = self._classify_dialogue_move(
+            raw_input,
+            normalized_text,
+            raw_input.strip(),
+            normalized_text,
+            dialogue_act,
+        )
+        topic = self._infer_dialogue_topic(normalized_text, dialogue_act, conversation_subtopic)
+        tone = self._infer_dialogue_tone(normalized_text, dialogue_act, dialogue_move)
+        proposal = DialogueIntentProposal(
+            dialogue_act=dialogue_act.value,
+            dialogue_move=dialogue_move.value,
+            target_npc_text=focus_npc.name,
+            topic=topic,
+            tone=tone,
+        )
+        resolved_npc, resolution_source = self._resolve_adapter_target(
+            proposal,
+            raw_input,
+            normalized_text,
+            world_state,
+            focus_npc.id,
+            False,
+            None,
+        )
+        if resolved_npc is None:
+            return None
+
+        speech_text = self._extract_speech_text(raw_input, resolved_npc.name)
+        metadata = DialogueMetadata(
+            utterance_text=raw_input.strip(),
+            speech_text=speech_text,
+            dialogue_act=dialogue_act,
+            topic=topic,
+            tone=tone,
+            dialogue_move=dialogue_move,
+        )
+        return InterpretedInput(
+            normalized_intent="talk",
+            target_text=proposal.target_npc_text,
+            target_reference=resolved_npc.id,
+            canonical_command=f"talk {resolved_npc.id}",
+            confidence=0.7 if dialogue_act is DialogueAct.UNKNOWN else 0.84,
+            match_reason=f"active conversation fallback grounded '{raw_input.strip()}' via {resolution_source or 'conversation focus'}",
             fallback_to_parser=False,
             dialogue_metadata=metadata,
         )
@@ -1098,6 +1198,21 @@ class InputInterpreter:
         ):
             return DialogueMove.CONTINUE
 
+        if self._contains_any(normalized_text, self._ACTIVE_CONVERSATION_PRESSURE_PHRASES):
+            return DialogueMove.CONTINUE
+
+        if dialogue_act is DialogueAct.UNKNOWN and self._contains_any(
+            normalized_text,
+            (
+                "what do you know",
+                "what happened",
+                "need your help",
+                "need info",
+                "busy",
+            ),
+        ):
+            return DialogueMove.CONTINUE
+
         return DialogueMove.NONE
 
     def _build_talk_result(
@@ -1137,6 +1252,140 @@ class InputInterpreter:
     def _build_ambiguous_target_message(self, npc_matches: list[dict[str, str]]) -> str:
         npc_names = ", ".join(sorted({match["npc_name"] for match in npc_matches}))
         return f"Talk is blocked: the target is ambiguous between {npc_names}."
+
+    def _present_npcs(self, world_state: WorldState) -> tuple[NPC, ...]:
+        player_location_id = world_state.player.location_id
+        if player_location_id is None:
+            return ()
+        return tuple(
+            npc
+            for npc in world_state.npcs.values()
+            if npc.location_id == player_location_id
+        )
+
+    def _infer_dialogue_topic(
+        self,
+        normalized_text: str,
+        dialogue_act: DialogueAct,
+        conversation_subtopic: DialogueSubtopic | None,
+    ) -> str:
+        if conversation_subtopic is DialogueSubtopic.MISSING_LEDGER:
+            return "missing_ledger"
+        if conversation_subtopic is DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT:
+            return "transport"
+        if self._contains_any(
+            normalized_text,
+            (
+                "ledger",
+                "paper trail",
+                "dock",
+                "docks",
+                "church records",
+                "records",
+                "trail",
+                "what happened",
+                "what do you know",
+                "tell me more",
+            ),
+        ):
+            return "missing_ledger"
+        if self._contains_any(
+            normalized_text,
+            (
+                "help",
+                "need help",
+                "need your help",
+                "need info",
+                "what do you know",
+                "tell me",
+            ),
+        ):
+            return "help"
+        if self._contains_any(
+            normalized_text,
+            (
+                "back me up",
+                "backup",
+                "back up",
+                "watch my back",
+                "cover me",
+                "stay nearby",
+                "stay close",
+                "wait nearby",
+                "wait in the car",
+                "stay in the car",
+            ),
+        ):
+            return "backup"
+        if self._contains_any(
+            normalized_text,
+            (
+                "drive",
+                "ride",
+                "lift",
+                "vehicle",
+                "car",
+                "drop me off",
+                "transport",
+            ),
+        ):
+            return "transport"
+        if self._contains_any(
+            normalized_text,
+            (
+                "blood",
+                "feed",
+                "vampire",
+            ),
+        ):
+            return "blood"
+        if dialogue_act in {DialogueAct.ASK, DialogueAct.PERSUADE, DialogueAct.ACCUSE, DialogueAct.THREATEN}:
+            return "lead_topic"
+        return "conversation"
+
+    def _infer_dialogue_tone(
+        self,
+        normalized_text: str,
+        dialogue_act: DialogueAct,
+        dialogue_move: DialogueMove,
+    ) -> str:
+        if self._contains_any(
+            normalized_text,
+            (
+                "don't have time",
+                "do not have time",
+                "need your help",
+                "need info",
+                "busy",
+                "not here to chit chat",
+                "not here to chitty chat",
+            ),
+        ):
+            return "urgent"
+        if self._contains_any(
+            normalized_text,
+            (
+                "i do not believe you",
+                "i don't believe you",
+                "that sounds wrong",
+                "you just did",
+                "what do you know",
+            ),
+        ):
+            return "guarded"
+        if dialogue_act is DialogueAct.THREATEN:
+            return "tense"
+        if dialogue_act is DialogueAct.ACCUSE:
+            return "guarded"
+        if dialogue_act is DialogueAct.PERSUADE:
+            return "careful"
+        if dialogue_move in {DialogueMove.REACT, DialogueMove.BANTER}:
+            return "warm"
+        if dialogue_move is DialogueMove.CLARIFY:
+            return "guarded"
+        if "please" in normalized_text:
+            return "polite"
+        return "curious"
 
     def _failure(self, match_reason: str, failure_reason: str) -> InterpretedInput:
         return InterpretedInput(
