@@ -17,7 +17,7 @@ from vampire_storyteller.conversation_context import DialogueHistoryEntry, Dialo
 from vampire_storyteller.dialogue_adjudication import DialogueTopicStatus
 from vampire_storyteller.dialogue_domain import DialogueDomain
 from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput, DeterministicDialogueRenderer
-from vampire_storyteller.dialogue_intent_adapter import DialogueIntentProposal, NullDialogueIntentAdapter
+from vampire_storyteller.dialogue_intent_adapter import DialogueIntentProposal, NullDialogueIntentAdapter, build_dialogue_intent_context
 from vampire_storyteller.dialogue_subtopic import DialogueSubtopic
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.models import NPCDialogueProfile
@@ -527,6 +527,73 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("greeted Jonas", render_input.conversation_memory.previous_interactions_summary)
         self.assertGreaterEqual(len(render_input.conversation_memory.recent_dialogue_history), 3)
         self.assertEqual(render_input.conversation_memory.recent_dialogue_history[0].speaker, "player")
+
+    def test_movement_clears_active_conversation_and_writes_compact_npc_memory(self) -> None:
+        session = GameSession()
+        world = session.get_world_state()
+        world.npcs["npc_1"].previous_interactions_summary = ""
+
+        session.process_input("Jonas, tell me exactly where the missing ledger is hidden under the red awning.")
+        flags_before_move = list(world.story_flags)
+        social_state_before_move = (
+            world.npcs["npc_1"].social_state.trust,
+            world.npcs["npc_1"].social_state.hostility,
+            world.npcs["npc_1"].social_state.willingness_to_cooperate,
+            world.npcs["npc_1"].social_state.current_conversation_stance,
+        )
+
+        result = session.process_input("move loc_church")
+        summary = world.npcs["npc_1"].previous_interactions_summary
+
+        self.assertTrue(result.render_scene)
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+        self.assertEqual(session.get_recent_dialogue_history(), ())
+        self.assertTrue(summary)
+        self.assertLessEqual(len(summary), 220)
+        self.assertIn("Mara Vale last spoke with Jonas Reed", summary)
+        self.assertIn("memory_only_no_authority", summary)
+        self.assertNotIn("exactly where the missing ledger is hidden under the red awning", summary)
+        self.assertEqual(world.story_flags, flags_before_move)
+        self.assertEqual(
+            (
+                world.npcs["npc_1"].social_state.trust,
+                world.npcs["npc_1"].social_state.hostility,
+                world.npcs["npc_1"].social_state.willingness_to_cooperate,
+                world.npcs["npc_1"].social_state.current_conversation_stance,
+            ),
+            social_state_before_move,
+        )
+
+    def test_written_conversation_memory_is_visible_to_dialogue_intent_context(self) -> None:
+        session = GameSession()
+        world = session.get_world_state()
+        world.npcs["npc_1"].previous_interactions_summary = ""
+
+        session.process_input("Jonas, tell me about the dock ledger.")
+        session.process_input("move loc_church")
+        world.player.location_id = "loc_cafe"
+
+        context = build_dialogue_intent_context(world, "What did Jonas say before?", "npc_1")
+
+        self.assertEqual(
+            context.conversation_memory.previous_interactions_summary,
+            world.npcs["npc_1"].previous_interactions_summary,
+        )
+        self.assertIn("Mara Vale last spoke with Jonas Reed", context.conversation_memory.previous_interactions_summary)
+
+    def test_switching_talk_focus_writes_memory_for_previous_npc(self) -> None:
+        session = GameSession()
+        world = session.get_world_state()
+        world.npcs["npc_1"].previous_interactions_summary = ""
+        world.npcs["npc_2"].location_id = world.player.location_id
+
+        session.process_input("Jonas, hello.")
+        result = session.process_input("talk npc_2")
+
+        self.assertTrue(world.npcs["npc_1"].previous_interactions_summary)
+        self.assertIn("Mara Vale last spoke with Jonas Reed", world.npcs["npc_1"].previous_interactions_summary)
+        self.assertEqual(session.get_conversation_focus_npc_id(), "npc_2")
+        self.assertEqual(result.conversation_focus_npc_id, "npc_2")
 
     def test_meta_conversation_stance_challenge_uses_distinct_domain(self) -> None:
         session = GameSession()

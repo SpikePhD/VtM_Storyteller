@@ -155,6 +155,7 @@ class GameSession:
             if isinstance(command, MoveCommand):
                 focused_npc = self._world_state.npcs.get(self._conversation_context.focus_npc_id or "")
                 location = self._world_state.locations.get(self._world_state.player.location_id or "")
+                self._write_back_conversation_memory_if_needed()
                 if focused_npc is not None and location is not None:
                     self._conversation_context.clear(
                         f"Talk is blocked: {focused_npc.name} is not present at {location.name}, so that conversation cannot continue."
@@ -343,6 +344,7 @@ class GameSession:
     ) -> NormalizedActionInput:
         assert isinstance(command, TalkCommand)
         if self._conversation_context.focus_npc_id not in (None, command.npc_id):
+            self._write_back_conversation_memory_if_needed()
             self._conversation_context.clear()
         if interpretation is not None and interpretation.dialogue_metadata is not None:
             command = replace(
@@ -846,6 +848,52 @@ class GameSession:
         npc = self._world_state.npcs.get(command.npc_id)
         speaker = npc.name if npc is not None else command.npc_id
         self._conversation_context.record_dialogue_utterance(speaker, npc_utterance_text)
+
+    def _write_back_conversation_memory_if_needed(self) -> None:
+        focus_npc_id = self._conversation_context.focus_npc_id
+        if focus_npc_id is None or not self._conversation_context.recent_dialogue_history:
+            return
+
+        npc = self._world_state.npcs.get(focus_npc_id)
+        if npc is None:
+            return
+
+        player_name = self._world_state.player.name or "The player"
+        subtopic = self._conversation_context.subtopic
+        topic_label = subtopic.value if subtopic is not None else self._last_dialogue_domain_for_memory(focus_npc_id)
+        outcome_label = self._last_dialogue_outcome_for_memory(focus_npc_id)
+        player_turns = sum(1 for entry in self._conversation_context.recent_dialogue_history if entry.speaker == "player")
+        npc_turns = sum(1 for entry in self._conversation_context.recent_dialogue_history if entry.speaker != "player")
+
+        parts = [
+            f"{player_name} last spoke with {npc.name}",
+            f"topic={topic_label}",
+            f"stance={self._conversation_context.stance.value}",
+            f"outcome={outcome_label}",
+            f"turns={player_turns}p/{npc_turns}n",
+            "memory_only_no_authority",
+        ]
+        npc.previous_interactions_summary = "; ".join(parts)
+
+    def _last_dialogue_domain_for_memory(self, npc_id: str) -> str:
+        turn = self._last_action_resolution
+        if turn is None or turn.conversation_focus_npc_id != npc_id or turn.dialogue_adjudication is None:
+            return "conversation"
+        return turn.dialogue_adjudication.dialogue_domain.value
+
+    def _last_dialogue_outcome_for_memory(self, npc_id: str) -> str:
+        turn = self._last_action_resolution
+        if turn is None or turn.conversation_focus_npc_id != npc_id:
+            return "unknown"
+        if turn.social_outcome is not None and turn.social_outcome.logistics_commitment is LogisticsCommitment.ABSOLUTE_REFUSAL:
+            return "logistics_refusal"
+        if turn.check is not None:
+            return "check_success" if turn.check.is_success else "check_failure"
+        if turn.social_outcome is not None:
+            return turn.social_outcome.outcome_kind.value
+        if turn.dialogue_adjudication is not None and turn.dialogue_adjudication.topic_status is DialogueTopicStatus.REFUSED:
+            return "refuse"
+        return "unknown"
 
     def _sync_npc_social_state(self, npc_id: str, stance: ConversationStance) -> None:
         npc = self._world_state.npcs.get(npc_id)
