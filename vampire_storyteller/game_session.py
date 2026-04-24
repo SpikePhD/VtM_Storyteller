@@ -631,7 +631,6 @@ class GameSession:
             consequence_summary = self._apply_dialogue_persuade_success_consequences(command, dialogue_adjudication, check_outcome)
             result = self._execute_talk_command(command, dialogue_adjudication.dialogue_domain, dialogue_adjudication.social_outcome)
             result = self._apply_talk_after_effects(command, result, dialogue_adjudication)
-            result = self._append_consequence_summary_to_result(result, consequence_summary)
             return result, adjudication, check_outcome, consequence_summary
 
         consequence_summary = self._apply_dialogue_persuade_failure_consequences(command, dialogue_adjudication, check_outcome)
@@ -975,6 +974,8 @@ class GameSession:
                 "back me up",
                 "back up",
                 "backup",
+                "watch over me",
+                "watch out for me",
                 "watch my back",
                 "cover me",
                 "stay nearby",
@@ -1022,6 +1023,8 @@ class GameSession:
                     "coming with",
                     "join me",
                     "cover me",
+                    "watch over me",
+                    "watch out for me",
                     "watch my back",
                 )
             ):
@@ -1032,7 +1035,7 @@ class GameSession:
                 subtopic = DialogueSubtopic.FARE_OR_MONEY_SUPPORT
 
         if subtopic is DialogueSubtopic.BACKUP_OR_STAY_NEARBY:
-            return LogisticsCommitment.HIDDEN_SUPPORT
+            return LogisticsCommitment.DECLINE_JOIN
         if subtopic is DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT:
             return LogisticsCommitment.INDIRECT_SUPPORT if topic_result is TopicResult.OPENED else LogisticsCommitment.DECLINE_JOIN
         if subtopic is DialogueSubtopic.FARE_OR_MONEY_SUPPORT:

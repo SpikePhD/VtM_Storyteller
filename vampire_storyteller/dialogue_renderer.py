@@ -367,24 +367,24 @@ def _render_travel_boundary(render_input: DialogueRenderInput, packet: SocialOut
             return "No. I am not covering the fare."
         if any(keyword in normalized for keyword in ("drive", "ride", "car", "vehicle", "lift")):
             return "No. I am not driving you there."
-        if any(keyword in normalized for keyword in ("backup", "stay nearby", "stay close", "wait nearby", "wait in the car", "stay in the car")):
+        if any(keyword in normalized for keyword in ("backup", "back up", "watch over", "watch my back", "cover me", "cover you", "stay nearby", "stay close", "wait nearby", "wait in the car", "stay in the car")):
             return "No. I will not go with you."
         return "No. I will not go with you."
 
     if commitment is LogisticsCommitment.HIDDEN_SUPPORT:
-        return "I can stay out of sight, but I will not join you."
+        return "No. I will not go with you."
 
     if commitment is LogisticsCommitment.INDIRECT_SUPPORT:
         if fare_terms:
-            return "I may help indirectly, but I am not financing the ride."
+            return "I can give you information, but I am not financing the ride."
         if any(keyword in normalized for keyword in ("drive", "ride", "car", "vehicle", "lift")):
-            return "I may help indirectly, but I am not driving you."
-        if any(keyword in normalized for keyword in ("backup", "stay nearby", "stay close", "wait nearby", "wait in the car", "stay in the car")):
-            return "I may help indirectly, but I am not staying on as your backup."
-        return "I may help indirectly, but not in person."
+            return "I can give you information, but I am not driving you."
+        if any(keyword in normalized for keyword in ("backup", "back up", "watch over", "watch my back", "cover me", "cover you", "stay nearby", "stay close", "wait nearby", "wait in the car", "stay in the car")):
+            return "I can give you information, but I will not go with you."
+        return "I can give you information, but not practical help."
 
     if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
-        return "I may help indirectly, but I am not coming with you."
+        return "I can give you information, but I am not coming with you."
     return "No. I will not go with you."
 
 

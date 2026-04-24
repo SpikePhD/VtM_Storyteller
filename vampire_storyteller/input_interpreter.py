@@ -74,6 +74,8 @@ class InputInterpreter:
         "back me up",
         "backup",
         "back up",
+        "watch over me",
+        "watch out for me",
         "watch my back",
         "cover me",
         "come along as backup",
@@ -113,6 +115,8 @@ class InputInterpreter:
         "back me up",
         "backup",
         "back up",
+        "watch over me",
+        "watch out for me",
         "watch my back",
         "cover me",
         "come along as backup",
@@ -351,7 +355,7 @@ class InputInterpreter:
             return None
 
         has_active_conversation = conversation_focus_npc_id is not None or conversation_subtopic is not None
-        explicit_non_dialogue_action = self._looks_like_explicit_non_dialogue_action(normalized_text, raw_input, world_state)
+        explicit_non_dialogue_action = self._looks_like_explicit_non_dialogue_action(normalized_text, raw_input, world_state, has_active_conversation)
         if has_active_conversation and not explicit_non_dialogue_action:
             adapter_result = self._interpret_dialogue_intent_proposal(
                 raw_input,
@@ -873,19 +877,81 @@ class InputInterpreter:
             return True
         return False
 
-    def _looks_like_explicit_non_dialogue_action(self, normalized_text: str, raw_input: str, world_state: WorldState) -> bool:
+    def _looks_like_explicit_non_dialogue_action(
+        self,
+        normalized_text: str,
+        raw_input: str,
+        world_state: WorldState,
+        has_active_conversation: bool = False,
+    ) -> bool:
         first_token = self._normalize_text(raw_input).split(" ", 1)[0] if raw_input.strip() else ""
-        if first_token in {"look", "move", "wait", "investigate", "save", "load", "quit"}:
+        if first_token in {"move", "wait", "investigate", "save", "load", "quit"}:
             return True
         if self._interpret_wait(normalized_text) is not None:
             return True
-        if self._interpret_observation(normalized_text) is not None:
-            return True
         if self._interpret_move(normalized_text, world_state) is not None:
+            return True
+        if has_active_conversation:
+            if first_token == "look" and normalized_text == "look":
+                return True
+            if self._looks_like_active_conversation_scene_observation(normalized_text):
+                return True
+        elif first_token == "look" or self._interpret_observation(normalized_text) is not None:
             return True
         if first_token in {"help", "status"}:
             return True
         return False
+
+    def _looks_like_active_conversation_scene_observation(self, normalized_text: str) -> bool:
+        if self._looks_like_dialogue_observation_idiom(normalized_text):
+            return False
+        return self._contains_any(
+            normalized_text,
+            (
+                "look around",
+                "look at",
+                "look for",
+                "look in",
+                "look over",
+                "take a look",
+                "take a careful look",
+                "look carefully",
+                "observe the",
+                "observe room",
+                "observe area",
+                "observe surroundings",
+                "watch the",
+                "watch room",
+                "watch area",
+                "watch surroundings",
+                "examine the",
+                "examine room",
+                "examine area",
+                "examine surroundings",
+            ),
+        )
+
+    def _looks_like_dialogue_observation_idiom(self, normalized_text: str) -> bool:
+        return self._contains_any(
+            normalized_text,
+            (
+                "look i",
+                "look listen",
+                "look you",
+                "look we",
+                "look what",
+                "look here",
+                "see what i mean",
+                "see what im saying",
+                "see what i am saying",
+                "you see",
+                "watch over me",
+                "watch my back",
+                "watch out for me",
+                "look like to you",
+                "look to you",
+            ),
+        )
 
     def _looks_like_canonical_talk_command(self, raw_input: str) -> bool:
         tokens = raw_input.strip().split()
@@ -1301,6 +1367,28 @@ class InputInterpreter:
             return "missing_ledger"
         if conversation_subtopic is DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT:
             return "transport"
+        if conversation_subtopic is DialogueSubtopic.BACKUP_OR_STAY_NEARBY:
+            return "backup"
+        if conversation_subtopic is DialogueSubtopic.FARE_OR_MONEY_SUPPORT:
+            return "fare"
+        if self._contains_any(
+            normalized_text,
+            (
+                "back me up",
+                "backup",
+                "back up",
+                "watch over me",
+                "watch out for me",
+                "watch my back",
+                "cover me",
+                "stay nearby",
+                "stay close",
+                "wait nearby",
+                "wait in the car",
+                "stay in the car",
+            ),
+        ):
+            return "backup"
         if self._contains_any(
             normalized_text,
             (
@@ -1329,22 +1417,6 @@ class InputInterpreter:
             ),
         ):
             return "help"
-        if self._contains_any(
-            normalized_text,
-            (
-                "back me up",
-                "backup",
-                "back up",
-                "watch my back",
-                "cover me",
-                "stay nearby",
-                "stay close",
-                "wait nearby",
-                "wait in the car",
-                "stay in the car",
-            ),
-        ):
-            return "backup"
         if self._contains_any(
             normalized_text,
             (

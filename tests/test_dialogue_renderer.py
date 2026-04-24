@@ -118,6 +118,11 @@ def _make_render_input(
 
 
 class DialogueRendererTests(unittest.TestCase):
+    def assertNoUnsupportedLogisticsPromise(self, output: str) -> None:
+        normalized_output = output.lower()
+        for banned_term in ("watch", "shadows", "nearby", "backup", "cover", "keep an eye", "wait", "drive", "escort"):
+            self.assertNotIn(banned_term, normalized_output)
+
     def test_productive_lead_reply_renders_from_structured_outcome(self) -> None:
         session = GameSession()
 
@@ -213,11 +218,11 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("indirectly", output.lower())
+        self.assertIn("information", output.lower())
         self.assertIn("not driving you", output.lower())
         self.assertNotIn("coming with you", output.lower())
 
-    def test_travel_boundary_hidden_support_stays_out_of_sight(self) -> None:
+    def test_travel_boundary_hidden_support_legacy_input_stays_conservative(self) -> None:
         renderer = DeterministicDialogueRenderer()
         render_input = _make_render_input(
             outcome_kind=SocialOutcomeKind.COOPERATE,
@@ -230,9 +235,8 @@ class DialogueRendererTests(unittest.TestCase):
 
         output = renderer.render_dialogue(render_input)
 
-        self.assertIn("out of sight", output.lower())
+        self.assertNoUnsupportedLogisticsPromise(output)
         self.assertNotIn("coming with you", output.lower())
-        self.assertNotIn("stay nearby", output.lower())
 
     def test_taxi_money_support_refusal_renders_from_structured_domain_outcome(self) -> None:
         session = GameSession()

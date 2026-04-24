@@ -288,6 +288,25 @@ class GameSessionTests(unittest.TestCase):
         self.addCleanup(self._intent_patch.stop)
         self.addCleanup(self._renderer_patch.stop)
 
+    def assertDialogueFirstTalkOutput(self, result: CommandResult) -> None:
+        self.assertFalse(result.render_scene)
+        forbidden_fragments = (
+            "Location:",
+            "Exits:",
+            "Active Plots:",
+            "Recent Events:",
+            "Rolled dialogue_social check",
+            "Dialogue check success:",
+            "Dialogue check failed:",
+        )
+        for fragment in forbidden_fragments:
+            self.assertNotIn(fragment, result.output_text)
+
+    def assertNoUnsupportedLogisticsPromise(self, output_text: str) -> None:
+        normalized_output = output_text.lower()
+        for banned_term in ("watch", "shadows", "nearby", "backup", "cover", "keep an eye", "wait", "drive", "escort"):
+            self.assertNotIn(banned_term, normalized_output)
+
     def test_default_session_builds_successfully(self) -> None:
         session = GameSession()
         world = session.get_world_state()
@@ -1032,20 +1051,16 @@ class GameSessionTests(unittest.TestCase):
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
 
-        self.assertTrue(
-            any(
-                phrase in result.output_text.lower()
-                for phrase in ("out of sight", "not in person", "not staying on as your backup", "absolutely not")
-            )
-        )
+        self.assertIn("not go with you", result.output_text.lower())
+        self.assertNoUnsupportedLogisticsPromise(result.output_text)
         self.assertNotIn("Unsupported freeform input", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(turn.canonical_action_text, "talk npc_1")
         self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.NONE)
+        self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.HIDDEN_SUPPORT)
         self.assertIn(
             turn.social_outcome.logistics_commitment,
             {
-                LogisticsCommitment.HIDDEN_SUPPORT,
                 LogisticsCommitment.DECLINE_JOIN,
                 LogisticsCommitment.INDIRECT_SUPPORT,
                 LogisticsCommitment.ABSOLUTE_REFUSAL,
@@ -1062,20 +1077,16 @@ class GameSessionTests(unittest.TestCase):
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
 
-        self.assertTrue(
-            any(
-                phrase in result.output_text.lower()
-                for phrase in ("out of sight", "not in person", "not driving you", "absolutely not", "not staying on as your backup")
-            )
-        )
+        self.assertIn("not go with you", result.output_text.lower())
+        self.assertNoUnsupportedLogisticsPromise(result.output_text)
         self.assertNotIn("Unsupported freeform input", result.output_text)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(turn.canonical_action_text, "talk npc_1")
         self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.NONE)
+        self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.HIDDEN_SUPPORT)
         self.assertIn(
             turn.social_outcome.logistics_commitment,
             {
-                LogisticsCommitment.HIDDEN_SUPPORT,
                 LogisticsCommitment.DECLINE_JOIN,
                 LogisticsCommitment.INDIRECT_SUPPORT,
                 LogisticsCommitment.ABSOLUTE_REFUSAL,
@@ -1090,17 +1101,13 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Jonas, I need you as a back up")
         turn = session.get_last_action_resolution()
 
-        self.assertTrue(
-            any(
-                phrase in result.output_text.lower()
-                for phrase in ("out of sight", "not in person", "not driving you", "absolutely not", "not staying on as your backup")
-            )
-        )
+        self.assertIn("not go with you", result.output_text.lower())
+        self.assertNoUnsupportedLogisticsPromise(result.output_text)
         self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.NONE)
+        self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.HIDDEN_SUPPORT)
         self.assertIn(
             turn.social_outcome.logistics_commitment,
             {
-                LogisticsCommitment.HIDDEN_SUPPORT,
                 LogisticsCommitment.DECLINE_JOIN,
                 LogisticsCommitment.INDIRECT_SUPPORT,
                 LogisticsCommitment.ABSOLUTE_REFUSAL,
@@ -1316,6 +1323,7 @@ class GameSessionTests(unittest.TestCase):
             result = session.process_input("I persuade Jonas to help with the dock.")
         turn = session.get_last_action_resolution()
 
+        self.assertDialogueFirstTalkOutput(result)
         self.assertIn("dock", result.output_text.lower())
         self.assertIn("paper trail", result.output_text.lower())
         self.assertIsNotNone(turn)
@@ -1333,6 +1341,8 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("dialogue_social_check_success", turn.consequence_summary.applied_effects)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
         self.assertIn("jonas_shared_dock_lead", session.get_world_state().story_flags)
+        self.assertTrue(any("Rolled dialogue_social check" in entry.description for entry in session.get_world_state().event_log))
+        self.assertTrue(any("Dialogue check success:" in entry.description for entry in session.get_world_state().event_log))
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
 
     def test_failed_persuade_stays_guarded_and_does_not_advance_plot(self) -> None:
@@ -1351,6 +1361,7 @@ class GameSessionTests(unittest.TestCase):
             result = session.process_input("I persuade Jonas to help with the dock.")
         turn = session.get_last_action_resolution()
 
+        self.assertDialogueFirstTalkOutput(result)
         self.assertIn("not getting more", result.output_text.lower())
         self.assertIsNotNone(turn)
         assert turn is not None
@@ -1363,6 +1374,8 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(turn.dialogue_adjudication.reason_code, "persuade_check_required")
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_PRESSURE)
         self.assertIn("dialogue_social_check_failure", turn.consequence_summary.applied_effects)
+        self.assertTrue(any("Rolled dialogue_social check" in entry.description for entry in session.get_world_state().event_log))
+        self.assertTrue(any("Dialogue check failed:" in entry.description for entry in session.get_world_state().event_log))
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
         self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
@@ -1428,6 +1441,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertNotIn("coming with you", result.output_text.lower())
         self.assertNotIn("stay nearby", result.output_text.lower())
         self.assertNotIn("visible accomplice", result.output_text.lower())
+        self.assertNoUnsupportedLogisticsPromise(result.output_text)
         self.assertNotIn("dock is the only place worth checking", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
@@ -1445,9 +1459,68 @@ class GameSessionTests(unittest.TestCase):
             {
                 LogisticsCommitment.DECLINE_JOIN,
                 LogisticsCommitment.INDIRECT_SUPPORT,
-                LogisticsCommitment.HIDDEN_SUPPORT,
             },
         )
+
+    def test_logistics_contradiction_follow_up_stays_dialogue_first(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas do you want to come with me to the docks?")
+        result = session.process_input("How will you watch over me if you are not there at the docks with me.")
+        turn = session.get_last_action_resolution()
+
+        self.assertDialogueFirstTalkOutput(result)
+        self.assertTrue(result.output_text.strip())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.canonical_action_text, "talk npc_1")
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        self.assertIsNotNone(turn.social_outcome)
+        assert turn.social_outcome is not None
+        self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.NONE)
+        self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.HIDDEN_SUPPORT)
+        self.assertNoUnsupportedLogisticsPromise(result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().story_flags, [])
+
+    def test_recent_logistics_failure_sequence_never_promises_hidden_support(self) -> None:
+        session = GameSession()
+
+        lead_result = session.process_input("Jonas, what happened at the dock?")
+        self.assertTrue(lead_result.output_text.strip())
+
+        logistics_inputs = (
+            "Come with me to the docks and back me up.",
+            "Promise me.",
+            "How will you watch over me if you are not there at the docks with me.",
+        )
+
+        for raw_input in logistics_inputs:
+            result = session.process_input(raw_input)
+            turn = session.get_last_action_resolution()
+
+            self.assertDialogueFirstTalkOutput(result)
+            self.assertNoUnsupportedLogisticsPromise(result.output_text)
+            self.assertIsNotNone(turn)
+            assert turn is not None
+            self.assertEqual(turn.canonical_action_text, "talk npc_1")
+            self.assertIsNone(turn.check)
+            self.assertIsNotNone(turn.dialogue_adjudication)
+            self.assertIsNotNone(turn.social_outcome)
+            assert turn.social_outcome is not None
+            self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.NONE)
+            self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.HIDDEN_SUPPORT)
+            self.assertIn(
+                turn.social_outcome.logistics_commitment,
+                {
+                    LogisticsCommitment.ABSOLUTE_REFUSAL,
+                    LogisticsCommitment.DECLINE_JOIN,
+                    LogisticsCommitment.INDIRECT_SUPPORT,
+                },
+            )
+            self.assertIsNotNone(turn.consequence_summary)
+            self.assertIsInstance(session.get_world_state().event_log, list)
+            self.assertIn(session.get_world_state().plots["plot_1"].stage, {"hook", "lead_confirmed"})
 
     def test_jonas_tell_me_more_after_productive_success_stays_coherent(self) -> None:
         session = GameSession()
@@ -1498,6 +1571,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertTrue(result.output_text.strip())
         self.assertNotIn("coming with you", result.output_text.lower())
         self.assertNotIn("stay nearby", result.output_text.lower())
+        self.assertNoUnsupportedLogisticsPromise(result.output_text)
         self.assertNotIn("stays guarded and keeps the conversation tight", result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
         self.assertEqual(session.get_world_state().story_flags, [])
@@ -1515,7 +1589,6 @@ class GameSessionTests(unittest.TestCase):
                 LogisticsCommitment.ABSOLUTE_REFUSAL,
                 LogisticsCommitment.DECLINE_JOIN,
                 LogisticsCommitment.INDIRECT_SUPPORT,
-                LogisticsCommitment.HIDDEN_SUPPORT,
             },
         )
 

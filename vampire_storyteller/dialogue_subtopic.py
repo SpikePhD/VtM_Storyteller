@@ -238,6 +238,8 @@ def _is_backup_or_stay_nearby_request(normalized_text: str) -> bool:
             "back me up",
             "backup",
             "back up",
+            "watch over me",
+            "watch out for me",
             "watch my back",
             "cover me",
             "come along as backup",

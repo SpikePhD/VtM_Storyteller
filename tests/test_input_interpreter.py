@@ -481,6 +481,40 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.canonical_command, "look")
         self.assertEqual(adapter.contexts, [])
 
+    def test_active_conversation_logistics_challenge_with_watch_stays_in_dialogue(self) -> None:
+        result, _adapter = self._interpret_with_active_dialogue_adapter(
+            "How will you watch over me if you are not there at the docks with me.",
+            conversation_focus_npc_id="npc_1",
+            conversation_subtopic=DialogueSubtopic.BACKUP_OR_STAY_NEARBY,
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+
+    def test_active_conversation_discourse_look_stays_in_dialogue(self) -> None:
+        result, _adapter = self._interpret_with_active_dialogue_adapter(
+            "Look, I need you to listen.",
+            conversation_focus_npc_id="npc_1",
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+
+    def test_active_conversation_see_what_i_mean_stays_in_dialogue(self) -> None:
+        result, _adapter = self._interpret_with_active_dialogue_adapter(
+            "See what I mean?",
+            conversation_focus_npc_id="npc_1",
+        )
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "talk")
+        self.assertEqual(result.target_reference, "npc_1")
+        self.assertEqual(result.canonical_command, "talk npc_1")
+
     def test_active_conversation_unusable_adapter_falls_back_to_local_dialogue_classification(self) -> None:
         adapter = self.UnusableDialogueIntentAdapter()
         result = self.interpreter.interpret(
