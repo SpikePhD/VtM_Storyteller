@@ -211,6 +211,17 @@ class Adv1DialogueDossierFactGroup:
 
 
 @dataclass(frozen=True, slots=True)
+class Adv1DialogueDossierPersonalityGuidance:
+    speech_style: str
+    banter_tolerance: str
+    public_demeanor: str
+    private_demeanor: str
+    confrontation_style: str
+    emotional_temperature: str
+    directness_preference: str
+
+
+@dataclass(frozen=True, slots=True)
 class Adv1DialogueDossierDefinition:
     npc_id: str
     public_persona: str
@@ -218,6 +229,7 @@ class Adv1DialogueDossierDefinition:
     speaking_style: str
     relationship_context: str
     motivations: tuple[str, ...]
+    personality_guidance: Adv1DialogueDossierPersonalityGuidance
     social_baseline: Adv1DialogueDossierSocialBaseline
     topic_groups: tuple[Adv1DialogueDossierTopicGroup, ...]
     revealable_fact_groups: tuple[Adv1DialogueDossierFactGroup, ...]
@@ -737,9 +749,22 @@ def _dialogue_dossier_definition_from_dict(data: dict[str, Any]) -> Adv1Dialogue
         speaking_style=_require_str(data, "speaking_style"),
         relationship_context=_require_str(data, "relationship_context"),
         motivations=tuple(_require_string_list(data, "motivations")),
+        personality_guidance=_dialogue_dossier_personality_guidance_from_dict(_require_mapping(data, "personality_guidance")),
         social_baseline=_dialogue_dossier_social_baseline_from_dict(_require_mapping(data, "social_baseline")),
         topic_groups=tuple(topic_groups),
         revealable_fact_groups=tuple(revealable_fact_groups),
+    )
+
+
+def _dialogue_dossier_personality_guidance_from_dict(data: dict[str, Any]) -> Adv1DialogueDossierPersonalityGuidance:
+    return Adv1DialogueDossierPersonalityGuidance(
+        speech_style=_require_str(data, "speech_style"),
+        banter_tolerance=_require_str(data, "banter_tolerance"),
+        public_demeanor=_require_str(data, "public_demeanor"),
+        private_demeanor=_require_str(data, "private_demeanor"),
+        confrontation_style=_require_str(data, "confrontation_style"),
+        emotional_temperature=_require_str(data, "emotional_temperature"),
+        directness_preference=_require_str(data, "directness_preference"),
     )
 
 

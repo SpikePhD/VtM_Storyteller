@@ -275,6 +275,8 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertIsNotNone(context.npc_dossier)
         assert context.npc_dossier is not None
         self.assertEqual(context.npc_dossier.public_persona, "a wary neighborhood informant who keeps public conversations short")
+        self.assertIn("terse", context.npc_dossier.personality_guidance.speech_style)
+        self.assertIn("indirect", context.npc_dossier.personality_guidance.directness_preference)
         self.assertEqual(context.npc_dossier.revealable_fact_groups[0].fact_ids, ("jonas_missing_ledger_lead",))
 
     def test_dialogue_context_assembler_returns_eliza_dossier_backed_context(self) -> None:
@@ -305,6 +307,8 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertIsNotNone(context.npc_dossier)
         assert context.npc_dossier is not None
         self.assertEqual(context.npc_dossier.public_persona, "a guarded haven keeper who weighs every question before answering")
+        self.assertIn("measured", context.npc_dossier.personality_guidance.speech_style)
+        self.assertIn("firm boundaries", context.npc_dossier.personality_guidance.confrontation_style)
         self.assertEqual(context.npc_dossier.topic_groups[0].group_id, "church_records")
         self.assertEqual(context.npc_profile.public_persona, "a guarded haven keeper who watches before she speaks")
 
@@ -335,6 +339,9 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertEqual(render_input.npc_name, "Sister Eliza")
         self.assertEqual(render_input.dialogue_domain, "lead_topic")
         self.assertEqual(render_input.topic_status, "productive")
+        self.assertIsNotNone(render_input.npc_dossier)
+        assert render_input.npc_dossier is not None
+        self.assertIn("measured", render_input.npc_dossier.personality_guidance.speech_style)
         self.assertIn("eliza_church_records_lead", [fact.fact_id for fact in render_input.authorized_fact_cards])
         self.assertIn("eliza_church_records_follow_up", [fact.fact_id for fact in render_input.authorized_fact_cards])
 

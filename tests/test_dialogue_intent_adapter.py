@@ -42,6 +42,9 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         self.assertIn("Use only the supplied JSON context as source of truth.", prompt)
         self.assertIn("Use conversation_memory.recent_dialogue_history for immediate continuity", prompt)
         self.assertIn("conversation_memory.previous_interactions_summary for longer-term tone", prompt)
+        self.assertIn("Use npc_dossier.personality_guidance only to understand", prompt)
+        self.assertIn("Personality guidance must not authorize facts", prompt)
+        self.assertIn('"personality_guidance":', prompt)
         self.assertIn('"previous_interactions_summary":"', prompt)
         self.assertIn('"recent_dialogue_history":[', prompt)
         self.assertIn("Quite busy... with a job I want no part of", prompt)
@@ -113,6 +116,8 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         self.assertIsNotNone(context.npc_dossier)
         assert context.npc_dossier is not None
         self.assertEqual(context.npc_dossier.public_persona, "a wary neighborhood informant who keeps public conversations short")
+        self.assertIn("terse", context.npc_dossier.personality_guidance.speech_style)
+        self.assertIn("indirect", context.npc_dossier.personality_guidance.directness_preference)
         self.assertEqual(context.conversation_memory.previous_interactions_summary, "Mara already asked Jonas about the dock once.")
         self.assertEqual(
             context.conversation_memory.recent_dialogue_history,

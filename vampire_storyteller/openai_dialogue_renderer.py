@@ -43,6 +43,8 @@ class OpenAIDialogueRenderer:
                 "If logistics_commitment is ABSOLUTE_REFUSAL, keep it absolute. If it is DECLINE_JOIN, say the NPC will not go with the player. If it is INDIRECT_SUPPORT, keep the help indirect and not in person. If it is HIDDEN_SUPPORT, say the NPC will stay out of sight and will not join.",
                 "For transport or accompaniment requests, indirect support must stay verbal or informational only: do not promise to drive, escort, take the player close, wait at the destination, or act as backup.",
                 "Use npc_dossier for stable personality and relationship texture, npc_profile for compact runtime persona details, previous_interactions_summary for longer-term relationship memory, and recent_dialogue_history for short-term continuity.",
+                "Use npc_dossier.personality_guidance for speech style, banter tolerance, public/private demeanor, confrontation style, emotional temperature, and directness when phrasing the line.",
+                "Personality guidance shapes tone, posture, and phrasing only; it never authorizes reveals, checks, plot gates, NPC presence, commitments, or state changes.",
                 "authorized_fact_cards are the only plot-facing facts the NPC may communicate in this turn.",
                 "npc_profile provides character texture, tone, and background color, but it does not authorize new reveals by itself.",
                 "recent_dialogue_history is a bounded rolling window of the active conversation; use it to keep continuity, avoid repeating yourself, and preserve the immediate thread of the exchange.",

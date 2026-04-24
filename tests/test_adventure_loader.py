@@ -191,6 +191,10 @@ class AdventureLoaderTests(unittest.TestCase):
             "Stay useful without becoming visible",
             "Keep leverage over the Missing Ledger lead until trust is earned",
         ))
+        self.assertIn("terse", jonas.personality_guidance.speech_style)
+        self.assertIn("low", jonas.personality_guidance.banter_tolerance)
+        self.assertIn("sharpens", jonas.personality_guidance.confrontation_style)
+        self.assertIn("indirect", jonas.personality_guidance.directness_preference)
         self.assertEqual(jonas.social_baseline.relationship_to_player, "wary")
         self.assertEqual(jonas.social_baseline.trust, 0)
         self.assertEqual(jonas.social_baseline.current_conversation_stance, "neutral")
@@ -206,6 +210,10 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertIn("church archives", eliza.private_history_summary.lower())
         self.assertEqual(eliza.speaking_style, "measured and restrained")
         self.assertIn("will not hand over", eliza.relationship_context.lower())
+        self.assertIn("measured", eliza.personality_guidance.speech_style)
+        self.assertIn("very low", eliza.personality_guidance.banter_tolerance)
+        self.assertIn("firm boundaries", eliza.personality_guidance.confrontation_style)
+        self.assertNotEqual(jonas.personality_guidance.speech_style, eliza.personality_guidance.speech_style)
         self.assertEqual(eliza.social_baseline.relationship_to_player, "guarded")
         self.assertEqual(eliza.social_baseline.trust, 0)
         self.assertEqual(eliza.topic_groups[0].group_id, "church_records")
@@ -489,6 +497,34 @@ class AdventureLoaderTests(unittest.TestCase):
                 load_adv1_dialogue_dossiers(temp_root)
 
         self.assertIn("Adventure field 'respect'", str(ctx.exception))
+
+    def test_missing_dialogue_dossier_personality_guidance_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            dossier_path = temp_root / "npcs" / "dialogue_dossiers.json"
+            dossier_data = json.loads(dossier_path.read_text(encoding="utf-8"))
+            del dossier_data["dialogue_dossiers"][0]["personality_guidance"]
+            dossier_path.write_text(json.dumps(dossier_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_dialogue_dossiers(temp_root)
+
+        self.assertIn("Adventure field 'personality_guidance' must be a JSON object", str(ctx.exception))
+
+    def test_missing_dialogue_dossier_personality_guidance_field_fails_clearly(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir) / "ADV1"
+            self._copy_adv1_files(temp_root)
+            dossier_path = temp_root / "npcs" / "dialogue_dossiers.json"
+            dossier_data = json.loads(dossier_path.read_text(encoding="utf-8"))
+            del dossier_data["dialogue_dossiers"][0]["personality_guidance"]["confrontation_style"]
+            dossier_path.write_text(json.dumps(dossier_data, indent=2), encoding="utf-8")
+
+            with self.assertRaises(AdventureContentError) as ctx:
+                load_adv1_dialogue_dossiers(temp_root)
+
+        self.assertIn("Adventure field 'confrontation_style'", str(ctx.exception))
 
     def test_invalid_dialogue_dossier_topic_groups_shape_fails_clearly(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

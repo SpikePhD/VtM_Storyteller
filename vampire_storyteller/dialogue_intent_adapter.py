@@ -101,6 +101,8 @@ class OpenAIDialogueIntentAdapter:
                 "The JSON must be directly parseable and must not be wrapped in prose or markdown fences.",
                 "Use conversation_memory.recent_dialogue_history for immediate continuity and conversation_memory.previous_interactions_summary for longer-term tone and relationship context.",
                 "Do not invent facts, state changes, or reveals from memory; memory only helps classify intent within the supplied context.",
+                "Use npc_dossier.personality_guidance only to understand the focused NPC's conversational posture, banter tolerance, directness, and likely tone.",
+                "Personality guidance must not authorize facts, NPC targets, clue state, legality, checks, commitments, plot gates, or world mutations.",
                 "Use dialogue_move for statement-shaped or conversational turns: react for acknowledgments and greetings, continue for invitations to keep talking or requests for help/info, clarify for repairs or pushback, and banter for light social back-and-forth.",
                 "If the player line is clearly still part of the conversation, return a usable dialogue proposal instead of none.",
                 "For declarative, relational, urgency, or pressure lines, keep the turn in dialogue and prefer continue, clarify, or react as appropriate.",

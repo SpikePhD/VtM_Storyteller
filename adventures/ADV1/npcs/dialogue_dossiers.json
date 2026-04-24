@@ -10,6 +10,15 @@
         "Stay useful without becoming visible",
         "Keep leverage over the Missing Ledger lead until trust is earned"
       ],
+      "personality_guidance": {
+        "speech_style": "terse, low-voiced, and practical; favors clipped replies over explanation",
+        "banter_tolerance": "low; tolerates a dry aside but redirects quickly when the exchange drifts",
+        "public_demeanor": "wary and watchful, keeping conversations short enough not to draw attention",
+        "private_demeanor": "calculating but not cruel, willing to help only when exposure stays bounded",
+        "confrontation_style": "sharpens immediately under pressure and answers with narrow refusals or hard redirects",
+        "emotional_temperature": "cool and contained, with tension showing as brevity rather than outburst",
+        "directness_preference": "indirect by default, but practical and plain once a boundary or useful lead is authorized"
+      },
       "social_baseline": {
         "relationship_to_player": "wary",
         "trust": 0,
@@ -51,6 +60,15 @@
         "Protect the church records",
         "Keep ledger questions away from the nave until Mara proves herself"
       ],
+      "personality_guidance": {
+        "speech_style": "measured, formal, and restrained; prefers precise phrasing over street shorthand",
+        "banter_tolerance": "very low; treats casual banter as something to acknowledge briefly and close down",
+        "public_demeanor": "protective and composed, presenting herself as calm authority inside the haven",
+        "private_demeanor": "cautious and burdened, more concerned with protecting people and records than seeming warm",
+        "confrontation_style": "sets firm boundaries without raising her voice and refuses pressure through controlled correction",
+        "emotional_temperature": "controlled and cool, with concern expressed as restraint rather than sentiment",
+        "directness_preference": "direct about boundaries and indirect about sensitive facts until the packet authorizes clarity"
+      },
       "social_baseline": {
         "relationship_to_player": "guarded",
         "trust": 0,

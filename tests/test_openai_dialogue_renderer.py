@@ -6,6 +6,7 @@ from unittest.mock import Mock, patch
 from vampire_storyteller.cli import build_dialogue_renderer
 from vampire_storyteller.config import AppConfig
 from vampire_storyteller.conversation_context import DialogueHistoryEntry, DialogueMemoryContext
+from vampire_storyteller.adventure_loader import load_adv1_dialogue_dossiers
 from vampire_storyteller.dialogue_renderer import DialogueFactCard, DialogueRenderInput
 from vampire_storyteller.models import NPCDialogueProfile
 from vampire_storyteller.openai_dialogue_renderer import OpenAIDialogueRenderer
@@ -65,7 +66,7 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                     speaking_style="quiet and economical",
                     relationship_context="He is testing Mara.",
                 ),
-                npc_dossier=None,
+                npc_dossier=load_adv1_dialogue_dossiers().npc_definitions["npc_1"],
                 conversation_memory=DialogueMemoryContext(
                     previous_interactions_summary="Mara and Jonas have talked before about the dock.",
                     recent_dialogue_history=(
@@ -120,6 +121,8 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertIn("Do not end every line with a handoff invitation.", prompt)
         self.assertIn("Prefer a concrete in-character reaction over filler", prompt)
         self.assertIn("Use npc_dossier for stable personality and relationship texture", prompt)
+        self.assertIn("Use npc_dossier.personality_guidance for speech style", prompt)
+        self.assertIn("Personality guidance shapes tone, posture, and phrasing only", prompt)
         self.assertIn("previous_interactions_summary for longer-term relationship memory", prompt)
         self.assertIn("recent_dialogue_history for short-term continuity", prompt)
         self.assertIn("that is what I said", prompt)
@@ -133,6 +136,8 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertIn('"plot_name":"Missing Ledger"', prompt)
         self.assertIn('"authorized_fact_cards"', prompt)
         self.assertIn('"npc_dossier"', prompt)
+        self.assertIn('"personality_guidance":', prompt)
+        self.assertIn('"banter_tolerance":"low;', prompt)
         self.assertIn('"previous_interactions_summary":"Mara and Jonas have talked before about the dock."', prompt)
         self.assertIn('"recent_dialogue_history":[', prompt)
 
