@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from .action_resolution import AdjudicationDecision, ActionBlockReason, ActionResolutionKind
-from .adventure_loader import PlotInvestigationRules, load_adv1_plot_investigation_rules
+from .adventure_loader import PlotInvestigationRules, load_adv1_plot_investigation_rules, load_adv1_plot_progression_rules
 from .command_models import Command, HelpCommand, InvestigateCommand, LoadCommand, LookCommand, MoveCommand, QuitCommand, SaveCommand, StatusCommand, TalkCommand, WaitCommand
 from .dice_engine import DeterministicCheckKind, DeterministicCheckSpecification
 from .world_state import WorldState
@@ -133,6 +133,13 @@ def _adjudicate_investigate(world_state: WorldState, command: InvestigateCommand
             blocked_feedback=_investigation_blocked_feedback(world_state, rules),
             block_reason=ActionBlockReason.TARGET_INACTIVE,
         )
+
+    progression_rules = load_adv1_plot_progression_rules()
+    if (
+        world_state.player.location_id == progression_rules.wait_location_id
+        and plot.stage == progression_rules.wait_from_stage
+    ):
+        return _automatic_decision("church records investigation can confirm the dock lead")
 
     if not _investigation_requires_roll(world_state, rules):
         return _blocked_decision(

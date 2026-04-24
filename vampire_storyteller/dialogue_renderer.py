@@ -347,6 +347,8 @@ def _is_emptyish_follow_up(render_input: DialogueRenderInput) -> bool:
 
 
 def _render_background_prompt(render_input: DialogueRenderInput) -> str:
+    if render_input.npc_id == "npc_2":
+        return "I keep the records, and I decide which questions belong near them."
     if _has_fact(render_input, "background"):
         return "I hear things, pass on what matters, and stay out of anybody's pocket. That's how I last in this city."
     return "I keep to my lane, I listen well, and I stay useful."
@@ -408,6 +410,10 @@ def _render_check_failure(render_input: DialogueRenderInput) -> str:
 
 
 def _render_reveal(render_input: DialogueRenderInput) -> str:
+    if _has_fact_id(render_input, "eliza_church_records_lead"):
+        if render_input.plot_stage == "lead_confirmed" or render_input.lead_flag_active:
+            return "The records already gave you the line: the ledger trail turns toward North Dockside."
+        return "The records show the ledger trail leaving this church and turning toward North Dockside. That is the direction I can give you."
     if _has_fact(render_input, "lead"):
         if render_input.plot_stage == "lead_confirmed" or render_input.lead_flag_active:
             return "I already told you where to start. North Dockside. That's where the paper trail begins."
@@ -418,6 +424,10 @@ def _render_reveal(render_input: DialogueRenderInput) -> str:
 
 
 def _render_cooperate(render_input: DialogueRenderInput) -> str:
+    if _has_fact_id(render_input, "eliza_church_records_lead"):
+        return "Stay with the records. They point away from the nave and toward North Dockside."
+    if render_input.npc_id == "npc_2":
+        return "Keep the question precise, and I will answer what I can."
     if _has_fact(render_input, "lead"):
         return "Start with the dock. That's the cleanest lead I've got for you."
     if _has_fact(render_input, "background"):
@@ -426,6 +436,10 @@ def _render_cooperate(render_input: DialogueRenderInput) -> str:
 
 
 def _render_deflect(render_input: DialogueRenderInput) -> str:
+    if _has_fact_id(render_input, "eliza_church_records_follow_up"):
+        return "The records give you a direction, not permission to pull the whole archive apart."
+    if _has_fact_id(render_input, "eliza_church_records_refusal"):
+        return "The ledger question stays narrow. Push harder, and the records close."
     if _has_fact(render_input, "redirect") or _has_fact(render_input, "lead"):
         return "You're asking for too much in public. Start with the dock, and let the rest wait."
     if _has_fact(render_input, "boundary"):
@@ -440,6 +454,8 @@ def _render_threaten(render_input: DialogueRenderInput) -> str:
 
 
 def _render_refuse(render_input: DialogueRenderInput) -> str:
+    if _has_fact_id(render_input, "eliza_church_records_refusal"):
+        return "No. The records are not a lever for pressure."
     if _has_fact(render_input, "refusal_basis"):
         return "No. I'm not naming names, and you're not getting the whole chain behind it."
     if _has_fact(render_input, "boundary"):
@@ -449,3 +465,7 @@ def _render_refuse(render_input: DialogueRenderInput) -> str:
 
 def _has_fact(render_input: DialogueRenderInput, fact_kind: str) -> bool:
     return any(fact.kind == fact_kind for fact in render_input.authorized_fact_cards)
+
+
+def _has_fact_id(render_input: DialogueRenderInput, fact_id: str) -> bool:
+    return any(fact.fact_id == fact_id for fact in render_input.authorized_fact_cards)

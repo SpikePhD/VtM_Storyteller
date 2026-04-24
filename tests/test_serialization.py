@@ -30,7 +30,7 @@ class SerializationTests(unittest.TestCase):
         world.npcs["npc_1"].schedule["late"] = "loc_dock"
         world.locations["loc_cafe"].scene_hook = "A quieter clue."
         world.locations["loc_cafe"].notable_features.append("back corner")
-        world.plots["plot_1"].resolution_summary = "Plot 'Missing Ledger' resolved at North Dockside."
+        world.plots["plot_1"].resolution_summary = "Mara finds the ledger trail at North Dockside."
         world.plots["plot_1"].learned_outcome = "The ledger's path points back to a hidden broker operating through the dock."
         world.plots["plot_1"].closing_beat = "Mara leaves North Dockside with the ledger matter settled."
         world.story_flags = ["jonas_shared_dock_lead"]
@@ -94,7 +94,7 @@ class SerializationTests(unittest.TestCase):
             triggers=["trigger"],
             consequences=["consequence"],
         )
-        world.plots["plot_1"].resolution_summary = "Plot 'Missing Ledger' resolved at North Dockside."
+        world.plots["plot_1"].resolution_summary = "Mara finds the ledger trail at North Dockside."
         world.plots["plot_1"].learned_outcome = "The ledger's path points back to a hidden broker operating through the dock."
         world.plots["plot_1"].closing_beat = "Mara leaves North Dockside with the ledger matter settled."
 
@@ -107,7 +107,7 @@ class SerializationTests(unittest.TestCase):
         self.assertIn("loc_church", loaded_world.locations)
         self.assertEqual(loaded_world.locations["loc_cafe"].name, "Blackthorn Cafe")
         self.assertEqual(loaded_world.plots["plot_1"].name, "Missing Ledger")
-        self.assertEqual(loaded_world.plots["plot_1"].resolution_summary, "Plot 'Missing Ledger' resolved at North Dockside.")
+        self.assertEqual(loaded_world.plots["plot_1"].resolution_summary, "Mara finds the ledger trail at North Dockside.")
         self.assertIn("hidden broker", loaded_world.plots["plot_1"].learned_outcome)
         self.assertIn("Mara leaves North Dockside", loaded_world.plots["plot_1"].closing_beat)
         self.assertEqual(loaded_world.npcs["npc_1"].trust_level, 2)

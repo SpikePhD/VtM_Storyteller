@@ -10,10 +10,10 @@
     "success": {
       "to_stage": "resolved",
       "active": false,
-      "message": "Plot 'Missing Ledger' resolved at North Dockside."
+      "message": "The Missing Ledger trail resolves at North Dockside."
     },
     "failure": {
-      "message": "Investigation at North Dockside failed to resolve 'Missing Ledger'."
+      "message": "The search at North Dockside does not settle the Missing Ledger yet."
     }
   }
 }

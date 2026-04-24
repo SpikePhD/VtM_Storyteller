@@ -7,6 +7,7 @@ import re
 from typing import Any
 
 from .dialogue_renderer import DialogueRenderInput
+from .social_models import LogisticsCommitment
 
 
 class OpenAIDialogueRenderer:
@@ -26,6 +27,8 @@ class OpenAIDialogueRenderer:
             return self._render_anti_echo_repair(render_input)
         if self._is_direct_echo(render_input, cleaned_output):
             return self._render_anti_echo_repair(render_input)
+        if _contains_unsupported_logistics_promise(render_input, cleaned_output):
+            return _render_logistics_repair(render_input)
         return cleaned_output
 
     def _create_client(self, api_key: str) -> Any:
@@ -57,6 +60,7 @@ class OpenAIDialogueRenderer:
                 "Avoid giving different NPCs the same refusal/support sentence shape; vary phrasing using each NPC's speech_style, public_demeanor, confrontation_style, and directness_preference.",
                 "For logistics or accompaniment requests, do not soften refusals with vague ongoing support unless social_outcome.logistics_commitment explicitly authorizes that support.",
                 "authorized_fact_cards are the only plot-facing facts the NPC may communicate in this turn.",
+                "If lead_flag_active is true or plot_stage is lead_confirmed, reminder questions should acknowledge that the dock lead is already confirmed instead of pretending it is new.",
                 "npc_profile provides character texture, tone, and background color, but it does not authorize new reveals by itself.",
                 "recent_dialogue_history is a bounded rolling window of the active conversation; use it to keep continuity, avoid repeating yourself, and preserve the immediate thread of the exchange.",
                 "previous_interactions_summary is a longer-term note about this NPC's prior interaction with the player; use it for tone and relationship context, not for inventing new facts.",
@@ -110,6 +114,8 @@ class OpenAIDialogueRenderer:
             normalized_candidate = _normalize_text(candidate)
             if normalized_candidate and normalized_output == normalized_candidate:
                 return True
+            if _is_partial_echo(normalized_candidate, normalized_output):
+                return True
         return False
 
     def _render_anti_echo_repair(self, render_input: DialogueRenderInput) -> str:
@@ -143,6 +149,44 @@ def _normalize_text(raw_input: str) -> str:
     return " ".join("".join(character.lower() if character.isalnum() else " " for character in raw_input).split())
 
 
+def _contains_unsupported_logistics_promise(render_input: DialogueRenderInput, output_text: str) -> bool:
+    if render_input.logistics_commitment is LogisticsCommitment.NONE:
+        return False
+    normalized_output = _normalize_text(output_text)
+    banned_phrases = (
+        "coming with you",
+        "come with you",
+        "stay nearby",
+        "wait nearby",
+        "watch from shadows",
+        "watch over you",
+        "watch your back",
+        "back you up",
+        "backup",
+        "cover you",
+        "keep an eye out",
+        "drive you",
+        "escort you",
+    )
+    return any(phrase in normalized_output for phrase in banned_phrases)
+
+
+def _render_logistics_repair(render_input: DialogueRenderInput) -> str:
+    commitment = render_input.logistics_commitment
+    normalized_text = _normalize_text(f"{render_input.utterance_text} {render_input.speech_text}")
+    if commitment is LogisticsCommitment.INDIRECT_SUPPORT:
+        if any(term in normalized_text for term in ("drive", "ride", "lift", "car", "vehicle")):
+            return "I can give you information, but I am not driving."
+        if any(term in normalized_text for term in ("fare", "taxi", "cab", "money", "cash")):
+            return "I can give you information, but I am not paying."
+        return "I can give you information, but not practical help."
+    if any(term in normalized_text for term in ("drive", "ride", "lift", "car", "vehicle")):
+        return "No. I am not driving."
+    if any(term in normalized_text for term in ("fare", "taxi", "cab", "money", "cash")):
+        return "No. I am not paying."
+    return "No. I will not go."
+
+
 def _sanitize_spoken_dialogue(render_input: DialogueRenderInput, output_text: str) -> str:
     cleaned_output = _strip_surrounding_quotes(output_text.strip())
     cleaned_output = _strip_speaker_label(cleaned_output, render_input.npc_name)
@@ -151,11 +195,30 @@ def _sanitize_spoken_dialogue(render_input: DialogueRenderInput, output_text: st
     previous_output = None
     while previous_output != cleaned_output:
         previous_output = cleaned_output
+        cleaned_output = _strip_leading_stage_direction(cleaned_output)
         cleaned_output = _strip_leading_self_speech_attribution(cleaned_output, render_input.npc_name)
         cleaned_output = _strip_leading_self_narration_sentence(cleaned_output, render_input.npc_name)
         cleaned_output = _strip_surrounding_quotes(cleaned_output.strip())
 
     return cleaned_output.strip()
+
+
+def _is_partial_echo(normalized_candidate: str, normalized_output: str) -> bool:
+    if not normalized_candidate:
+        return False
+    candidate_words = normalized_candidate.split()
+    if len(candidate_words) < 4:
+        return False
+    output_words = normalized_output.split()
+    if len(output_words) < len(candidate_words):
+        return False
+    candidate_text = " ".join(candidate_words)
+    output_text = " ".join(output_words)
+    if output_text.startswith(candidate_text):
+        return True
+    if output_text.endswith(candidate_text):
+        return True
+    return False
 
 
 def _strip_speaker_label(output_text: str, npc_name: str) -> str:
@@ -244,6 +307,52 @@ def _strip_leading_self_narration_sentence(output_text: str, npc_name: str) -> s
     verb_pattern = "|".join(action_verbs)
     match = re.match(
         rf"^\s*(?:{name_pattern}|he|she|they)\s+(?:{verb_pattern})\b[^.!?]*(?:[.!?]\s*|$)(?P<rest>.*)$",
+        output_text,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return output_text
+    return match.group("rest").strip()
+
+
+def _strip_leading_stage_direction(output_text: str) -> str:
+    action_verbs = (
+        "nods",
+        "nodded",
+        "looks",
+        "looked",
+        "glances",
+        "glanced",
+        "shrugs",
+        "shrugged",
+        "smiles",
+        "smiled",
+        "frowns",
+        "frowned",
+        "sighs",
+        "sighed",
+        "leans",
+        "leaned",
+        "pauses",
+        "paused",
+        "turns",
+        "turned",
+        "watches",
+        "watched",
+        "studies",
+        "studied",
+        "raises",
+        "raised",
+        "lowers",
+        "lowered",
+        "folds",
+        "folded",
+        "straightens",
+        "straightened",
+    )
+    verb_pattern = "|".join(action_verbs)
+    match = re.match(
+        rf"^\s*(?:\*[^*]*\b(?:{verb_pattern})\b[^*]*\*|\([^)]*\b(?:{verb_pattern})\b[^)]*\)|\[[^\]]*\b(?:{verb_pattern})\b[^\]]*\])\s*(?P<rest>.*)$",
         output_text,
         flags=re.IGNORECASE,
     )

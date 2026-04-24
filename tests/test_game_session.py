@@ -963,7 +963,7 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("Jonas, what happened at the dock?")
 
         self.assertIn("dialogue rendering failed", result.output_text.lower())
-        self.assertIn("openai dialogue renderer unavailable", result.output_text.lower())
+        self.assertNotIn("openai dialogue renderer unavailable", result.output_text.lower())
         self.assertFalse(result.render_scene)
 
     def test_eliza_church_records_slice_routes_through_the_same_architecture(self) -> None:
@@ -1876,12 +1876,56 @@ class GameSessionTests(unittest.TestCase):
         self.assertIn("investigate_resolution_success", turn.consequence_summary.applied_effects)
         self.assertIn("plot_resolution_updated", turn.consequence_summary.applied_effects)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "resolved")
-        self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
-        self.assertIn("Learned: The ledger's path points back to a hidden broker operating through the dock.", result.output_text)
-        self.assertIn("Closing beat: Mara leaves North Dockside with the ledger matter settled.", result.output_text)
+        self.assertIn("Mara finds the ledger trail at North Dockside.", result.output_text)
+        self.assertIn("The ledger's path points back to a hidden broker operating through the dock.", result.output_text)
+        self.assertIn("Mara leaves North Dockside with the ledger matter settled.", result.output_text)
+        self.assertNotIn("Learned:", result.output_text)
+        self.assertNotIn("Closing beat:", result.output_text)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().npcs["npc_2"].trust_level, 2)
         self.assertEqual(session.get_world_state().story_flags, [])
+
+    def test_active_conversation_natural_move_to_docks_uses_movement_not_dialogue(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, what happened at the dock?")
+        result = session.process_input("go to the docks")
+        turn = session.get_last_action_resolution()
+
+        self.assertTrue(result.render_scene)
+        self.assertEqual(session.get_world_state().player.location_id, "loc_dock")
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.canonical_action_text, "move loc_dock")
+        self.assertIsNone(turn.dialogue_adjudication)
+
+    def test_church_records_search_confirms_lead_without_waiting(self) -> None:
+        session = GameSession()
+
+        session.process_input("go to the church")
+        result = session.process_input("search the church records")
+        turn = session.get_last_action_resolution()
+
+        self.assertTrue(result.render_scene)
+        self.assertNotIn("Investigate is blocked", result.output_text)
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+        self.assertIn("church_records_reviewed", session.get_world_state().story_flags)
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.canonical_action_text, "investigate")
+
+    def test_eliza_church_records_confirms_lead_with_distinct_voice(self) -> None:
+        session = GameSession()
+
+        session.process_input("go to the church")
+        result = session.process_input("Sister Eliza, what about the church records?")
+
+        self.assertFalse(result.render_scene)
+        self.assertIn("records", result.output_text.lower())
+        self.assertIn("north dockside", result.output_text.lower())
+        self.assertNotIn("paper trail begins", result.output_text.lower())
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+        self.assertIn("eliza_shared_church_records_lead", session.get_world_state().story_flags)
 
     def test_save_load_restores_trust_reflected_in_scene_text(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

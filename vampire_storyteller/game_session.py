@@ -198,6 +198,11 @@ class GameSession:
 
         # Phase 10: render the final response for the player.
         final_result = self._render_response(command, result)
+        if isinstance(command, InvestigateCommand) and consequence_summary.messages:
+            investigation_rules = load_adv1_plot_investigation_rules()
+            plot = self._world_state.plots.get(investigation_rules.plot_id)
+            if plot is not None and plot.active:
+                final_result = self._append_consequence_summary_to_result(final_result, consequence_summary)
         final_result = self._render_talk_result(command, final_result, dialogue_adjudication, check_outcome, consequence_summary, previous_focus_npc_id)
         turn = self._build_final_resolution_turn(
             command=command,
@@ -576,8 +581,8 @@ class GameSession:
                 previous_focus_npc_id,
             )
             self._record_npc_dialogue_history(command, rendered_output)
-        except Exception as exc:
-            rendered_output = f"Dialogue rendering failed: no realized reply is available right now ({exc})."
+        except Exception:
+            rendered_output = "Dialogue rendering failed: no realized reply is available right now."
             dialogue_presentation = None
 
         return CommandResult(
@@ -1205,7 +1210,7 @@ class GameSession:
         return "\n".join(
             [
                 plot.resolution_summary,
-                f"Learned: {plot.learned_outcome}",
-                f"Closing beat: {plot.closing_beat}",
+                plot.learned_outcome,
+                plot.closing_beat,
             ]
         )

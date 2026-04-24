@@ -1,3 +1,11 @@
+## 2026-04-24
+- Read the project docs and aligned the vertical-slice work to the backend-truth / packet-first architecture.
+- Tightened natural input routing so plural dock aliases, active-conversation movement, and targeted searches like church records or cargo stacks resolve as movement/investigation instead of dialogue.
+- Added church-records progression through Eliza and direct record investigation, with distinct Eliza record-lane rendering and backend-owned lead confirmation.
+- Cleaned player-facing recent events and resolution epilogues so raw roll text, plot-stage transition strings, and `Learned:` / `Closing beat:` labels do not leak into normal scene output.
+- Hardened OpenAI dialogue post-processing against quoted stage directions, partial echo, raw renderer exception details, and unsupported logistics promises.
+- Added transcript fixture regression coverage for Jonas logistics refusal, Eliza church-records progression, and the dock resolution path.
+
 ## 2026-04-22
 - Hardened Jonas statement and observation dialogue so meta pushback, insinuations, and short remarks stay in dialogue without echoing the player or defaulting to follow-up questions.
 - Hardened guarded-turn focus persistence so suspicion and challenge follow-ups stay addressed to Jonas instead of falling into the no-valid-NPC failure path.

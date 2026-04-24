@@ -314,6 +314,30 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
 
         self.assertEqual(output, "What is it?")
 
+    def test_renderer_sanitizes_quoted_stage_direction_prefix_from_openai_output(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = "(Jonas glances toward the door.) \"No. Ask plainly.\""
+        renderer = OpenAIDialogueRenderer(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+
+        output = renderer.render_dialogue(_minimal_render_input())
+
+        self.assertEqual(output, "No. Ask plainly.")
+
+    def test_renderer_rewrites_partial_echo_prefix_into_repair_line(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = "Sounds like this is more than just a missing ledger, doesn't it?"
+        renderer = OpenAIDialogueRenderer(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+
+        output = renderer.render_dialogue(
+            _minimal_render_input(
+                utterance_text="Jonas, sounds like this is more than just a missing ledger.",
+                speech_text="sounds like this is more than just a missing ledger.",
+                dialogue_move="clarify",
+            )
+        )
+
+        self.assertEqual(output, "I meant what I said.")
+
     def test_renderer_keeps_valid_first_person_speech(self) -> None:
         mock_client = Mock()
         mock_client.responses.create.return_value.output_text = "I hear you. What is it?"

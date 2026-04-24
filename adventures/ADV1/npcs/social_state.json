@@ -89,6 +89,28 @@
               "persuade_check_required": false
             }
           ]
+        },
+        {
+          "plot_id": "plot_1",
+          "plot_stage": "lead_confirmed",
+          "required_story_flags": [],
+          "topic_definitions": [
+            {
+              "topic": "church_records",
+              "topic_status": "productive",
+              "persuade_check_required": false
+            },
+            {
+              "topic": "ledger",
+              "topic_status": "productive",
+              "persuade_check_required": false
+            },
+            {
+              "topic": "blood",
+              "topic_status": "refused",
+              "persuade_check_required": false
+            }
+          ]
         }
       ]
     }

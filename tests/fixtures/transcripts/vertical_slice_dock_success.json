@@ -1,0 +1,56 @@
+{
+  "id": "vertical_slice_dock_success",
+  "steps": [
+    {
+      "input": "I persuade Jonas to help with the dock.",
+      "check_result": {
+        "kind": "dialogue_social",
+        "seed": "fixture-dialogue-success",
+        "roll_pool": 3,
+        "difficulty": 6,
+        "individual_rolls": [7, 8, 2],
+        "successes": 2,
+        "is_success": true
+      },
+      "expect": {
+        "canonical": "talk npc_1",
+        "dialogue_domain": "lead_pressure",
+        "outcome_kind": "reveal",
+        "topic_result": "opened",
+        "plot_stage": "lead_confirmed",
+        "story_flags_contains": ["jonas_shared_dock_lead"],
+        "applied_effects_contains": ["dialogue_social_check_success", "dialogue_plot_progressed"],
+        "not_contains": ["Dialogue check success", "Rolled"]
+      }
+    },
+    {
+      "input": "go to the docks",
+      "expect": {
+        "canonical": "move loc_dock",
+        "location_id": "loc_dock",
+        "plot_stage": "lead_confirmed",
+        "render_scene": true
+      }
+    },
+    {
+      "input": "search the cargo stacks for ledger clues",
+      "check_result": {
+        "kind": "investigation",
+        "seed": "fixture-investigation-success",
+        "roll_pool": 3,
+        "difficulty": 4,
+        "individual_rolls": [7, 2, 9],
+        "successes": 2,
+        "is_success": true
+      },
+      "expect": {
+        "canonical": "investigate",
+        "plot_stage": "resolved",
+        "plot_active": false,
+        "applied_effects_contains": ["investigate_resolution_success", "plot_resolution_updated"],
+        "contains": ["Missing Ledger"],
+        "not_contains": ["Rolled investigation check", "advanced from"]
+      }
+    }
+  ]
+}

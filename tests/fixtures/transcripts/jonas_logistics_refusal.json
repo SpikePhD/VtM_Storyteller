@@ -1,0 +1,34 @@
+{
+  "id": "jonas_logistics_refusal",
+  "steps": [
+    {
+      "input": "Jonas, what happened at the dock?",
+      "expect": {
+        "canonical": "talk npc_1",
+        "dialogue_domain": "lead_topic",
+        "outcome_kind": "reveal",
+        "topic_result": "opened",
+        "plot_stage": "hook",
+        "contains": ["dock"],
+        "not_contains": ["Rolled", "Dialogue check"]
+      }
+    },
+    {
+      "input": "Come with me to the docks and back me up.",
+      "expect": {
+        "canonical": "talk npc_1",
+        "dialogue_domain": "travel_proposal",
+        "logistics_commitment_in": ["absolute_refusal", "decline_join", "indirect_support"],
+        "not_contains": ["paper trail", "stay nearby", "backup", "watch from shadows", "drive you"]
+      }
+    },
+    {
+      "input": "How will you watch over me if you are not there at the docks with me?",
+      "expect": {
+        "canonical": "talk npc_1",
+        "logistics_commitment_in": ["absolute_refusal", "decline_join", "indirect_support"],
+        "not_contains": ["stay nearby", "backup", "watch from shadows", "drive you", "escort"]
+      }
+    }
+  ]
+}

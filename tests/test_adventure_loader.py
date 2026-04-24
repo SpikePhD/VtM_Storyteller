@@ -113,7 +113,7 @@ class AdventureLoaderTests(unittest.TestCase):
         outcome_definitions = load_adv1_plot_outcome_definitions()
 
         self.assertEqual([definition.id for definition in outcome_definitions], ["plot_1"])
-        self.assertEqual(outcome_definitions[0].resolved_event_text, "Plot 'Missing Ledger' resolved at North Dockside.")
+        self.assertEqual(outcome_definitions[0].resolved_event_text, "Mara finds the ledger trail at North Dockside.")
         self.assertIn("hidden broker", outcome_definitions[0].learned_outcome)
         self.assertIn("North Dockside", outcome_definitions[0].closing_beat)
         self.assertEqual(outcome_definitions[0].trust_adjustments, {"npc_1": 1, "npc_2": 1})

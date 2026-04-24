@@ -86,10 +86,10 @@ class ActionResolutionContractTests(unittest.TestCase):
         self.assertEqual(turn.adjudication.check_spec.kind, DeterministicCheckKind.INVESTIGATION)
         self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
         self.assertTrue(turn.world_state_mutated)
-        self.assertEqual(turn.consequence_summary.messages, ("Plot 'Missing Ledger' resolved at North Dockside.",))
+        self.assertEqual(turn.consequence_summary.messages, ("The Missing Ledger trail resolves at North Dockside.",))
         self.assertIn("investigate_resolution_success", turn.consequence_summary.applied_effects)
         self.assertIn("plot_resolution_updated", turn.consequence_summary.applied_effects)
-        self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", turn.output_text)
+        self.assertIn("Mara finds the ledger trail at North Dockside.", turn.output_text)
         self.assertEqual(result.output_text, turn.output_text)
 
     def test_roll_gated_persuade_populates_check_and_dialogue_outcome(self) -> None:

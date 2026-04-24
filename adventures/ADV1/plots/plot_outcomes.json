@@ -3,7 +3,7 @@
     {
       "id": "plot_1",
       "name": "Missing Ledger",
-      "resolved_event_text": "Plot 'Missing Ledger' resolved at North Dockside.",
+      "resolved_event_text": "Mara finds the ledger trail at North Dockside.",
       "learned_outcome": "The ledger's path points back to a hidden broker operating through the dock.",
       "closing_beat": "Mara leaves North Dockside with the ledger matter settled.",
       "trust_adjustments": {

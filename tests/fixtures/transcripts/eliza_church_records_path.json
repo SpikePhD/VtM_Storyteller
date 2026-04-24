@@ -1,0 +1,28 @@
+{
+  "id": "eliza_church_records_path",
+  "steps": [
+    {
+      "input": "go to the church",
+      "expect": {
+        "canonical": "move loc_church",
+        "location_id": "loc_church",
+        "plot_stage": "church_visited",
+        "render_scene": true,
+        "not_contains": ["advanced from hook to church_visited"]
+      }
+    },
+    {
+      "input": "Sister Eliza, what about the church records?",
+      "expect": {
+        "canonical": "talk npc_2",
+        "dialogue_domain": "lead_topic",
+        "outcome_kind": "reveal",
+        "topic_result": "opened",
+        "plot_stage": "lead_confirmed",
+        "story_flags_contains": ["eliza_shared_church_records_lead"],
+        "contains": ["records", "North Dockside"],
+        "not_contains": ["paper trail begins", "Dialogue check", "Rolled"]
+      }
+    }
+  ]
+}

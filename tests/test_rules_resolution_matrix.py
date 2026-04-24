@@ -115,7 +115,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
         assert turn.check is not None
         self.assertEqual(turn.check.kind, DeterministicCheckKind.INVESTIGATION)
         self.assertTrue(turn.world_state_mutated)
-        self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
+        self.assertIn("Mara finds the ledger trail at North Dockside.", result.output_text)
         self.assertIn("investigate_resolution_success", turn.consequence_summary.applied_effects)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "resolved")
 

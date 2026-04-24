@@ -164,10 +164,28 @@ class InputInterpreter:
         "inspect closely",
         "inspect the scene carefully for evidence",
         "search the area for clues",
+        "search for clues",
+        "search the",
+        "search records",
+        "search the records",
+        "search the church records",
+        "search the record shelves",
+        "look over the records",
+        "look over the church records",
+        "look over the notice board",
+        "check the records",
+        "check the church records",
+        "check the record shelves",
+        "check the cargo stacks",
+        "search the cargo stacks",
+        "search cargo stacks",
         "check the scene carefully for evidence",
         "examine for clues",
         "probe for clues",
         "search for clues",
+        "look for clues",
+        "look for the ledger",
+        "search for the ledger",
     )
 
     _SPEECH_VERB_PHRASES = (
@@ -273,17 +291,6 @@ class InputInterpreter:
         if "look like" in normalized_text or "look to you" in normalized_text:
             if "what does" in normalized_text or "how do i know" in normalized_text or "prove it" in normalized_text:
                 return None
-        if self._contains_any(normalized_text, self._LOW_INTENSITY_OBSERVATION_PHRASES):
-            return InterpretedInput(
-                normalized_intent="look",
-                target_text=None,
-                target_reference=None,
-                canonical_command="look",
-                confidence=0.86,
-                match_reason="observation text suggested a low-intensity look action",
-                fallback_to_parser=False,
-            )
-
         if self._contains_any(normalized_text, self._HIGH_INTENSITY_OBSERVATION_PHRASES):
             return InterpretedInput(
                 normalized_intent="investigate",
@@ -292,6 +299,17 @@ class InputInterpreter:
                 canonical_command="investigate",
                 confidence=0.9,
                 match_reason="observation text suggested active investigation",
+                fallback_to_parser=False,
+            )
+
+        if self._contains_any(normalized_text, self._LOW_INTENSITY_OBSERVATION_PHRASES):
+            return InterpretedInput(
+                normalized_intent="look",
+                target_text=None,
+                target_reference=None,
+                canonical_command="look",
+                confidence=0.86,
+                match_reason="observation text suggested a low-intensity look action",
                 fallback_to_parser=False,
             )
 
@@ -689,6 +707,13 @@ class InputInterpreter:
         aliases = [self._normalize_text(location.name), location.id.removeprefix("loc_")]
         if location.id.startswith("loc_"):
             aliases.append(location.id.removeprefix("loc_").replace("_", " "))
+        normalized_name = self._normalize_text(location.name)
+        if "dock" in normalized_name or location.id == "loc_dock":
+            aliases.extend(["dock", "docks", "north dock", "north docks", "dockside", "north dockside"])
+        if "church" in normalized_name or location.id == "loc_church":
+            aliases.extend(["church", "saint judith", "saint judiths", "st judith", "st judiths"])
+        if "cafe" in normalized_name or location.id == "loc_cafe":
+            aliases.extend(["cafe", "blackthorn", "blackthorn cafe"])
         return aliases
 
     def _npc_aliases(self, name: str) -> list[str]:
@@ -896,6 +921,10 @@ class InputInterpreter:
             return True
         if has_active_conversation:
             if first_token == "look" and normalized_text == "look":
+                return True
+            if self._looks_like_dialogue_observation_idiom(normalized_text):
+                return False
+            if self._interpret_observation(normalized_text) is not None:
                 return True
             if self._looks_like_active_conversation_scene_observation(normalized_text):
                 return True
@@ -1381,14 +1410,6 @@ class InputInterpreter:
         dialogue_act: DialogueAct,
         conversation_subtopic: DialogueSubtopic | None,
     ) -> str:
-        if conversation_subtopic is DialogueSubtopic.MISSING_LEDGER:
-            return "missing_ledger"
-        if conversation_subtopic is DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT:
-            return "transport"
-        if conversation_subtopic is DialogueSubtopic.BACKUP_OR_STAY_NEARBY:
-            return "backup"
-        if conversation_subtopic is DialogueSubtopic.FARE_OR_MONEY_SUPPORT:
-            return "fare"
         if self._contains_any(
             normalized_text,
             (
@@ -1407,6 +1428,48 @@ class InputInterpreter:
             ),
         ):
             return "backup"
+        if self._contains_any(
+            normalized_text,
+            (
+                "drive",
+                "ride",
+                "lift",
+                "vehicle",
+                "car",
+                "drop me off",
+                "transport",
+            ),
+        ):
+            return "transport"
+        if self._contains_any(
+            normalized_text,
+            (
+                "spare change",
+                "taxi fare",
+                "cab fare",
+                "money to pay",
+                "money for the taxi",
+                "money for the ride",
+                "money for the trip",
+                "pay for the taxi",
+                "pay for the ride",
+                "pay for the trip",
+                "pay the taxi",
+                "pay the fare",
+                "cash for the ride",
+                "cash for the trip",
+                "cover the fare",
+            ),
+        ):
+            return "fare"
+        if conversation_subtopic is DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT:
+            return "transport"
+        if conversation_subtopic is DialogueSubtopic.BACKUP_OR_STAY_NEARBY:
+            return "backup"
+        if conversation_subtopic is DialogueSubtopic.FARE_OR_MONEY_SUPPORT:
+            return "fare"
+        if conversation_subtopic is DialogueSubtopic.MISSING_LEDGER:
+            return "missing_ledger"
         if self._contains_any(
             normalized_text,
             (
@@ -1435,19 +1498,6 @@ class InputInterpreter:
             ),
         ):
             return "help"
-        if self._contains_any(
-            normalized_text,
-            (
-                "drive",
-                "ride",
-                "lift",
-                "vehicle",
-                "car",
-                "drop me off",
-                "transport",
-            ),
-        ):
-            return "transport"
         if self._contains_any(
             normalized_text,
             (

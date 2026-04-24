@@ -132,6 +132,30 @@ def _player_facing_event_summary(description: str) -> str | None:
     if _is_raw_roll_event(description):
         return None
 
+    movement = re.match(r"^Player moved from (?P<source>.+?) to (?P<destination>.+?)\.$", description)
+    if movement is not None:
+        return f"Mara moved from {movement.group('source')} to {movement.group('destination')}."
+
+    plot_advanced = re.match(r"^Plot '(?P<plot>.+?)' advanced from (?P<from_stage>.+?) to (?P<to_stage>.+?)\.$", description)
+    if plot_advanced is not None:
+        plot_name = plot_advanced.group("plot")
+        to_stage = plot_advanced.group("to_stage")
+        if to_stage == "church_visited":
+            return f"{plot_name}: the church records angle is now in play."
+        if to_stage == "lead_confirmed":
+            return f"{plot_name}: the dock lead is confirmed."
+        if to_stage == "resolved":
+            return f"{plot_name}: the dock trail has been resolved."
+        return f"{plot_name}: the investigation moved forward."
+
+    plot_resolved = re.match(r"^Plot '(?P<plot>.+?)' resolved at (?P<location>.+?)\.$", description)
+    if plot_resolved is not None:
+        return f"{plot_resolved.group('plot')} was resolved at {plot_resolved.group('location')}."
+
+    investigation_failed = re.match(r"^Investigation at (?P<location>.+?) failed to resolve '(?P<plot>.+?)'\.$", description)
+    if investigation_failed is not None:
+        return f"The search at {investigation_failed.group('location')} did not settle {investigation_failed.group('plot')} yet."
+
     dialogue_success = re.match(r"^Dialogue check success: (?P<npc>.+?) shares the dock lead\b", description)
     if dialogue_success is not None:
         return f"{dialogue_success.group('npc')} shared the dock lead."

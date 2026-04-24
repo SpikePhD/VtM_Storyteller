@@ -155,6 +155,21 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(result.target_reference, "loc_church")
         self.assertEqual(result.canonical_command, "move loc_church")
 
+    def test_freeform_plural_docks_maps_to_north_dockside(self) -> None:
+        result = self.interpreter.interpret("I head to the docks.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "move")
+        self.assertEqual(result.target_reference, "loc_dock")
+        self.assertEqual(result.canonical_command, "move loc_dock")
+
+    def test_targeted_search_maps_to_investigate(self) -> None:
+        result = self.interpreter.interpret("Search the cargo stacks for ledger clues.", self.world_state)
+
+        self.assertFalse(result.fallback_to_parser)
+        self.assertEqual(result.normalized_intent, "investigate")
+        self.assertEqual(result.canonical_command, "investigate")
+
     def test_freeform_wait_maps_to_wait(self) -> None:
         result = self.interpreter.interpret("Wait for 30 minutes.", self.world_state)
 

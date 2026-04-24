@@ -18,8 +18,6 @@ def detect_dialogue_subtopic(dialogue_metadata: DialogueMetadata | None) -> Dial
     normalized_text = _normalize_dialogue_text(dialogue_metadata)
     if not normalized_text:
         return None
-    if _is_missing_ledger_topic(normalized_text):
-        return DialogueSubtopic.MISSING_LEDGER
     if _is_blood_or_feeding_request(normalized_text):
         return DialogueSubtopic.BLOOD_OR_FEEDING_REQUEST
     if _is_fare_or_money_support_request(normalized_text):
@@ -28,6 +26,8 @@ def detect_dialogue_subtopic(dialogue_metadata: DialogueMetadata | None) -> Dial
         return DialogueSubtopic.TRANSPORT_OR_VEHICLE_SUPPORT
     if _is_backup_or_stay_nearby_request(normalized_text):
         return DialogueSubtopic.BACKUP_OR_STAY_NEARBY
+    if _is_missing_ledger_topic(normalized_text):
+        return DialogueSubtopic.MISSING_LEDGER
     return None
 
 

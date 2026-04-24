@@ -63,7 +63,13 @@ def apply_post_resolution_consequences(
         )
     else:
         message = rules.failure_message
-        applied_effects.append("investigate_resolution_failure")
+        world_state.add_story_flag("dock_partial_trace_found")
+        applied_effects.extend(
+            [
+                "investigate_resolution_failure",
+                "dock_partial_trace_recorded",
+            ]
+        )
 
     world_state.append_event(
         EventLogEntry(

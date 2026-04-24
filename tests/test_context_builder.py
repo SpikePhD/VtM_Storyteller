@@ -71,6 +71,21 @@ class ContextBuilderTests(unittest.TestCase):
 
         self.assertEqual(snapshot.recent_events, ["Jonas Reed shared the dock lead."])
 
+    def test_recent_events_summarize_plot_advancement_without_raw_stage_log(self) -> None:
+        world = build_sample_world()
+        world.append_event(
+            EventLogEntry(
+                timestamp="t1",
+                description="Plot 'Missing Ledger' advanced from church_visited to lead_confirmed.",
+                involved_entities=[],
+            )
+        )
+
+        snapshot = build_scene_snapshot(world, recent_event_limit=3)
+
+        self.assertEqual(snapshot.recent_events, ["Missing Ledger: the dock lead is confirmed."])
+        self.assertNotIn("advanced from", snapshot.recent_events[0])
+
     def test_prompt_text_is_stable_and_labeled(self) -> None:
         world = build_sample_world()
         snapshot = build_scene_snapshot(world)
