@@ -20,6 +20,46 @@ from vampire_storyteller.social_models import (
 )
 
 
+def _minimal_render_input(
+    *,
+    utterance_text: str = "Jonas, what is it?",
+    speech_text: str = "what is it?",
+    dialogue_move: str = "continue",
+) -> DialogueRenderInput:
+    return DialogueRenderInput(
+        npc_id="npc_1",
+        npc_name="Jonas Reed",
+        npc_role="Informant",
+        player_name="Mara Vale",
+        location_name="Blackthorn Cafe",
+        utterance_text=utterance_text,
+        speech_text=speech_text,
+        dialogue_act="ask",
+        dialogue_move=dialogue_move,
+        dialogue_domain="meta_conversation",
+        topic_status="available",
+        adjudication_resolution_kind="allowed",
+        conversation_stance="neutral",
+        conversation_subtopic=None,
+        continuity_cue=None,
+        npc_trust_level=0,
+        plot_name="Missing Ledger",
+        plot_stage="hook",
+        lead_flag_active=False,
+        check_kind=None,
+        check_is_success=None,
+        check_successes=None,
+        check_difficulty=None,
+        consequence_messages=(),
+        applied_effects=(),
+        npc_profile=NPCDialogueProfile(),
+        npc_dossier=None,
+        conversation_memory=DialogueMemoryContext(previous_interactions_summary="", recent_dialogue_history=()),
+        authorized_fact_cards=(),
+        social_outcome=None,
+    )
+
+
 class OpenAIDialogueRendererTests(unittest.TestCase):
     def test_renderer_can_be_constructed_with_mock_client(self) -> None:
         renderer = OpenAIDialogueRenderer(api_key="test-key", model="gpt-4.1-mini", client=Mock())
@@ -110,8 +150,12 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         prompt = called_kwargs["input"]
         self.assertIn("social_outcome packet as the authoritative contract", prompt)
         self.assertIn("authorized_fact_cards are the only plot-facing facts", prompt)
+        self.assertIn("Return speech-only output", prompt)
         self.assertIn("Write only the NPC's direct speech for this turn.", prompt)
         self.assertIn("Do not write third-person paraphrase", prompt)
+        self.assertIn("Never put self-narration inside NPC speech", prompt)
+        self.assertIn("there is no separate narration/action channel", prompt)
+        self.assertIn("For vague discourse markers", prompt)
         self.assertIn("Do not merely restate the player's line", prompt)
         self.assertIn("Use dialogue_move to shape the line", prompt)
         self.assertIn("For statement-shaped turns, observations, insinuations, teasing, and meta pushback", prompt)
@@ -255,6 +299,29 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         )
 
         self.assertEqual(output, "I meant what I said.")
+
+    def test_renderer_sanitizes_leading_self_narration_from_openai_output(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = "Jonas Reed nods quietly. What is it?"
+        renderer = OpenAIDialogueRenderer(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+
+        output = renderer.render_dialogue(
+            _minimal_render_input(
+                utterance_text="Jonas, I need to ask you something.",
+                speech_text="I need to ask you something.",
+            )
+        )
+
+        self.assertEqual(output, "What is it?")
+
+    def test_renderer_keeps_valid_first_person_speech(self) -> None:
+        mock_client = Mock()
+        mock_client.responses.create.return_value.output_text = "I hear you. What is it?"
+        renderer = OpenAIDialogueRenderer(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
+
+        output = renderer.render_dialogue(_minimal_render_input())
+
+        self.assertEqual(output, "I hear you. What is it?")
 
     def test_shared_dialogue_renderer_helper_uses_openai_model_from_runtime_config(self) -> None:
         with patch("vampire_storyteller.cli.OpenAIDialogueRenderer") as mock_renderer_ctor:

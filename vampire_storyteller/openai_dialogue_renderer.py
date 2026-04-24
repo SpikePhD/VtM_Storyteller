@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import fields, is_dataclass
 from enum import Enum
 import json
+import re
 from typing import Any
 
 from .dialogue_renderer import DialogueRenderInput
@@ -20,7 +21,9 @@ class OpenAIDialogueRenderer:
         output_text = getattr(response, "output_text", "")
         if not isinstance(output_text, str) or not output_text.strip():
             raise RuntimeError("OpenAI dialogue response did not contain text")
-        cleaned_output = output_text.strip()
+        cleaned_output = _sanitize_spoken_dialogue(render_input, output_text.strip())
+        if not cleaned_output:
+            return self._render_anti_echo_repair(render_input)
         if self._is_direct_echo(render_input, cleaned_output):
             return self._render_anti_echo_repair(render_input)
         return cleaned_output
@@ -58,13 +61,17 @@ class OpenAIDialogueRenderer:
                 "recent_dialogue_history is a bounded rolling window of the active conversation; use it to keep continuity, avoid repeating yourself, and preserve the immediate thread of the exchange.",
                 "previous_interactions_summary is a longer-term note about this NPC's prior interaction with the player; use it for tone and relationship context, not for inventing new facts.",
                 "Use only the supplied JSON payload as source of truth.",
+                "Return speech-only output: the exact words the NPC says aloud, with no action or narration channel.",
                 "Write only the NPC's direct speech for this turn.",
                 "Prefer one concise spoken line or two short spoken sentences, not narration.",
                 "Do not write third-person paraphrase, stage directions, speaker labels, or surrounding quotation marks.",
+                "Never put self-narration inside NPC speech: do not write patterns like '<npc_name> nods', '<npc_name> looks', '<npc_name> says', '<npc_name> replies', or any other third-person action beat as the spoken line.",
+                "If a physical action or stage direction would help, omit it; there is no separate narration/action channel for dialogue yet.",
                 "Prefer natural conversational phrasing over scripted exposition, and avoid repeating the same lead line when the packet already made the answer clear.",
                 "Do not merely restate the player's line. Respond in character by acknowledging, advancing, challenging, or redirecting naturally.",
                 "Use dialogue_move to shape the line: react and banter should feel conversational, continue should answer the exchange naturally, and clarify should repair or push back without echoing the player's words.",
                 "For statement-shaped turns, observations, insinuations, teasing, and meta pushback, prefer a terse reaction, deflection, skeptical remark, or dry reset instead of an interview-style reply.",
+                "For vague discourse markers such as 'see what I mean?', 'you see?', or 'right?', do not introduce plot-specific claims unless authorized_fact_cards and the immediate recent_dialogue_history clearly ground that topic; otherwise use a generic acknowledgement or clarification.",
                 "Do not mirror the player's wording and do not turn a statement into a follow-up question unless the packet explicitly authorizes that question.",
                 "Do not end every line with a handoff invitation.",
                 "For simple greetings and acknowledgements, prefer a short greeting or acknowledgement; do not default to 'what do you need?', 'what have you heard?', 'what exactly do you mean?', or similar handoff questions.",
@@ -134,3 +141,133 @@ def _to_jsonable(value: Any) -> Any:
 
 def _normalize_text(raw_input: str) -> str:
     return " ".join("".join(character.lower() if character.isalnum() else " " for character in raw_input).split())
+
+
+def _sanitize_spoken_dialogue(render_input: DialogueRenderInput, output_text: str) -> str:
+    cleaned_output = _strip_surrounding_quotes(output_text.strip())
+    cleaned_output = _strip_speaker_label(cleaned_output, render_input.npc_name)
+    cleaned_output = _strip_surrounding_quotes(cleaned_output.strip())
+
+    previous_output = None
+    while previous_output != cleaned_output:
+        previous_output = cleaned_output
+        cleaned_output = _strip_leading_self_speech_attribution(cleaned_output, render_input.npc_name)
+        cleaned_output = _strip_leading_self_narration_sentence(cleaned_output, render_input.npc_name)
+        cleaned_output = _strip_surrounding_quotes(cleaned_output.strip())
+
+    return cleaned_output.strip()
+
+
+def _strip_speaker_label(output_text: str, npc_name: str) -> str:
+    name_pattern = _npc_name_pattern(npc_name)
+    match = re.match(rf"^\s*(?:{name_pattern})\s*[:\-]\s*(?P<rest>.+)$", output_text, flags=re.IGNORECASE)
+    if match is None:
+        return output_text
+    return match.group("rest").strip()
+
+
+def _strip_leading_self_speech_attribution(output_text: str, npc_name: str) -> str:
+    name_pattern = _npc_name_pattern(npc_name)
+    speech_verbs = (
+        "says",
+        "said",
+        "asks",
+        "asked",
+        "replies",
+        "replied",
+        "answers",
+        "answered",
+        "responds",
+        "responded",
+        "mutters",
+        "murmurs",
+        "whispers",
+        "continues",
+        "states",
+        "speaks",
+    )
+    verb_pattern = "|".join(speech_verbs)
+    match = re.match(
+        rf"^\s*(?:{name_pattern})\s+(?:{verb_pattern})(?:\s+\w+ly)?\s*[:,]\s*(?P<rest>.+)$",
+        output_text,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return output_text
+    return match.group("rest").strip()
+
+
+def _strip_leading_self_narration_sentence(output_text: str, npc_name: str) -> str:
+    name_pattern = _npc_name_pattern(npc_name)
+    action_verbs = (
+        "nods",
+        "nodded",
+        "looks",
+        "looked",
+        "glances",
+        "glanced",
+        "shrugs",
+        "shrugged",
+        "smiles",
+        "smiled",
+        "frowns",
+        "frowned",
+        "sighs",
+        "sighed",
+        "leans",
+        "leaned",
+        "pauses",
+        "paused",
+        "turns",
+        "turned",
+        "watches",
+        "watched",
+        "studies",
+        "studied",
+        "raises",
+        "raised",
+        "lowers",
+        "lowered",
+        "folds",
+        "folded",
+        "straightens",
+        "straightened",
+        "says",
+        "said",
+        "asks",
+        "asked",
+        "replies",
+        "replied",
+        "answers",
+        "answered",
+    )
+    verb_pattern = "|".join(action_verbs)
+    match = re.match(
+        rf"^\s*(?:{name_pattern}|he|she|they)\s+(?:{verb_pattern})\b[^.!?]*(?:[.!?]\s*|$)(?P<rest>.*)$",
+        output_text,
+        flags=re.IGNORECASE,
+    )
+    if match is None:
+        return output_text
+    return match.group("rest").strip()
+
+
+def _strip_surrounding_quotes(output_text: str) -> str:
+    stripped_output = output_text.strip()
+    if len(stripped_output) < 2:
+        return stripped_output
+    quote_pairs = {
+        '"': '"',
+        "'": "'",
+    }
+    opening_quote = stripped_output[0]
+    closing_quote = quote_pairs.get(opening_quote)
+    if closing_quote is None or stripped_output[-1] != closing_quote:
+        return stripped_output
+    return stripped_output[1:-1].strip()
+
+
+def _npc_name_pattern(npc_name: str) -> str:
+    name_parts = [part for part in npc_name.split() if part]
+    name_aliases = [npc_name, *name_parts]
+    return "|".join(re.escape(alias) for alias in sorted(set(name_aliases), key=len, reverse=True))

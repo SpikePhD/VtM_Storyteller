@@ -508,12 +508,17 @@ class InputInterpreterTests(unittest.TestCase):
         result, _adapter = self._interpret_with_active_dialogue_adapter(
             "See what I mean?",
             conversation_focus_npc_id="npc_1",
+            conversation_subtopic=DialogueSubtopic.MISSING_LEDGER,
         )
 
         self.assertFalse(result.fallback_to_parser)
         self.assertEqual(result.normalized_intent, "talk")
         self.assertEqual(result.target_reference, "npc_1")
         self.assertEqual(result.canonical_command, "talk npc_1")
+        self.assertIsNotNone(result.dialogue_metadata)
+        assert result.dialogue_metadata is not None
+        self.assertEqual(result.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
+        self.assertEqual(result.dialogue_metadata.topic, "conversation")
 
     def test_active_conversation_unusable_adapter_falls_back_to_local_dialogue_classification(self) -> None:
         adapter = self.UnusableDialogueIntentAdapter()

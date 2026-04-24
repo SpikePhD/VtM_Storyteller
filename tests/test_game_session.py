@@ -829,6 +829,33 @@ class GameSessionTests(unittest.TestCase):
         self.assertGreaterEqual(len(adapter.calls), 1)
         self.assertIn("Busy - got into a job that I did not really want to do", adapter.calls[-1])
 
+    def test_vague_discourse_follow_up_does_not_inject_ledger_content(self) -> None:
+        session = GameSession()
+
+        session.process_input("Jonas, hello.")
+        session.process_input("Busy - got into a job that I did not really want to do")
+        result = session.process_input("See what I mean?")
+        interpreted = session.get_last_interpreted_input()
+        turn = session.get_last_action_resolution()
+
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("ledger", result.output_text.lower())
+        self.assertNotIn("dock", result.output_text.lower())
+        self.assertNotIn("paper trail", result.output_text.lower())
+        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertIsNotNone(interpreted)
+        assert interpreted is not None
+        self.assertIsNotNone(interpreted.dialogue_metadata)
+        assert interpreted.dialogue_metadata is not None
+        self.assertEqual(interpreted.dialogue_metadata.dialogue_move, DialogueMove.CLARIFY)
+        self.assertEqual(interpreted.dialogue_metadata.topic, "conversation")
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertIsNotNone(turn.dialogue_adjudication)
+        assert turn.dialogue_adjudication is not None
+        self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.META_CONVERSATION)
+
     def test_active_conversation_pressure_lines_fall_back_when_adapter_is_unusable(self) -> None:
         session = GameSession(dialogue_intent_adapter=NullDialogueIntentAdapter())
 
@@ -1344,6 +1371,30 @@ class GameSessionTests(unittest.TestCase):
         self.assertTrue(any("Rolled dialogue_social check" in entry.description for entry in session.get_world_state().event_log))
         self.assertTrue(any("Dialogue check success:" in entry.description for entry in session.get_world_state().event_log))
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+
+    def test_player_facing_scene_recent_events_hide_raw_dialogue_check_debug(self) -> None:
+        session = GameSession()
+
+        with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
+            mock_resolve.return_value = DeterministicCheckResolution(
+                kind=DeterministicCheckKind.DIALOGUE_SOCIAL,
+                seed="2026-04-09T22:00:00+02:00|talk|persuade|npc_1|dock|player_1|0|productive",
+                roll_pool=3,
+                difficulty=6,
+                individual_rolls=[8, 2, 7],
+                successes=2,
+                is_success=True,
+            )
+            session.process_input("I persuade Jonas to help with the dock.")
+        scene_result = session.process_input("look")
+        backend_events = [entry.description for entry in session.get_world_state().event_log]
+
+        self.assertTrue(any("Rolled dialogue_social check" in event for event in backend_events))
+        self.assertTrue(any("Dialogue check success:" in event for event in backend_events))
+        self.assertIn("Recent Events:", scene_result.output_text)
+        self.assertNotIn("Rolled dialogue_social check", scene_result.output_text)
+        self.assertNotIn("Dialogue check success:", scene_result.output_text)
+        self.assertIn("Jonas Reed shared the dock lead.", scene_result.output_text)
 
     def test_failed_persuade_stays_guarded_and_does_not_advance_plot(self) -> None:
         session = GameSession()

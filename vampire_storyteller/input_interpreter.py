@@ -208,6 +208,9 @@ class InputInterpreter:
     _ACTIVE_CONVERSATION_META_CLARIFY_PHRASES = (
         "that is what i said",
         "that is what i meant",
+        "see what i mean",
+        "see what im saying",
+        "see what i am saying",
         "you are looping",
         "youre looping",
         "you keep looping",
@@ -997,11 +1000,15 @@ class InputInterpreter:
         speech_text = self._extract_speech_text(raw_input, resolved_npc.name)
         dialogue_act = self._coerce_dialogue_act(proposal.dialogue_act)
         dialogue_move = self._coerce_dialogue_move(proposal.dialogue_move)
+        topic = proposal.topic
+        if self._is_vague_discourse_follow_up(normalized_text):
+            dialogue_move = DialogueMove.CLARIFY
+            topic = "conversation"
         metadata = DialogueMetadata(
             utterance_text=raw_input.strip(),
             speech_text=speech_text,
             dialogue_act=dialogue_act,
-            topic=proposal.topic,
+            topic=topic,
             tone=proposal.tone,
             dialogue_move=dialogue_move,
         )
@@ -1186,6 +1193,9 @@ class InputInterpreter:
         if not normalized_speech_text:
             return DialogueMove.NONE
 
+        if self._contains_any(normalized_text, self._ACTIVE_CONVERSATION_META_CLARIFY_PHRASES):
+            return DialogueMove.CLARIFY
+
         if self._contains_any(
             normalized_text,
             (
@@ -1308,6 +1318,14 @@ class InputInterpreter:
             return DialogueMove.CONTINUE
 
         return DialogueMove.NONE
+
+    def _is_vague_discourse_follow_up(self, normalized_text: str) -> bool:
+        return normalized_text.strip() in {
+            "see what i mean",
+            "see what im saying",
+            "see what i am saying",
+            "you see",
+        }
 
     def _build_talk_result(
         self,

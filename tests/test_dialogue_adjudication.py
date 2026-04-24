@@ -195,6 +195,28 @@ class DialogueAdjudicationTests(unittest.TestCase):
         self.assertEqual(outcome.topic_status, DialogueTopicStatus.PRODUCTIVE)
         self.assertIsNotNone(outcome.social_outcome)
 
+    def test_vague_discourse_marker_does_not_inherit_missing_ledger_subtopic(self) -> None:
+        world = build_sample_world()
+        command = TalkCommand(
+            npc_id="npc_1",
+            conversation_subtopic=DialogueSubtopic.MISSING_LEDGER,
+            dialogue_metadata=DialogueMetadata(
+                utterance_text="See what I mean?",
+                speech_text="see what I mean?",
+                dialogue_act=DialogueAct.ASK,
+                topic="conversation",
+            ),
+        )
+
+        outcome = adjudicate_dialogue_talk(world, command)
+
+        self.assertTrue(outcome.is_allowed)
+        self.assertEqual(outcome.dialogue_domain, DialogueDomain.META_CONVERSATION)
+        self.assertIsNotNone(outcome.social_outcome)
+        assert outcome.social_outcome is not None
+        self.assertNotEqual(outcome.social_outcome.topic_result, TopicResult.OPENED)
+        self.assertNotEqual(outcome.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
+
     def test_missing_ledger_subtopic_does_not_make_threats_productive(self) -> None:
         world = build_sample_world()
         command = TalkCommand(

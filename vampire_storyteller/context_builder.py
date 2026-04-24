@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from dataclasses import asdict
 import json
+import re
 
 from .exceptions import ContextBuildError
+from .models import EventLogEntry
 from .scene_models import SceneNarrationPayload, SceneNPC, SceneSnapshot
 from .world_state import WorldState
 
@@ -51,9 +53,7 @@ def build_scene_snapshot(world_state: WorldState, recent_event_limit: int = 3) -
         }
     )
 
-    recent_events = [
-        entry.description for entry in world_state.event_log[-recent_event_limit:]
-    ] if recent_event_limit > 0 else []
+    recent_events = _player_facing_recent_events(world_state.event_log, recent_event_limit)
 
     return SceneSnapshot(
         timestamp=world_state.current_time,
@@ -111,6 +111,48 @@ def snapshot_to_prompt_text(snapshot: SceneSnapshot) -> str:
         ),
     ]
     return "\n".join(lines)
+
+
+def _player_facing_recent_events(
+    event_log: list[EventLogEntry],
+    recent_event_limit: int,
+) -> list[str]:
+    if recent_event_limit <= 0:
+        return []
+
+    summarized_events = [
+        summary
+        for entry in event_log
+        if (summary := _player_facing_event_summary(entry.description)) is not None
+    ]
+    return summarized_events[-recent_event_limit:]
+
+
+def _player_facing_event_summary(description: str) -> str | None:
+    if _is_raw_roll_event(description):
+        return None
+
+    dialogue_success = re.match(r"^Dialogue check success: (?P<npc>.+?) shares the dock lead\b", description)
+    if dialogue_success is not None:
+        return f"{dialogue_success.group('npc')} shared the dock lead."
+
+    dialogue_productive = re.match(r"^Dialogue check success: (?P<npc>.+?) keeps talking\b", description)
+    if dialogue_productive is not None:
+        return f"{dialogue_productive.group('npc')} kept the conversation productive."
+
+    dialogue_failed_guarded = re.match(r"^Dialogue check failed: (?P<npc>.+?) stays guarded\b", description)
+    if dialogue_failed_guarded is not None:
+        return f"{dialogue_failed_guarded.group('npc')} stayed guarded."
+
+    dialogue_failed_refusal = re.match(r"^Dialogue check failed: (?P<npc>.+?) refuses\b", description)
+    if dialogue_failed_refusal is not None:
+        return f"{dialogue_failed_refusal.group('npc')} refused to move past the guarded topic."
+
+    return description
+
+
+def _is_raw_roll_event(description: str) -> bool:
+    return re.match(r"^Rolled [a-z_]+ check:", description) is not None
 
 
 def snapshot_to_narration_payload(snapshot: SceneSnapshot) -> SceneNarrationPayload:

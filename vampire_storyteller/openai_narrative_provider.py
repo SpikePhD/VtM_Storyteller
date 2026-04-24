@@ -45,6 +45,8 @@ class OpenAISceneNarrativeProvider:
                 "Do not invent weather, sounds, architecture, room details, crowd details, lighting, smells, motion, or emotional beats unless explicitly present in the snapshot.",
                 "Do not invent new exits, entities, plot stages, or recent events.",
                 "Do not contradict NPC presence or absence.",
+                "Source-of-knowledge constraint: you may mention confirmed plot state, but do not invent where, when, or how Mara learned a fact unless the snapshot explicitly says so.",
+                "A confirmed dock lead may be described as confirmed; do not say it was learned at the docks unless recent_events or the supplied state explicitly says Mara learned it there.",
                 "If information is absent, omit it.",
                 "Prefer concise grounded prose over embellished prose.",
                 "Do not add bullet points, markdown, or a verification footer.",

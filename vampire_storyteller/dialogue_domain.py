@@ -78,6 +78,9 @@ def classify_dialogue_domain(
     if _is_off_topic_request(combined_text):
         return DialogueDomain.OFF_TOPIC_REQUEST
 
+    if _is_vague_discourse_marker(combined_text):
+        return DialogueDomain.META_CONVERSATION
+
     if should_inherit_subtopic(active_subtopic, dialogue_metadata):
         if active_subtopic is DialogueSubtopic.MISSING_LEDGER:
             return DialogueDomain.LEAD_TOPIC
@@ -285,6 +288,20 @@ def _is_neutral_conversation_opener(normalized_text: str) -> bool:
             "talk with",
         )
     ) or normalized_text in {"talk", "speak"}
+
+
+def _is_vague_discourse_marker(normalized_text: str) -> bool:
+    cleaned_text = " ".join("".join(character if character.isalnum() else " " for character in normalized_text).split())
+    if any(
+        phrase in cleaned_text
+        for phrase in (
+            "see what i mean",
+            "see what im saying",
+            "see what i am saying",
+        )
+    ):
+        return True
+    return cleaned_text == "you see"
 
 
 def _is_off_topic_request(normalized_text: str) -> bool:

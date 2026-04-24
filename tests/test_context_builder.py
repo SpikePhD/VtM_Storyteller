@@ -50,6 +50,27 @@ class ContextBuilderTests(unittest.TestCase):
         snapshot = build_scene_snapshot(world, recent_event_limit=2)
         self.assertEqual(snapshot.recent_events, ["Third", "Fourth"])
 
+    def test_recent_events_filter_raw_rolls_and_summarize_dialogue_checks(self) -> None:
+        world = build_sample_world()
+        world.append_event(
+            EventLogEntry(
+                timestamp="t1",
+                description="Rolled dialogue_social check: 3 dice vs difficulty 6: [8, 2, 7] -> 2 successes.",
+                involved_entities=[],
+            )
+        )
+        world.append_event(
+            EventLogEntry(
+                timestamp="t2",
+                description="Dialogue check success: Jonas Reed shares the dock lead and the Missing Ledger plot advances from hook to lead_confirmed.",
+                involved_entities=[],
+            )
+        )
+
+        snapshot = build_scene_snapshot(world, recent_event_limit=3)
+
+        self.assertEqual(snapshot.recent_events, ["Jonas Reed shared the dock lead."])
+
     def test_prompt_text_is_stable_and_labeled(self) -> None:
         world = build_sample_world()
         snapshot = build_scene_snapshot(world)

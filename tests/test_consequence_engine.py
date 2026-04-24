@@ -165,7 +165,8 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertIn("Plot 'Missing Ledger' resolved at North Dockside.", result.output_text)
         self.assertIn("Active Plots: None", result.output_text)
         self.assertIn("Recent Events:", result.output_text)
-        self.assertIn("Rolled investigation check: 3 dice vs difficulty 6", result.output_text)
+        self.assertNotIn("Rolled investigation check: 3 dice vs difficulty 6", result.output_text)
+        self.assertTrue(any("Rolled investigation check: 3 dice vs difficulty 6" in entry.description for entry in world.event_log))
         self.assertEqual(world.plots["plot_1"].resolution_summary, "Plot 'Missing Ledger' resolved at North Dockside.")
 
     def test_session_flow_failure_keeps_plot_active_and_logs_roll(self) -> None:
@@ -191,7 +192,8 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertTrue(world.plots["plot_1"].active)
         self.assertEqual(world.plots["plot_1"].stage, "lead_confirmed")
         self.assertIn("Investigation at North Dockside failed to resolve 'Missing Ledger'.", result.output_text)
-        self.assertIn("Rolled investigation check: 3 dice vs difficulty 6", result.output_text)
+        self.assertNotIn("Rolled investigation check: 3 dice vs difficulty 6", result.output_text)
+        self.assertTrue(any("Rolled investigation check: 3 dice vs difficulty 6" in entry.description for entry in world.event_log))
         self.assertIn("Active Plots: Missing Ledger [lead_confirmed]", result.output_text)
 
 
