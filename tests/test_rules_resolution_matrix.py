@@ -45,7 +45,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
         self.assertTrue(result.render_scene)
         self.assertTrue(result.output_text.strip())
         self.assertEqual(turn.turn_kind, TurnOutcomeKind.NON_STATEFUL_ACTION)
-        self.assertEqual(turn.normalization_source, NormalizationSource.INTERPRETED)
+        self.assertEqual(turn.normalization_source, NormalizationSource.DIRECT_COMMAND)
         self.assertEqual(turn.canonical_action_text, "look")
         self.assertEqual(turn.adjudication.resolution_kind, ActionResolutionKind.AUTOMATIC)
         self.assertFalse(turn.world_state_mutated)
@@ -53,7 +53,8 @@ class RulesResolutionMatrixTests(unittest.TestCase):
     def test_interpreted_freeform_speech_round_trips_through_turn_contract(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, I speak to Jonas.")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("I speak to Jonas.")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)
@@ -68,7 +69,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
         self.assertEqual(turn.adjudication.resolution_kind, ActionResolutionKind.AUTOMATIC)
         self.assertTrue(turn.world_state_mutated)
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
-        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
 
     def test_blocked_investigate_path_preserves_state_and_block_reason(self) -> None:
         session = GameSession()
@@ -80,7 +81,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
         assert turn is not None
         self.assertIn("Investigate is blocked", result.output_text)
         self.assertEqual(turn.turn_kind, TurnOutcomeKind.BLOCKED)
-        self.assertEqual(turn.normalization_source, NormalizationSource.INTERPRETED)
+        self.assertEqual(turn.normalization_source, NormalizationSource.DIRECT_COMMAND)
         self.assertEqual(turn.canonical_action_text, "investigate")
         self.assertEqual(turn.adjudication.resolution_kind, ActionResolutionKind.BLOCKED)
         self.assertEqual(turn.block_reason, ActionBlockReason.PREREQUISITE_NOT_MET)
@@ -108,7 +109,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
-        self.assertEqual(turn.normalization_source, NormalizationSource.INTERPRETED)
+        self.assertEqual(turn.normalization_source, NormalizationSource.DIRECT_COMMAND)
         self.assertEqual(turn.canonical_action_text, "investigate")
         self.assertEqual(turn.adjudication.resolution_kind, ActionResolutionKind.ROLL_GATED)
         self.assertIsNotNone(turn.check)
@@ -124,7 +125,9 @@ class RulesResolutionMatrixTests(unittest.TestCase):
             save_path = Path(temp_dir) / "save.json"
             session = GameSession(save_path=save_path)
 
-            session.process_input("/talk npc_1")
+            session.process_input("/talk with Jonas")
+            session.process_input("what happened at the dock?")
+            session.process_input("tell me more about the paper trail")
             session.process_input("/save")
 
             reloaded_session = GameSession(save_path=save_path)

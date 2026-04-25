@@ -126,7 +126,8 @@ class DialogueRendererTests(unittest.TestCase):
     def test_productive_lead_reply_renders_from_structured_outcome(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("what happened at the dock?")
 
         self.assertIn("dock", result.output_text.lower())
         self.assertIn("trail", result.output_text.lower())
@@ -145,10 +146,11 @@ class DialogueRendererTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            result = session.process_input("/talk with Jonas, I persuade Jonas to help with the dock.")
+            session.process_input("/talk with Jonas")
+            result = session.process_input("I persuade Jonas to help with the dock.")
 
         self.assertIn("dock", result.output_text.lower())
-        self.assertIn("trail", result.output_text.lower())
+        self.assertIn("begin", result.output_text.lower())
         self.assertNotIn("Dialogue check success", result.output_text)
 
     def test_social_check_failure_renders_from_structured_failure_data(self) -> None:
@@ -164,7 +166,8 @@ class DialogueRendererTests(unittest.TestCase):
                 successes=0,
                 is_success=False,
             )
-            result = session.process_input("/talk with Jonas, I persuade Jonas to help with the dock.")
+            session.process_input("/talk with Jonas")
+            result = session.process_input("I persuade Jonas to help with the dock.")
 
         self.assertTrue(result.output_text.strip())
         self.assertNotIn("Dialogue check failed", result.output_text)
@@ -173,7 +176,8 @@ class DialogueRendererTests(unittest.TestCase):
     def test_provocative_refusal_renders_from_structured_domain_outcome(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, Jonas let us have sex")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("Jonas let us have sex")
 
         self.assertTrue(result.output_text.strip())
         self.assertNotIn("dock lead", result.output_text.lower())
@@ -181,7 +185,8 @@ class DialogueRendererTests(unittest.TestCase):
     def test_travel_logistics_reply_renders_from_structured_domain_outcome(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, Jonas do you want to come with me to the docks?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("Jonas do you want to come with me to the docks?")
 
         self.assertTrue(result.output_text.strip())
         self.assertNotIn("paper trail", result.output_text.lower())
@@ -351,7 +356,8 @@ class DialogueRendererTests(unittest.TestCase):
 
     def test_build_dialogue_render_input_uses_assembled_dialogue_context(self) -> None:
         session = GameSession()
-        session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
         turn = session.get_last_action_resolution()
         assert turn is not None
         assert turn.dialogue_adjudication is not None
@@ -719,7 +725,8 @@ class DialogueRendererTests(unittest.TestCase):
 
     def test_renderer_output_does_not_mutate_world_state(self) -> None:
         session = GameSession()
-        session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
         turn = session.get_last_action_resolution()
         assert turn is not None
         assert turn.dialogue_adjudication is not None
@@ -753,7 +760,8 @@ class DialogueRendererTests(unittest.TestCase):
     def test_session_returns_explicit_render_failure_when_renderer_fails(self) -> None:
         session = GameSession(dialogue_renderer=FailingDialogueRenderer())
 
-        result = session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("what happened at the dock?")
 
         self.assertIn("dialogue rendering failed", result.output_text.lower())
 

@@ -85,7 +85,8 @@ class DialogueIntentAdapterTests(unittest.TestCase):
                 )
 
         session = GameSession(dialogue_intent_adapter=StaticDialogueIntentAdapter())
-        result = session.process_input("/talk with Jonas, We need to talk about the dock.")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("We need to talk about the dock.")
         interpreted = session.get_last_interpreted_input()
 
         self.assertIn("dock", result.output_text.lower())
@@ -129,8 +130,8 @@ class DialogueIntentAdapterTests(unittest.TestCase):
 
     def test_openai_adapter_on_single_present_npc_falls_back_from_bad_target_text(self) -> None:
         for target_text, raw_input in (
-            ("dock", "/talk with Jonas, We need to talk about the dock."),
-            ("ledger", "/talk with Jonas, We need to talk about the ledger."),
+            ("dock", "We need to talk about the dock."),
+            ("ledger", "We need to talk about the ledger."),
         ):
             with self.subTest(target_text=target_text):
                 mock_client = Mock()
@@ -146,6 +147,7 @@ class DialogueIntentAdapterTests(unittest.TestCase):
                 )
                 session = GameSession(dialogue_intent_adapter=adapter)
 
+                session.process_input("/talk with Jonas")
                 result = session.process_input(raw_input)
                 interpreted = session.get_last_interpreted_input()
 
@@ -203,10 +205,9 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         adapter = OpenAIDialogueIntentAdapter(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
         session = GameSession(dialogue_intent_adapter=adapter)
 
-        result = session.process_input("/talk with Elena, I cautiously give a sign to Elena that I want to talk with her.")
+        result = session.process_input("/talk with Elena")
 
-        self.assertIn("Talk is blocked", result.output_text)
-        self.assertIn("could not identify", result.output_text)
+        self.assertIn("Unknown command", result.output_text)
         self.assertFalse(result.render_scene)
 
     def test_openai_adapter_explicit_present_named_target_still_works(self) -> None:
@@ -217,7 +218,8 @@ class DialogueIntentAdapterTests(unittest.TestCase):
         adapter = OpenAIDialogueIntentAdapter(api_key="test-key", model="gpt-4.1-mini", client=mock_client)
         session = GameSession(dialogue_intent_adapter=adapter)
 
-        result = session.process_input("/talk with Jonas, I say to Jonas that we need to talk about the dock.")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("I say to Jonas that we need to talk about the dock.")
         interpreted = session.get_last_interpreted_input()
 
         self.assertIn("dock", result.output_text.lower())
@@ -254,7 +256,7 @@ class DialogueIntentAdapterTests(unittest.TestCase):
     def test_unavailable_adapter_falls_back_to_active_conversation_dialogue(self) -> None:
         session = GameSession(dialogue_intent_adapter=NullDialogueIntentAdapter())
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
         result = session.process_input("I turn back to her and continue.")
         interpreted = session.get_last_interpreted_input()
 

@@ -12,12 +12,20 @@
       }
     },
     {
-      "input": "/talk with Sister Eliza, what about the church records?",
+      "input": "/talk with Sister Eliza",
+      "expect": {
+        "canonical": "talk npc_2",
+        "contains": ["You approach Sister Eliza."],
+        "not_contains": ["Player:", "Sister Eliza:"]
+      }
+    },
+    {
+      "input": "what about the church records?",
       "expect": {
         "canonical": "talk npc_2",
         "dialogue_domain": "lead_topic",
-        "outcome_kind": "reveal",
-        "topic_result": "opened",
+        "outcome_kind": "cooperate",
+        "topic_result": "partial",
         "plot_stage": "lead_confirmed",
         "story_flags_contains": ["eliza_shared_church_records_lead"],
         "contains": ["records", "North Dockside"],

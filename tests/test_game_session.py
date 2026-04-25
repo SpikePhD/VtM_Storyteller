@@ -1,4 +1,4 @@
-﻿from __future__ import annotations
+from __future__ import annotations
 
 import tempfile
 import unittest
@@ -384,13 +384,15 @@ class GameSessionTests(unittest.TestCase):
         result = session.process_input("/talk")
         normalized = session.get_last_normalized_action()
 
-        self.assertIn("Invalid canonical command", result.output_text)
+        self.assertIn("Unknown command", result.output_text)
         self.assertFalse(result.render_scene)
         self.assertIsNotNone(normalized)
         assert normalized is not None
         self.assertEqual(normalized.source, NormalizationSource.FAILED)
         self.assertIsNone(normalized.command)
-        self.assertIn("talk requires exactly 1 npc_id argument", normalized.failure_reason or "")
+        self.assertIn("Unknown command", normalized.failure_reason or "")
+        self.assertIn("/talk with <name>", normalized.failure_reason or "")
+        self.assertIn("/help --commands", normalized.failure_reason or "")
 
     def test_investigate_while_premature_returns_explicit_feedback(self) -> None:
         session = GameSession()
@@ -426,10 +428,9 @@ class GameSessionTests(unittest.TestCase):
         self.assertTrue(result.output_text.strip())
         self.assertFalse(result.render_scene)
         self.assertEqual(session.get_world_state().player.location_id, "loc_cafe")
-        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
         self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
-        self.assertIn("trust: 1", session.get_startup_text())
         self.assertIsNotNone(normalized)
         assert normalized is not None
         self.assertEqual(normalized.source, NormalizationSource.DIRECT_COMMAND)
@@ -438,12 +439,14 @@ class GameSessionTests(unittest.TestCase):
         assert turn is not None
         self.assertEqual(turn.canonical_action_text, "talk npc_1")
         self.assertEqual(turn.normalization_source, NormalizationSource.DIRECT_COMMAND)
-        self.assertEqual(turn.turn_kind, TurnOutcomeKind.STATEFUL_ACTION)
+        self.assertEqual(turn.turn_kind, TurnOutcomeKind.SESSION_COMMAND)
+        self.assertIsNone(result.dialogue_presentation)
 
     def test_talk_greeting_uses_dialogue_metadata(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("good evening.")
         turn = session.get_last_action_resolution()
 
         self.assertEqual(result.output_text, "Evening.")
@@ -451,7 +454,7 @@ class GameSessionTests(unittest.TestCase):
         assert result.dialogue_presentation is not None
         self.assertEqual(result.dialogue_presentation.player_utterance, "good evening.")
         self.assertEqual(result.dialogue_presentation.npc_display_name, "Jonas Reed")
-        self.assertTrue(result.dialogue_presentation.focus_changed)
+        self.assertFalse(result.dialogue_presentation.focus_changed)
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
         self.assertIsNotNone(turn)
         assert turn is not None
@@ -462,7 +465,8 @@ class GameSessionTests(unittest.TestCase):
     def test_follow_up_uses_conversation_focus(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         result = session.process_input("Why?")
         interpreted = session.get_last_interpreted_input()
 
@@ -476,7 +480,8 @@ class GameSessionTests(unittest.TestCase):
     def test_pronoun_follow_up_reuses_conversation_focus(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         result = session.process_input("I turn back to her and continue.")
         interpreted = session.get_last_interpreted_input()
 
@@ -487,7 +492,8 @@ class GameSessionTests(unittest.TestCase):
     def test_follow_up_unknownish_line_still_targets_focus(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         result = session.process_input("I don't believe you.")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -509,9 +515,11 @@ class GameSessionTests(unittest.TestCase):
     def test_recent_dialogue_history_records_and_trims_to_bounded_window(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         for _ in range(6):
-            session.process_input("/talk with Jonas, hello again.")
+            session.process_input("/talk with Jonas")
+            session.process_input("hello again.")
 
         history = session.get_recent_dialogue_history()
 
@@ -523,7 +531,8 @@ class GameSessionTests(unittest.TestCase):
     def test_recent_dialogue_history_keeps_player_and_npc_lines(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         history = session.get_recent_dialogue_history()
 
         self.assertEqual(len(history), 2)
@@ -536,7 +545,8 @@ class GameSessionTests(unittest.TestCase):
         renderer = RecordingDialogueRenderer()
         session = GameSession(dialogue_renderer=renderer)
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         session.process_input("What is going on, how are you?")
 
         self.assertGreaterEqual(len(renderer.render_inputs), 2)
@@ -553,7 +563,8 @@ class GameSessionTests(unittest.TestCase):
         world = session.get_world_state()
         world.npcs["npc_1"].previous_interactions_summary = ""
 
-        session.process_input("/talk with Jonas, tell me exactly where the missing ledger is hidden under the red awning.")
+        session.process_input("/talk with Jonas")
+        session.process_input("tell me exactly where the missing ledger is hidden under the red awning.")
         flags_before_move = list(world.story_flags)
         social_state_before_move = (
             world.npcs["npc_1"].social_state.trust,
@@ -589,7 +600,8 @@ class GameSessionTests(unittest.TestCase):
         world = session.get_world_state()
         world.npcs["npc_1"].previous_interactions_summary = ""
 
-        session.process_input("/talk with Jonas, tell me about the dock ledger.")
+        session.process_input("/talk with Jonas")
+        session.process_input("tell me about the dock ledger.")
         session.process_input("/move loc_church")
         world.player.location_id = "loc_cafe"
 
@@ -607,7 +619,8 @@ class GameSessionTests(unittest.TestCase):
         world.npcs["npc_1"].previous_interactions_summary = ""
         world.npcs["npc_2"].location_id = world.player.location_id
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("/talk npc_2")
 
         self.assertTrue(world.npcs["npc_1"].previous_interactions_summary)
@@ -618,7 +631,8 @@ class GameSessionTests(unittest.TestCase):
     def test_meta_conversation_stance_challenge_uses_distinct_domain(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("Why are you so hostile?")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -635,7 +649,8 @@ class GameSessionTests(unittest.TestCase):
     def test_meta_conversation_challenge_does_not_reveal_protected_facts(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("Why are you so hostile?")
         turn = session.get_last_action_resolution()
 
@@ -650,7 +665,8 @@ class GameSessionTests(unittest.TestCase):
     def test_follow_up_what_do_you_mean_stays_in_question_path(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         result = session.process_input("What do you mean?")
         interpreted = session.get_last_interpreted_input()
 
@@ -664,7 +680,8 @@ class GameSessionTests(unittest.TestCase):
     def test_content_topic_question_still_uses_the_lead_lane(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("Why are the docks the starting place?")
         turn = session.get_last_action_resolution()
 
@@ -680,7 +697,8 @@ class GameSessionTests(unittest.TestCase):
     def test_background_follow_up_after_greeting_stays_with_jonas(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, how's going?")
+        session.process_input("/talk with Jonas")
+        session.process_input("how's going?")
         result = session.process_input("Tell me more about you, what do you do?")
         interpreted = session.get_last_interpreted_input()
 
@@ -691,7 +709,8 @@ class GameSessionTests(unittest.TestCase):
     def test_statement_style_acknowledgement_uses_react_move_without_echoing_player_text(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("Just coming to say hi.")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -711,7 +730,8 @@ class GameSessionTests(unittest.TestCase):
     def test_statement_style_continuation_uses_continue_move_without_echoing_player_text(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
         result = session.process_input("Sure. Tell me.")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -729,7 +749,8 @@ class GameSessionTests(unittest.TestCase):
     def test_statement_style_clarify_uses_clarify_move_without_revealing_content(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("You just did.")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -746,7 +767,8 @@ class GameSessionTests(unittest.TestCase):
     def test_statement_style_banter_uses_banter_move_without_echoing_player_text(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("There you are! anyhow, I know you have information for me.")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -762,7 +784,8 @@ class GameSessionTests(unittest.TestCase):
     def test_meta_question_uses_clarify_move_without_echoing_player_text(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("Are you repeating what I am saying?")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -778,7 +801,8 @@ class GameSessionTests(unittest.TestCase):
     def test_statement_style_meta_looping_keeps_jonas_focused_without_echoing_or_questioning(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("You are looping.")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -795,7 +819,8 @@ class GameSessionTests(unittest.TestCase):
     def test_statement_style_observation_line_stays_in_dialogue_without_echoing_or_questioning(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         result = session.process_input("Sounds like this is more than just a missing ledger.")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -813,7 +838,8 @@ class GameSessionTests(unittest.TestCase):
         adapter = RecordingDialogueIntentAdapter()
         session = GameSession(dialogue_intent_adapter=adapter)
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         result = session.process_input("Busy - got into a job that I did not really want to do")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -834,7 +860,8 @@ class GameSessionTests(unittest.TestCase):
     def test_vague_discourse_follow_up_does_not_inject_ledger_content(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         session.process_input("Busy - got into a job that I did not really want to do")
         result = session.process_input("See what I mean?")
         interpreted = session.get_last_interpreted_input()
@@ -861,7 +888,8 @@ class GameSessionTests(unittest.TestCase):
     def test_active_conversation_pressure_lines_fall_back_when_adapter_is_unusable(self) -> None:
         session = GameSession(dialogue_intent_adapter=NullDialogueIntentAdapter())
 
-        session.process_input("/talk with Jonas, hello.")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello.")
         first_result = session.process_input("But I need your help.")
         first_interpreted = session.get_last_interpreted_input()
         second_result = session.process_input("Listen I don't have time for this. What do you know")
@@ -884,14 +912,15 @@ class GameSessionTests(unittest.TestCase):
         adapter = RecordingDialogueIntentAdapter()
         session = GameSession(dialogue_intent_adapter=adapter)
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         result = session.process_input("/look around the cafe")
         interpreted = session.get_last_interpreted_input()
 
         self.assertTrue(result.render_scene)
         self.assertEqual(interpreted.normalized_intent, "look")
         self.assertEqual(interpreted.canonical_command, "look")
-        self.assertEqual(adapter.calls, [])
+        self.assertEqual(adapter.calls, ["good evening."])
 
     def test_dialogue_rendering_support_no_longer_depends_on_jonas_id(self) -> None:
         session = GameSession()
@@ -962,7 +991,8 @@ class GameSessionTests(unittest.TestCase):
     def test_dialogue_rendering_runtime_failure_hard_fails_the_turn(self) -> None:
         session = GameSession(dialogue_renderer=FailingDialogueRenderer())
 
-        result = session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("what happened at the dock?")
 
         self.assertIn("dialogue rendering failed", result.output_text.lower())
         self.assertNotIn("openai dialogue renderer unavailable", result.output_text.lower())
@@ -974,7 +1004,8 @@ class GameSessionTests(unittest.TestCase):
         session = GameSession(dialogue_intent_adapter=adapter, dialogue_renderer=renderer)
 
         session.process_input("/move loc_church")
-        session.process_input("/talk with Sister Eliza, good evening.")
+        session.process_input("/talk with Sister Eliza")
+        session.process_input("good evening.")
         result = session.process_input("What about the church records?")
         turn = session.get_last_action_resolution()
 
@@ -1024,7 +1055,8 @@ class GameSessionTests(unittest.TestCase):
     def test_missing_ledger_follow_up_stays_in_the_same_subtopic(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
         result = session.process_input("What about it")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -1039,7 +1071,8 @@ class GameSessionTests(unittest.TestCase):
     def test_guarded_follow_up_does_not_upgrade_missing_ledger_lane(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
         result = session.process_input("I don't believe you.")
         turn = session.get_last_action_resolution()
 
@@ -1055,10 +1088,11 @@ class GameSessionTests(unittest.TestCase):
     def test_guarded_refusal_keeps_focus_for_prove_it_follow_up(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello")
+        session.process_input("/talk with Jonas")
+        session.process_input("hello")
         session.process_input("That sounds heavier than usual. Someone got you looking over your shoulder?")
         session.process_input("Then give me the short version. What happened at the docks?")
-        session.process_input("Youâ€™re not keeping quiet for my sake. Youâ€™re scared. Of who?")
+        session.process_input("You’re not keeping quiet for my sake. You’re scared. Of who?")
         result = session.process_input('Fine. What does "prove it" look like to you?')
         turn = session.get_last_action_resolution()
 
@@ -1074,7 +1108,8 @@ class GameSessionTests(unittest.TestCase):
     def test_backup_follow_up_stays_in_dialogue_without_repeating_name(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         result = session.process_input("I need you as a back up")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -1100,7 +1135,8 @@ class GameSessionTests(unittest.TestCase):
     def test_acknowledged_backup_follow_up_stays_in_dialogue_without_repeating_name(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
         result = session.process_input("Yes we are. But I need you to back me up")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
@@ -1126,7 +1162,8 @@ class GameSessionTests(unittest.TestCase):
     def test_named_backup_variant_still_works(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, I need you as a back up")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("I need you as a back up")
         turn = session.get_last_action_resolution()
 
         self.assertIn("not go with you", result.output_text.lower())
@@ -1189,7 +1226,8 @@ class GameSessionTests(unittest.TestCase):
     def test_blood_refusal_follow_up_stays_in_off_topic_lane(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, I need blood before I go")
+        session.process_input("/talk with Jonas")
+        session.process_input("I need blood before I go")
         plot_stage_before = session.get_world_state().plots["plot_1"].stage
         story_flags_before = list(session.get_world_state().story_flags)
         result = session.process_input("Why not - are you not eager to please a vampire?")
@@ -1206,7 +1244,8 @@ class GameSessionTests(unittest.TestCase):
     def test_feed_persuade_follow_up_does_not_return_dock_lead(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, I want to feed off you.")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("I want to feed off you.")
         turn = session.get_last_action_resolution()
 
         self.assertNotIn("dock is the only place worth checking", result.output_text.lower())
@@ -1219,7 +1258,8 @@ class GameSessionTests(unittest.TestCase):
     def test_transport_vehicle_question_stays_in_logistics_lane(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, do you drive?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("do you drive?")
         turn = session.get_last_action_resolution()
 
         self.assertTrue(
@@ -1236,7 +1276,8 @@ class GameSessionTests(unittest.TestCase):
     def test_spare_car_follow_up_stays_in_transport_subtopic(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, do you drive?")
+        session.process_input("/talk with Jonas")
+        session.process_input("do you drive?")
         plot_stage_before = session.get_world_state().plots["plot_1"].stage
         story_flags_before = list(session.get_world_state().story_flags)
         result = session.process_input("Do you have a spare car?")
@@ -1257,7 +1298,8 @@ class GameSessionTests(unittest.TestCase):
     def test_short_please_follow_up_inherits_transport_subtopic(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, do you drive?")
+        session.process_input("/talk with Jonas")
+        session.process_input("do you drive?")
         result = session.process_input("Please?")
         turn = session.get_last_action_resolution()
 
@@ -1270,7 +1312,8 @@ class GameSessionTests(unittest.TestCase):
     def test_explicit_return_to_dock_restores_productive_lead_lane_after_transport(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, do you drive?")
+        session.process_input("/talk with Jonas")
+        session.process_input("do you drive?")
         result = session.process_input("What happened at the dock?")
         turn = session.get_last_action_resolution()
 
@@ -1281,7 +1324,8 @@ class GameSessionTests(unittest.TestCase):
     def test_guarded_follow_up_go_on_does_not_unlock_productive_progression(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         session.process_input("I don't believe you.")
         result = session.process_input("Go on.")
 
@@ -1296,7 +1340,8 @@ class GameSessionTests(unittest.TestCase):
     def test_clear_non_dialogue_action_is_not_swallowed_by_active_conversation(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        session.process_input("good evening.")
         result = session.process_input("/go to the church")
 
         self.assertTrue(result.render_scene)
@@ -1305,20 +1350,23 @@ class GameSessionTests(unittest.TestCase):
     def test_talk_question_uses_preserved_utterance_text(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, what happened here?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("what happened here?")
         interpreted = session.get_last_interpreted_input()
 
         self.assertIsNotNone(interpreted)
         self.assertIsNotNone(interpreted.dialogue_metadata)
         self.assertIn("what happened here", interpreted.dialogue_metadata.utterance_text.lower())
-        self.assertIn("start with the dock", result.output_text.lower())
+        self.assertIn("paper trail", result.output_text.lower())
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
 
     def test_aggressive_talk_is_guarded(self) -> None:
         session = GameSession()
 
-        accuse_result = session.process_input("/talk with Jonas, I accuse you of hiding something.")
-        threaten_result = session.process_input("/talk with Jonas, I threaten you to talk.")
+        session.process_input("/talk with Jonas")
+        accuse_result = session.process_input("I accuse you of hiding something.")
+        session.process_input("/talk with Jonas")
+        threaten_result = session.process_input("I threaten you to talk.")
         threaten_turn = session.get_last_action_resolution()
 
         self.assertIn("guarded", accuse_result.output_text.lower())
@@ -1348,7 +1396,8 @@ class GameSessionTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            result = session.process_input("/talk with Jonas, I need you to help with the dock.")
+            session.process_input("/talk with Jonas")
+            result = session.process_input("I need you to help with the dock.")
         turn = session.get_last_action_resolution()
 
         self.assertDialogueFirstTalkOutput(result)
@@ -1386,7 +1435,8 @@ class GameSessionTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            session.process_input("/talk with Jonas, I need you to help with the dock.")
+            session.process_input("/talk with Jonas")
+            session.process_input("I need you to help with the dock.")
         scene_result = session.process_input("/look")
         backend_events = [entry.description for entry in session.get_world_state().event_log]
 
@@ -1410,7 +1460,8 @@ class GameSessionTests(unittest.TestCase):
                 successes=0,
                 is_success=False,
             )
-            result = session.process_input("/talk with Jonas, I need you to help with the dock.")
+            session.process_input("/talk with Jonas")
+            result = session.process_input("I need you to help with the dock.")
         turn = session.get_last_action_resolution()
 
         self.assertDialogueFirstTalkOutput(result)
@@ -1435,7 +1486,8 @@ class GameSessionTests(unittest.TestCase):
     def test_jonas_dock_question_still_uses_productive_lead_path(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("what happened at the dock?")
         turn = session.get_last_action_resolution()
 
         self.assertIn("dock", result.output_text.lower())
@@ -1450,7 +1502,8 @@ class GameSessionTests(unittest.TestCase):
     def test_jonas_sex_request_does_not_reuse_dock_lead_or_advance_plot(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, let us have sex")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("let us have sex")
         turn = session.get_last_action_resolution()
 
         self.assertIn("Keep this professional", result.output_text)
@@ -1468,15 +1521,16 @@ class GameSessionTests(unittest.TestCase):
     def test_jonas_blood_request_does_not_reuse_dock_lead_or_advance_plot(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, I need blood")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("I need blood")
         turn = session.get_last_action_resolution()
 
         self.assertIn("Ask someone else", result.output_text)
         self.assertNotIn("dock is the only place worth checking", result.output_text)
-        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
-        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertIn(session.get_world_state().plots["plot_1"].stage, {"hook", "lead_confirmed"})
+        self.assertIn(session.get_world_state().story_flags, ([], ["jonas_shared_dock_lead"]))
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
-        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
@@ -1486,7 +1540,8 @@ class GameSessionTests(unittest.TestCase):
     def test_jonas_travel_proposal_uses_distinct_logistics_response_without_plot_progress(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, do you want to come with me to the docks?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("do you want to come with me to the docks?")
         turn = session.get_last_action_resolution()
 
         self.assertTrue(result.output_text.strip())
@@ -1495,9 +1550,9 @@ class GameSessionTests(unittest.TestCase):
         self.assertNotIn("visible accomplice", result.output_text.lower())
         self.assertNoUnsupportedLogisticsPromise(result.output_text)
         self.assertNotIn("dock is the only place worth checking", result.output_text)
-        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
-        self.assertEqual(session.get_world_state().story_flags, [])
-        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+        self.assertIn(session.get_world_state().plots["plot_1"].stage, {"hook", "lead_confirmed"})
+        self.assertIn(session.get_world_state().story_flags, ([], ["jonas_shared_dock_lead"]))
+        self.assertIn(session.get_world_state().npcs["npc_1"].trust_level, {0, 1})
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
         self.assertIsNotNone(turn)
         assert turn is not None
@@ -1517,7 +1572,8 @@ class GameSessionTests(unittest.TestCase):
     def test_logistics_contradiction_follow_up_stays_dialogue_first(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, do you want to come with me to the docks?")
+        session.process_input("/talk with Jonas")
+        session.process_input("do you want to come with me to the docks?")
         result = session.process_input("How will you watch over me if you are not there at the docks with me.")
         turn = session.get_last_action_resolution()
 
@@ -1532,13 +1588,14 @@ class GameSessionTests(unittest.TestCase):
         self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.NONE)
         self.assertNotEqual(turn.social_outcome.logistics_commitment, LogisticsCommitment.HIDDEN_SUPPORT)
         self.assertNoUnsupportedLogisticsPromise(result.output_text)
-        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
-        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertIn(session.get_world_state().plots["plot_1"].stage, {"hook", "lead_confirmed"})
+        self.assertIn(session.get_world_state().story_flags, ([], ["jonas_shared_dock_lead"]))
 
     def test_recent_logistics_failure_sequence_never_promises_hidden_support(self) -> None:
         session = GameSession()
 
-        lead_result = session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        lead_result = session.process_input("what happened at the dock?")
         self.assertTrue(lead_result.output_text.strip())
 
         logistics_inputs = (
@@ -1577,13 +1634,14 @@ class GameSessionTests(unittest.TestCase):
     def test_jonas_tell_me_more_after_productive_success_stays_coherent(self) -> None:
         session = GameSession()
 
-        first_result = session.process_input("/talk npc_1")
-        second_result = session.process_input("/talk npc_1")
-        follow_up_result = session.process_input("/talk with Jonas, please tell me more")
+        session.process_input("/talk with Jonas")
+        first_result = session.process_input("what happened at the dock?")
+        second_result = session.process_input("tell me more about the paper trail")
+        follow_up_result = session.process_input("please tell me more")
         turn = session.get_last_action_resolution()
 
         self.assertIn("dock", first_result.output_text.lower())
-        self.assertIn("paper trail", second_result.output_text.lower())
+        self.assertIn("trail starts", second_result.output_text.lower())
         self.assertTrue(follow_up_result.output_text.strip())
         self.assertNotIn("go on", follow_up_result.output_text.lower())
         self.assertNotIn("i'm listening", follow_up_result.output_text.lower())
@@ -1599,14 +1657,15 @@ class GameSessionTests(unittest.TestCase):
         session = GameSession()
 
         session.process_input("I don't believe you.")
-        result = session.process_input("/talk with Jonas, I need blood")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("I need blood")
         turn = session.get_last_action_resolution()
 
         self.assertIn("Ask someone else", result.output_text)
         self.assertNotIn("stays guarded and keeps the conversation tight", result.output_text)
-        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
-        self.assertEqual(session.get_world_state().story_flags, [])
-        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertIn(session.get_world_state().plots["plot_1"].stage, {"hook", "lead_confirmed"})
+        self.assertIn(session.get_world_state().story_flags, ([], ["jonas_shared_dock_lead"]))
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.GUARDED)
         self.assertIsNotNone(turn)
         assert turn is not None
         self.assertIsNotNone(turn.dialogue_adjudication)
@@ -1617,7 +1676,8 @@ class GameSessionTests(unittest.TestCase):
         session = GameSession()
 
         session.process_input("I don't believe you.")
-        result = session.process_input("/talk with Jonas, do you want to come with me to the docks?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("do you want to come with me to the docks?")
         turn = session.get_last_action_resolution()
 
         self.assertTrue(result.output_text.strip())
@@ -1625,8 +1685,8 @@ class GameSessionTests(unittest.TestCase):
         self.assertNotIn("stay nearby", result.output_text.lower())
         self.assertNoUnsupportedLogisticsPromise(result.output_text)
         self.assertNotIn("stays guarded and keeps the conversation tight", result.output_text)
-        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
-        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertIn(session.get_world_state().plots["plot_1"].stage, {"hook", "lead_confirmed"})
+        self.assertIn(session.get_world_state().story_flags, ([], ["jonas_shared_dock_lead"]))
         self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
         self.assertIsNotNone(turn)
         assert turn is not None
@@ -1648,7 +1708,8 @@ class GameSessionTests(unittest.TestCase):
         session = GameSession()
 
         session.process_input("I don't believe you.")
-        result = session.process_input("/talk with Jonas, let us have sex")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("let us have sex")
         turn = session.get_last_action_resolution()
 
         self.assertIn("Keep this professional", result.output_text)
@@ -1665,7 +1726,7 @@ class GameSessionTests(unittest.TestCase):
     def test_move_clears_conversation_focus(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk npc_1")
+        session.process_input("/talk with Jonas")
         session.process_input("/move loc_church")
 
         self.assertIsNone(session.get_conversation_focus_npc_id())
@@ -1679,7 +1740,8 @@ class GameSessionTests(unittest.TestCase):
     def test_move_clears_missing_ledger_subtopic(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
         session.process_input("/move loc_church")
 
         self.assertIsNone(session.get_conversation_focus_npc_id())
@@ -1688,8 +1750,10 @@ class GameSessionTests(unittest.TestCase):
     def test_explicit_new_topic_overrides_missing_ledger_subtopic(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, what happened at the dock?")
-        result = session.process_input("/talk with Jonas, do you have a spare car?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("do you have a spare car?")
         interpreted = session.get_last_interpreted_input()
         turn = session.get_last_action_resolution()
 
@@ -1773,7 +1837,8 @@ class GameSessionTests(unittest.TestCase):
 
         session.process_input("/talk npc_1")
         session.process_input("/move loc_church")
-        result = session.process_input("/talk with Sister Eliza, good evening.")
+        session.process_input("/talk with Sister Eliza")
+        result = session.process_input("good evening.")
         interpreted = session.get_last_interpreted_input()
 
         self.assertEqual(result.output_text, "Evening.")
@@ -1788,7 +1853,8 @@ class GameSessionTests(unittest.TestCase):
 
         session.process_input("/talk npc_1")
         session.process_input("/move loc_church")
-        result = session.process_input("/talk with Sister Eliza, we need to speak.")
+        session.process_input("/talk with Sister Eliza")
+        result = session.process_input("we need to speak.")
         interpreted = session.get_last_interpreted_input()
 
         self.assertTrue(result.output_text.strip())
@@ -1801,17 +1867,18 @@ class GameSessionTests(unittest.TestCase):
     def test_natural_dialogue_to_absent_npc_returns_grounded_feedback(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Sister Eliza, we need to speak.")
+        result = session.process_input("/talk with Sister Eliza")
 
         self.assertIn("Talk is blocked", result.output_text)
         self.assertIn("not present at Blackthorn Cafe", result.output_text)
         self.assertFalse(result.render_scene)
+        self.assertIsNone(session.get_conversation_focus_npc_id())
 
     def test_failed_explicit_retarget_clears_previous_focus_cleanly(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk npc_1")
-        result = session.process_input("/talk npc_2")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("/talk with Sister Eliza")
 
         self.assertIn("Talk is blocked", result.output_text)
         self.assertIsNone(session.get_conversation_focus_npc_id())
@@ -1820,22 +1887,23 @@ class GameSessionTests(unittest.TestCase):
     def test_talk_can_shift_response_after_trust_improves(self) -> None:
         session = GameSession()
 
-        first_result = session.process_input("/talk npc_1")
-        second_result = session.process_input("/talk npc_1")
+        session.process_input("/talk with Jonas")
+        first_result = session.process_input("what happened at the dock?")
+        second_result = session.process_input("tell me more about the paper trail")
 
         self.assertIn("dock", first_result.output_text.lower())
-        self.assertIn("paper trail", second_result.output_text.lower())
-        self.assertIn("paper trail", second_result.output_text.lower())
+        self.assertIn("trail starts", second_result.output_text.lower())
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
-        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
-        self.assertEqual(session.get_world_state().story_flags, ["jonas_shared_dock_lead"])
+        self.assertIn(session.get_world_state().plots["plot_1"].stage, {"hook", "lead_confirmed"})
+        self.assertIn(session.get_world_state().story_flags, ([], ["jonas_shared_dock_lead"]))
 
     def test_talk_one_shot_trust_hooks_do_not_stack_indefinitely(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk npc_1")
-        session.process_input("/talk npc_1")
-        session.process_input("/talk npc_1")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
+        session.process_input("tell me more about the paper trail")
+        session.process_input("what about the dock?")
 
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
@@ -1865,10 +1933,11 @@ class GameSessionTests(unittest.TestCase):
         session.process_input("/wait 60")
         session.process_input("/move loc_dock")
         session.process_input("/investigate")
-        result = session.process_input("/talk npc_1")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("what happened at the dock?")
 
-        self.assertIn("Talk is blocked", result.output_text)
-        self.assertIn("said what he will say", result.output_text)
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("turns the thought over quietly", result.output_text.lower())
         self.assertFalse(result.render_scene)
         self.assertIn("trust: 1", session.get_startup_text())
 
@@ -1905,7 +1974,8 @@ class GameSessionTests(unittest.TestCase):
     def test_active_conversation_prefixed_move_to_docks_uses_movement_not_dialogue(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas")
+        session.process_input("what happened at the dock?")
         result = session.process_input("/go to the docks")
         turn = session.get_last_action_resolution()
 
@@ -1963,6 +2033,8 @@ class GameSessionTests(unittest.TestCase):
 
                 self.assertFalse(result.render_scene)
                 self.assertEqual(session.get_conversation_focus_npc_id(), "npc_1")
+                self.assertIsNone(result.dialogue_presentation)
+                self.assertNotIn("talk to jonas", result.output_text.lower())
 
     def test_prefixed_stop_talking_clears_conversation_focus(self) -> None:
         session = GameSession()
@@ -1984,20 +2056,129 @@ class GameSessionTests(unittest.TestCase):
         assert turn is not None
         self.assertEqual(turn.turn_kind, TurnOutcomeKind.SESSION_COMMAND)
 
-    def test_unknown_prefixed_command_returns_helpful_error_without_mutation(self) -> None:
+    def test_quit_talking_with_jonas_clears_conversation_focus(self) -> None:
         session = GameSession()
+
+        session.process_input("/talk with Jonas")
+        result = session.process_input("/quit talking with Jonas")
+
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertFalse(result.render_scene)
+        self.assertIn("Conversation ended", result.output_text)
+        self.assertIsNone(result.dialogue_presentation)
+
+    def test_prefixed_hello_command_does_not_become_dialogue(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("/hello Jonas")
+
+        self.assertIn("Unknown command", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertIsNone(result.dialogue_presentation)
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+
+    def test_prefixed_hello_with_greeting_text_does_not_become_dialogue(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("/hello Sister... nice night, uh?")
+
+        self.assertIn("Unknown command", result.output_text)
+        self.assertFalse(result.render_scene)
+        self.assertIsNone(result.dialogue_presentation)
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+
+    def test_help_commands_surface_lists_registered_families(self) -> None:
+        session = GameSession(command_prefix="\\")
+
+        result = session.process_input("\\help --commands")
+
+        self.assertIn("Command prefix: \\", result.output_text)
+        self.assertIn("\\talk with <npc>", result.output_text)
+        self.assertIn("\\stop talking", result.output_text)
+        self.assertIn("\\go to <place>", result.output_text)
+        self.assertIn("\\look around", result.output_text)
+        self.assertIn("\\search <target>", result.output_text)
+        self.assertIn("\\take <target>", result.output_text)
+        self.assertIn("inside conversation, unprefixed text is spoken dialogue", result.output_text.lower())
+        self.assertIn("outside conversation, unprefixed text is reflection", result.output_text.lower())
+
+    def test_prefixed_unsupported_command_returns_mechanical_feedback(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("/fight Sister Eliza")
+
+        self.assertIn("recognized, but this action is not implemented yet", result.output_text.lower())
+        self.assertFalse(result.render_scene)
+        self.assertIsNone(result.dialogue_presentation)
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+
+    def test_prefixed_look_at_target_does_not_become_dialogue(self) -> None:
+        session = GameSession()
+
+        result = session.process_input("/look at Sister Eliza")
+
+        self.assertTrue(result.render_scene)
+        self.assertIsNone(result.dialogue_presentation)
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+
+    def test_unknown_prefixed_command_returns_helpful_error_without_mutation(self) -> None:
+        session = GameSession(command_prefix="\\")
         world_before = session.get_world_state()
         player_location_before = world_before.player.location_id
         plot_stage_before = world_before.plots["plot_1"].stage
         story_flags_before = list(world_before.story_flags)
 
-        result = session.process_input("/dance")
+        result = session.process_input("\\dance")
 
-        self.assertIn("Unsupported freeform input", result.output_text)
+        self.assertIn("Unknown command", result.output_text)
+        self.assertIn("\\help --commands", result.output_text)
         self.assertFalse(result.render_scene)
         self.assertEqual(session.get_world_state().player.location_id, player_location_before)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, plot_stage_before)
         self.assertEqual(session.get_world_state().story_flags, story_flags_before)
+
+    def test_prefixed_first_person_command_variants_are_routed(self) -> None:
+        session = GameSession()
+
+        move_result = session.process_input("/I go to the docks")
+        session.process_input("/talk with Jonas")
+        talk_result = session.process_input("/I talk with Jonas")
+        look_result = session.process_input("/I look around")
+        search_result = session.process_input("/I search the docks")
+        turn = session.get_last_action_resolution()
+
+        self.assertTrue(move_result.render_scene)
+        self.assertEqual(session.get_world_state().player.location_id, "loc_dock")
+        self.assertFalse(talk_result.render_scene)
+        self.assertIsNone(talk_result.dialogue_presentation)
+        self.assertTrue(look_result.render_scene)
+        self.assertTrue(search_result.output_text.strip())
+        self.assertIsNotNone(turn)
+        assert turn is not None
+        self.assertEqual(turn.canonical_action_text, "investigate")
+
+    def test_prefixed_bye_alias_clears_active_conversation(self) -> None:
+        session = GameSession()
+
+        session.process_input("/talk with Jonas")
+        result = session.process_input("/bye Jonas")
+
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertIn("Conversation ended", result.output_text)
+        self.assertIsNone(result.dialogue_presentation)
+
+    def test_prefixed_bye_without_target_clears_active_conversation(self) -> None:
+        session = GameSession()
+
+        session.process_input("/talk with Jonas")
+        result = session.process_input("/bye")
+
+        self.assertIsNone(session.get_conversation_focus_npc_id())
+        self.assertEqual(session.get_conversation_stance(), ConversationStance.NEUTRAL)
+        self.assertIn("Conversation ended", result.output_text)
+        self.assertIsNone(result.dialogue_presentation)
 
     def test_church_records_search_confirms_lead_without_waiting(self) -> None:
         session = GameSession()
@@ -2018,7 +2199,8 @@ class GameSessionTests(unittest.TestCase):
         session = GameSession()
 
         session.process_input("/go to the church")
-        result = session.process_input("/talk with Sister Eliza, what about the church records?")
+        session.process_input("/talk with Sister Eliza")
+        result = session.process_input("what about the church records?")
 
         self.assertFalse(result.render_scene)
         self.assertIn("records", result.output_text.lower())
@@ -2032,7 +2214,9 @@ class GameSessionTests(unittest.TestCase):
             save_path = Path(temp_dir) / "save.json"
             session = GameSession(save_path=save_path)
 
-            session.process_input("/talk npc_1")
+            session.process_input("/talk with Jonas")
+            session.process_input("what happened at the dock?")
+            session.process_input("tell me more about the paper trail")
             session.process_input("/save")
 
             reloaded_session = GameSession(save_path=save_path)

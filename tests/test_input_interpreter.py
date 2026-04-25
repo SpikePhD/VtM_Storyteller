@@ -347,13 +347,14 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().player.location_id, "loc_church")
         self.assertIsNotNone(normalized)
         assert normalized is not None
-        self.assertEqual(normalized.source, NormalizationSource.INTERPRETED)
+        self.assertEqual(normalized.source, NormalizationSource.DIRECT_COMMAND)
         self.assertEqual(normalized.canonical_command_text, "move loc_church")
 
     def test_game_session_preserves_dialogue_metadata(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, I need you to trust me.")
+        session.process_input("/talk with Jonas")
+        session.process_input("I need you to trust me.")
         interpreted = session.get_last_interpreted_input()
         normalized = session.get_last_normalized_action()
 

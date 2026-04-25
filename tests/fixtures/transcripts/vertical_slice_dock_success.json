@@ -2,7 +2,15 @@
   "id": "vertical_slice_dock_success",
   "steps": [
     {
-      "input": "/talk with Jonas, I persuade Jonas to help with the dock.",
+      "input": "/talk with Jonas",
+      "expect": {
+        "canonical": "talk npc_1",
+        "contains": ["You approach Jonas Reed."],
+        "not_contains": ["Player:", "Jonas Reed:"]
+      }
+    },
+    {
+      "input": "I persuade Jonas to help with the dock.",
       "check_result": {
         "kind": "dialogue_social",
         "seed": "fixture-dialogue-success",
@@ -14,7 +22,7 @@
       },
       "expect": {
         "canonical": "talk npc_1",
-        "dialogue_domain": "lead_pressure",
+        "dialogue_domain": "lead_topic",
         "outcome_kind": "reveal",
         "topic_result": "opened",
         "plot_stage": "lead_confirmed",

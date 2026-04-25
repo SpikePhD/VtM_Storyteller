@@ -2,7 +2,15 @@
   "id": "jonas_logistics_refusal",
   "steps": [
     {
-      "input": "/talk with Jonas, what happened at the dock?",
+      "input": "/talk with Jonas",
+      "expect": {
+        "canonical": "talk npc_1",
+        "contains": ["You approach Jonas Reed."],
+        "not_contains": ["Player:", "Jonas Reed:"]
+      }
+    },
+    {
+      "input": "what happened at the dock?",
       "expect": {
         "canonical": "talk npc_1",
         "dialogue_domain": "lead_topic",
@@ -14,7 +22,7 @@
       }
     },
     {
-      "input": "/talk with Jonas, Come with me to the docks and back me up.",
+      "input": "Come with me to the docks and back me up.",
       "expect": {
         "canonical": "talk npc_1",
         "dialogue_domain": "travel_proposal",
@@ -23,7 +31,7 @@
       }
     },
     {
-      "input": "/talk with Jonas, How will you watch over me if you are not there at the docks with me?",
+      "input": "How will you watch over me if you are not there at the docks with me?",
       "expect": {
         "canonical": "talk npc_1",
         "logistics_commitment_in": ["absolute_refusal", "decline_join", "indirect_support"],

@@ -238,7 +238,8 @@ class DialogueAdjudicationTests(unittest.TestCase):
     def test_session_records_dialogue_adjudication_on_talk_turn(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("good evening.")
         turn = session.get_last_action_resolution()
 
         self.assertTrue(result.output_text.strip())
@@ -262,7 +263,7 @@ class DialogueAdjudicationTests(unittest.TestCase):
     def test_travel_request_turn_records_bounded_logistics_commitment(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, good evening.")
+        session.process_input("/talk with Jonas")
         result = session.process_input("Are you coming with?")
         turn = session.get_last_action_resolution()
 

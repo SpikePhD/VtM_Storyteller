@@ -20,7 +20,7 @@ class CliTranscriptTests(unittest.TestCase):
     def test_prompt_uses_player_prompt_during_active_conversation(self) -> None:
         session = GameSession()
 
-        session.process_input("/talk with Jonas, hello")
+        session.process_input("/talk with Jonas")
 
         self.assertEqual(_build_cli_prompt(session), "Player > ")
 

@@ -105,7 +105,8 @@ class ActionResolutionContractTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            result = session.process_input("/talk with Jonas, I persuade Jonas to help with the dock.")
+            session.process_input("/talk with Jonas")
+            result = session.process_input("I persuade Jonas to help with the dock.")
 
         turn = session.get_last_action_resolution()
 
@@ -140,7 +141,8 @@ class ActionResolutionContractTests(unittest.TestCase):
     def test_refusal_path_populates_structured_social_outcome_packet(self) -> None:
         session = GameSession()
 
-        result = session.process_input("/talk with Jonas, I don't believe you.")
+        session.process_input("/talk with Jonas")
+        result = session.process_input("I don't believe you.")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)
