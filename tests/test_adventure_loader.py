@@ -108,6 +108,9 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual([definition.id for definition in plot_definitions], ["plot_1"])
         self.assertEqual(plot_definitions[0].stage, "hook")
         self.assertEqual(plot_definitions[0].consequences, ["A hidden broker becomes interested"])
+        self.assertEqual(plot_definitions[0].stage_semantics["hook"].semantic_category, "premise")
+        self.assertIn("unresolved mystery", plot_definitions[0].stage_semantics["hook"].player_summary.lower())
+        self.assertEqual(plot_definitions[0].stage_semantics["lead_confirmed"].semantic_category, "confirmed_lead")
 
     def test_plot_outcome_definition_loader_reads_adv1_file(self) -> None:
         outcome_definitions = load_adv1_plot_outcome_definitions()

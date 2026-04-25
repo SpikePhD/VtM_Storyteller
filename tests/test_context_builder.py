@@ -5,6 +5,7 @@ import unittest
 from vampire_storyteller.context_builder import build_scene_snapshot, snapshot_to_prompt_text
 from vampire_storyteller.exceptions import ContextBuildError
 from vampire_storyteller.models import EventLogEntry
+from vampire_storyteller.plot_stage_semantics import PlotStageSemantics, describe_plot_stage_semantics
 from vampire_storyteller.sample_world import build_sample_world
 
 
@@ -39,6 +40,42 @@ class ContextBuilderTests(unittest.TestCase):
 
         snapshot = build_scene_snapshot(world)
         self.assertEqual(snapshot.active_plots, ["Missing Ledger [hook]"])
+        self.assertEqual([context.stage_id for context in snapshot.active_plot_contexts], ["hook"])
+        self.assertEqual(snapshot.active_plot_contexts[0].semantic_category, "premise")
+        self.assertIn("unresolved mystery", snapshot.active_plot_contexts[0].player_summary.lower())
+
+    def test_stage_semantics_helper_distinguishes_premise_and_confirmed_lead(self) -> None:
+        premise = describe_plot_stage_semantics(
+            "Dummy Mystery",
+            "hook",
+            {
+                "hook": PlotStageSemantics(
+                    stage_id="hook",
+                    semantic_category="premise",
+                    player_summary="The Dummy Mystery is still unresolved.",
+                    prompt_guidance="Premise only.",
+                    allowed_specificity="premise only",
+                )
+            },
+        )
+        confirmed = describe_plot_stage_semantics(
+            "Dummy Mystery",
+            "lead_confirmed",
+            {
+                "lead_confirmed": PlotStageSemantics(
+                    stage_id="lead_confirmed",
+                    semantic_category="confirmed_lead",
+                    player_summary="North Dockside is now the confirmed route.",
+                    prompt_guidance="Confirmed lead.",
+                    allowed_specificity="confirmed lead",
+                )
+            },
+        )
+
+        self.assertEqual(premise.semantic_category, "premise")
+        self.assertNotIn("north dockside", premise.player_summary.lower())
+        self.assertEqual(confirmed.semantic_category, "confirmed_lead")
+        self.assertIn("north dockside", confirmed.player_summary.lower())
 
     def test_recent_events_are_limited_in_chronological_order(self) -> None:
         world = build_sample_world()
@@ -98,7 +135,7 @@ class ContextBuilderTests(unittest.TestCase):
         self.assertIn("NPCs Present: ", prompt_text)
         self.assertIn("trust: 0", prompt_text)
         self.assertIn("Active Plots: ", prompt_text)
-        self.assertIn("Missing Ledger [hook]", prompt_text)
+        self.assertIn("The Missing Ledger is still an unresolved mystery.", prompt_text)
         self.assertIn("Recent Events: ", prompt_text)
 
     def test_building_without_valid_location_raises(self) -> None:

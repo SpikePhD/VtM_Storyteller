@@ -195,7 +195,7 @@ class ConsequenceEngineTests(unittest.TestCase):
         self.assertIn("The search at North Dockside does not settle the Missing Ledger yet.", result.output_text)
         self.assertNotIn("Rolled investigation check: 3 dice vs difficulty 6", result.output_text)
         self.assertTrue(any("Rolled investigation check: 3 dice vs difficulty 6" in entry.description for entry in world.event_log))
-        self.assertIn("Active Plots: Missing Ledger [lead_confirmed]", result.output_text)
+        self.assertIn("Active Plots: The Missing Ledger has a confirmed lead.", result.output_text)
 
 
 if __name__ == "__main__":

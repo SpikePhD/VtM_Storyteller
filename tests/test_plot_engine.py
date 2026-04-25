@@ -75,11 +75,11 @@ class PlotEngineTests(unittest.TestCase):
         session = GameSession()
 
         move_result = session.process_input("/move loc_church")
-        self.assertIn("church_visited", move_result.output_text)
+        self.assertIn("The Missing Ledger has a church-records angle in play.", move_result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "church_visited")
 
         wait_result = session.process_input("/wait 60")
-        self.assertIn("lead_confirmed", wait_result.output_text)
+        self.assertIn("The Missing Ledger has a confirmed lead.", wait_result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
 
     def test_talk_advances_hook_to_lead_confirmed_after_trust_builds(self) -> None:
@@ -108,7 +108,7 @@ class PlotEngineTests(unittest.TestCase):
         advance_plots(world, MoveCommand(destination_id="loc_church"))
 
         scene_text = render_scene_text(world)
-        self.assertIn("Missing Ledger [church_visited]", scene_text)
+        self.assertIn("The Missing Ledger has a church-records angle in play.", scene_text)
 
     def test_authorized_fact_progression_applies_reusable_backend_effects(self) -> None:
         world = build_sample_world()

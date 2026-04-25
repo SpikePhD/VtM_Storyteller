@@ -149,8 +149,9 @@ class DialogueRendererTests(unittest.TestCase):
             session.process_input("/talk with Jonas")
             result = session.process_input("I persuade Jonas to help with the dock.")
 
-        self.assertIn("north dockside", result.output_text.lower())
-        self.assertIn("trail starts", result.output_text.lower())
+        normalized_output = result.output_text.lower()
+        self.assertIn("north dockside", normalized_output)
+        self.assertTrue("paper trail" in normalized_output or "trail starts" in normalized_output)
         self.assertNotIn("Dialogue check success", result.output_text)
 
     def test_social_check_failure_renders_from_structured_failure_data(self) -> None:
@@ -398,6 +399,7 @@ class DialogueRendererTests(unittest.TestCase):
                     fact_id="assembled_fact",
                     kind="lead",
                     summary="Assembled summary",
+                    render_specificity="vague_rumor",
                 ),
             ),
         )
@@ -462,6 +464,7 @@ class DialogueRendererTests(unittest.TestCase):
                     fact_id="jonas_missing_ledger_lead",
                     kind="lead",
                     summary="He confirms that the missing ledger's trail begins at North Dockside.",
+                    render_specificity="confirmed_lead",
                 ),
             ),
         )
@@ -471,6 +474,32 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertIn("dockside", output.lower())
         self.assertIn("piece you get", output.lower())
         self.assertNotIn("broker used the dock to move papers", output.lower())
+
+    def test_packet_first_lead_summary_stays_vague_without_actionable_specificity(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.DEFLECT,
+            topic_result=TopicResult.PARTIAL,
+            dialogue_domain="lead_topic",
+            dialogue_act="ask",
+            utterance_text="I need to know about the ledger.",
+            speech_text="i need to know about the ledger.",
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="jonas_missing_ledger_lead",
+                    kind="lead",
+                    summary="He confirms that the missing ledger's trail begins at North Dockside.",
+                    render_specificity="vague_rumor",
+                    render_summary="There is a rumor here, but nothing concrete is being given away yet.",
+                ),
+            ),
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertNotIn("north dockside", output.lower())
+        self.assertNotIn("trail starts", output.lower())
+        self.assertIn("not the part", output.lower())
 
     def test_packet_first_refusal_remains_guarded_without_progression(self) -> None:
         renderer = DeterministicDialogueRenderer()
@@ -713,6 +742,7 @@ class DialogueRendererTests(unittest.TestCase):
                     fact_id="jonas_check_success_reveal",
                     kind="lead",
                     summary="Under real pressure he admits the dock lead plainly enough for Mara to act on it.",
+                    render_specificity="confirmed_lead",
                 ),
             ),
         )
@@ -722,6 +752,37 @@ class DialogueRendererTests(unittest.TestCase):
         self.assertIn("paper trail", output.lower())
         self.assertIn("dock", output.lower())
         self.assertIn("piece you get", output.lower())
+
+    def test_packet_first_check_success_without_authorized_lead_stays_generic(self) -> None:
+        renderer = DeterministicDialogueRenderer()
+        render_input = _make_render_input(
+            outcome_kind=SocialOutcomeKind.REVEAL,
+            topic_result=TopicResult.OPENED,
+            dialogue_act="persuade",
+            check_result=SocialCheckResult(
+                kind="dialogue_social",
+                seed="seed",
+                roll_pool=3,
+                difficulty=6,
+                successes=2,
+                is_success=True,
+            ),
+            check_kind="dialogue_social",
+            authorized_fact_cards=(
+                DialogueFactCard(
+                    fact_id="jonas_missing_ledger_lead",
+                    kind="lead",
+                    summary="He confirms that the missing ledger's trail begins at North Dockside.",
+                    render_specificity="vague_rumor",
+                ),
+            ),
+        )
+
+        output = renderer.render_dialogue(render_input)
+
+        self.assertNotIn("north dockside", output.lower())
+        self.assertNotIn("trail starts", output.lower())
+        self.assertIn("move on", output.lower())
 
     def test_renderer_output_does_not_mutate_world_state(self) -> None:
         session = GameSession()

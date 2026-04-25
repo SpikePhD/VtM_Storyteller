@@ -5,6 +5,7 @@ from typing import Any
 
 from .command_models import ConversationStance
 from .models import EventLogEntry, Location, NPC, NPCDialogueProfile, Player, PlotThread
+from .plot_stage_semantics import PlotStageSemantics
 from .social_models import NPCSocialState, TopicSensitivity
 
 
@@ -124,6 +125,7 @@ def _plot_thread_to_dict(plot: PlotThread) -> dict[str, Any]:
         "resolution_summary": plot.resolution_summary,
         "learned_outcome": plot.learned_outcome,
         "closing_beat": plot.closing_beat,
+        "stage_semantics": {stage_id: _plot_stage_semantics_to_dict(semantics) for stage_id, semantics in plot.stage_semantics.items()},
     }
 
 
@@ -223,6 +225,7 @@ def _plot_thread_from_dict(data: dict[str, Any]) -> PlotThread:
         resolution_summary=_require_present_str(data, "resolution_summary"),
         learned_outcome=_require_present_str(data, "learned_outcome"),
         closing_beat=_require_present_str(data, "closing_beat"),
+        stage_semantics=_plot_stage_semantics_from_dict(data.get("stage_semantics")),
     )
 
 
@@ -245,6 +248,38 @@ def _npc_social_state_to_dict(social_state: NPCSocialState) -> dict[str, Any]:
         "current_conversation_stance": social_state.current_conversation_stance.value,
         "topic_sensitivity": {topic: sensitivity.value for topic, sensitivity in social_state.topic_sensitivity.items()},
     }
+
+
+def _plot_stage_semantics_to_dict(semantics: PlotStageSemantics) -> dict[str, Any]:
+    return {
+        "stage_id": semantics.stage_id,
+        "semantic_category": semantics.semantic_category,
+        "player_summary": semantics.player_summary,
+        "prompt_guidance": semantics.prompt_guidance,
+        "allowed_specificity": semantics.allowed_specificity,
+    }
+
+
+def _plot_stage_semantics_from_dict(value: Any) -> dict[str, PlotStageSemantics]:
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise TypeError("stage_semantics must be a JSON object.")
+
+    semantics: dict[str, PlotStageSemantics] = {}
+    for stage_id, semantics_data in value.items():
+        if not isinstance(stage_id, str) or not stage_id:
+            raise TypeError("stage_semantics must use non-empty string keys.")
+        if not isinstance(semantics_data, dict):
+            raise TypeError(f"stage_semantics for '{stage_id}' must be a JSON object.")
+        semantics[stage_id] = PlotStageSemantics(
+            stage_id=_require_optional_str(semantics_data, "stage_id") or stage_id,
+            semantic_category=_require_str(semantics_data, "semantic_category"),
+            player_summary=_require_str(semantics_data, "player_summary"),
+            prompt_guidance=_require_str(semantics_data, "prompt_guidance"),
+            allowed_specificity=_require_str(semantics_data, "allowed_specificity"),
+        )
+    return semantics
 
 
 def _npc_social_state_from_dict(

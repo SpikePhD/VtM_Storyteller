@@ -119,6 +119,7 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
                         fact_id="jonas_missing_ledger_lead",
                         kind="lead",
                         summary="He confirms that the missing ledger's trail begins at North Dockside.",
+                        render_specificity="confirmed_lead",
                     ),
                 ),
                 social_outcome=SocialOutcomePacket(
@@ -172,6 +173,7 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertIn("does not authorize surveillance, transport, accompaniment, waiting nearby, backup, or practical help", prompt)
         self.assertIn("Use npc_dossier.personality_guidance for speech style", prompt)
         self.assertIn("Personality guidance shapes tone, posture, and phrasing only", prompt)
+        self.assertIn("authorized_fact_cards carry a render_specificity field", prompt)
         self.assertIn("Apply personality_guidance concretely at sentence level", prompt)
         self.assertIn("choose word count, sentence shape, directness, formality, and pushback style", prompt)
         self.assertIn("Do not inflate casual banter into poetic metaphor", prompt)
@@ -191,6 +193,7 @@ class OpenAIDialogueRendererTests(unittest.TestCase):
         self.assertIn('"check_result"', prompt)
         self.assertIn('"plot_name":"Missing Ledger"', prompt)
         self.assertIn('"authorized_fact_cards"', prompt)
+        self.assertIn('"render_specificity":"confirmed_lead"', prompt)
         self.assertIn('"npc_dossier"', prompt)
         self.assertIn('"personality_guidance":', prompt)
         self.assertIn('"banter_tolerance":"low;', prompt)

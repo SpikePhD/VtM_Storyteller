@@ -5,6 +5,32 @@
       "name": "Missing Ledger",
       "stage": "hook",
       "active": true,
+      "stage_semantics": {
+        "hook": {
+          "semantic_category": "premise",
+          "player_summary": "The Missing Ledger is still an unresolved mystery.",
+          "prompt_guidance": "Keep this as premise-only context. Do not invent a concrete next step, source, or location.",
+          "allowed_specificity": "premise only"
+        },
+        "church_visited": {
+          "semantic_category": "rumor",
+          "player_summary": "The Missing Ledger has a church-records angle in play.",
+          "prompt_guidance": "You may color the scene with a church-records angle, but do not claim the lead is confirmed or actionable.",
+          "allowed_specificity": "rumor only"
+        },
+        "lead_confirmed": {
+          "semantic_category": "confirmed_lead",
+          "player_summary": "The Missing Ledger has a confirmed lead.",
+          "prompt_guidance": "The actionable lead is confirmed and may be named, but only because the backend state already confirmed it.",
+          "allowed_specificity": "confirmed lead"
+        },
+        "resolved": {
+          "semantic_category": "resolution",
+          "player_summary": "The Missing Ledger is resolved.",
+          "prompt_guidance": "The investigation is settled. Do not imply a new next step.",
+          "allowed_specificity": "resolution"
+        }
+      },
       "triggers": [
         "NPC mentions the ledger",
         "Player visits the dock"

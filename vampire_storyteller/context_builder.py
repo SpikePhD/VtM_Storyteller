@@ -6,7 +6,8 @@ import re
 
 from .exceptions import ContextBuildError
 from .models import EventLogEntry
-from .scene_models import SceneNarrationPayload, SceneNPC, SceneSnapshot
+from .plot_stage_semantics import describe_plot_stage_semantics
+from .scene_models import SceneNarrationPayload, SceneNPC, ScenePlotContext, SceneSnapshot
 from .world_state import WorldState
 
 
@@ -33,11 +34,22 @@ def build_scene_snapshot(world_state: WorldState, recent_event_limit: int = 3) -
         )
     ]
 
-    active_plots = sorted(
-        f"{plot.name} [{plot.stage}]"
-        for plot in world_state.plots.values()
-        if plot.active
-    )
+    active_plot_contexts = []
+    active_plots = []
+    for plot in sorted((plot for plot in world_state.plots.values() if plot.active), key=lambda plot: plot.id):
+        semantics = describe_plot_stage_semantics(plot.name, plot.stage, plot.stage_semantics)
+        active_plots.append(f"{plot.name} [{plot.stage}]")
+        active_plot_contexts.append(
+            ScenePlotContext(
+                plot_id=plot.id,
+                plot_name=plot.name,
+                stage_id=semantics.stage_id,
+                semantic_category=semantics.semantic_category,
+                player_summary=semantics.player_summary,
+                prompt_guidance=semantics.prompt_guidance,
+                allowed_specificity=semantics.allowed_specificity,
+            )
+        )
 
     resolved_plots = sorted(
         f"{plot.name}: {plot.resolution_summary}"
@@ -73,6 +85,7 @@ def build_scene_snapshot(world_state: WorldState, recent_event_limit: int = 3) -
         exits=exits,
         npcs_present=npcs_present,
         active_plots=active_plots,
+        active_plot_contexts=active_plot_contexts,
         resolved_plots=resolved_plots,
         recent_events=recent_events,
     )
@@ -102,7 +115,15 @@ def snapshot_to_prompt_text(snapshot: SceneSnapshot) -> str:
             if snapshot.npcs_present
             else "None"
         ),
-        "Active Plots: " + (", ".join(snapshot.active_plots) if snapshot.active_plots else "None"),
+        "Active Plots: "
+        + (
+            ", ".join(
+                plot.player_summary
+                for plot in snapshot.active_plot_contexts
+            )
+            if snapshot.active_plot_contexts
+            else "None"
+        ),
         "Recent Events: "
         + (
             " | ".join(snapshot.recent_events)
@@ -190,7 +211,8 @@ def snapshot_to_narration_payload(snapshot: SceneSnapshot) -> SceneNarrationPayl
         location_flavor_tags=list(snapshot.location_flavor_tags),
         exits=list(snapshot.exits),
         npcs_present=list(snapshot.npcs_present),
-        active_plots=list(snapshot.active_plots),
+        active_plots=[],
+        active_plot_contexts=list(snapshot.active_plot_contexts),
         resolved_plots=list(snapshot.resolved_plots),
         recent_events=list(snapshot.recent_events),
     )
@@ -213,7 +235,15 @@ def snapshot_to_footer_text(snapshot: SceneSnapshot) -> str:
             if snapshot.npcs_present
             else "None"
         ),
-        "Active Plots: " + (", ".join(snapshot.active_plots) if snapshot.active_plots else "None"),
+        "Active Plots: "
+        + (
+            ", ".join(
+                plot.player_summary
+                for plot in snapshot.active_plot_contexts
+            )
+            if snapshot.active_plot_contexts
+            else "None"
+        ),
         "Recent Events: "
         + (
             " | ".join(snapshot.recent_events)

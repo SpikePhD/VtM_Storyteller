@@ -27,6 +27,8 @@ class OpenAIDialogueRenderer:
             return self._render_anti_echo_repair(render_input)
         if self._is_direct_echo(render_input, cleaned_output):
             return self._render_anti_echo_repair(render_input)
+        if not _has_authorized_lead(render_input) and _contains_unauthorized_lead_language(cleaned_output):
+            return self._render_unauthorized_lead_repair(render_input)
         if _contains_unsupported_logistics_promise(render_input, cleaned_output):
             return _render_logistics_repair(render_input)
         return cleaned_output
@@ -54,6 +56,8 @@ class OpenAIDialogueRenderer:
                 "Use npc_dossier for stable personality and relationship texture, npc_profile for compact runtime persona details, previous_interactions_summary for longer-term relationship memory, and recent_dialogue_history for short-term continuity.",
                 "Use npc_dossier.personality_guidance for speech style, banter tolerance, public/private demeanor, confrontation style, emotional temperature, and directness when phrasing the line.",
                 "Personality guidance shapes tone, posture, and phrasing only; it never authorizes reveals, checks, plot gates, NPC presence, commitments, or state changes.",
+                "authorized_fact_cards carry a render_specificity field. Only actionable_lead or confirmed_lead may name a concrete source, route, or location; vague_rumor and non_actionable_hint must stay general.",
+                "If render_specificity is below actionable_lead, do not phrase the answer as a concrete lead even if the fact summary sounds suggestive.",
                 "Apply personality_guidance concretely at sentence level: choose word count, sentence shape, directness, formality, and pushback style from speech_style and confrontation_style.",
                 "Do not inflate casual banter into poetic metaphor unless personality_guidance clearly supports poetic or metaphorical speech.",
                 "If banter_tolerance is low or very low, acknowledge banter briefly, then redirect, set a boundary, or close the banter instead of expanding it.",
@@ -169,6 +173,47 @@ def _contains_unsupported_logistics_promise(render_input: DialogueRenderInput, o
         "escort you",
     )
     return any(phrase in normalized_output for phrase in banned_phrases)
+
+
+def _has_authorized_lead(render_input: DialogueRenderInput) -> bool:
+    return any(
+        fact.kind == "lead" and _specificity_rank(fact.render_specificity) >= _specificity_rank("actionable_lead")
+        for fact in render_input.authorized_fact_cards
+    )
+
+
+def _contains_unauthorized_lead_language(output_text: str) -> bool:
+    normalized_output = _normalize_text(output_text)
+    banned_phrases = (
+        "north dockside",
+        "paper trail starts",
+        "trail starts",
+        "start with the dock",
+        "start at the dock",
+        "start near the docks",
+        "start near north dockside",
+        "dockside",
+    )
+    return any(phrase in normalized_output for phrase in banned_phrases)
+
+
+def _render_unauthorized_lead_repair(render_input: DialogueRenderInput) -> str:
+    if render_input.dialogue_domain == "lead_pressure":
+        return "You're asking before you've earned it."
+    if render_input.dialogue_domain == "lead_topic":
+        return "There are rumors, but nothing I will stand behind."
+    return "Not here. Not like this."
+
+
+def _specificity_rank(render_specificity: str) -> int:
+    return {
+        "premise": 0,
+        "vague_rumor": 1,
+        "non_actionable_hint": 2,
+        "actionable_lead": 3,
+        "confirmed_lead": 4,
+        "resolution": 5,
+    }.get(render_specificity, 0)
 
 
 def _render_logistics_repair(render_input: DialogueRenderInput) -> str:

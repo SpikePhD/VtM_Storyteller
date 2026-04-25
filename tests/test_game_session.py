@@ -318,7 +318,10 @@ class GameSessionTests(unittest.TestCase):
 
     def test_startup_text_is_non_empty(self) -> None:
         session = GameSession()
-        self.assertTrue(session.get_startup_text().strip())
+        startup_text = session.get_startup_text()
+        self.assertTrue(startup_text.strip())
+        self.assertIn("The Missing Ledger is still an unresolved mystery.", startup_text)
+        self.assertNotIn("trail starts at north dockside", startup_text.lower())
 
     def test_look_returns_non_quit_result(self) -> None:
         session = GameSession()
@@ -1909,6 +1912,35 @@ class GameSessionTests(unittest.TestCase):
         self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
         self.assertEqual(session.get_world_state().story_flags, ["jonas_shared_dock_lead"])
+
+    def test_broad_ledger_question_stays_vague_until_the_lead_is_authorized(self) -> None:
+        session = GameSession()
+        session.get_world_state().plots["plot_1"].stage = "church_visited"
+
+        session.process_input("/talk with Jonas")
+        result = session.process_input("I need to know about the ledger.")
+
+        self.assertNotIn("north dockside", result.output_text.lower())
+        self.assertNotIn("trail starts", result.output_text.lower())
+        self.assertNotEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+
+        session.process_input("/move loc_dock")
+        blocked_result = session.process_input("/search the docks")
+        self.assertIn("blocked", blocked_result.output_text.lower())
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "church_visited")
+
+    def test_vague_church_prompt_does_not_authorize_dock_specificity(self) -> None:
+        session = GameSession()
+        session.process_input("/move loc_church")
+        session.get_world_state().plots["plot_1"].stage = "church_visited"
+
+        session.process_input("/talk with Sister Eliza")
+        result = session.process_input("Do you know why I am here?")
+
+        self.assertTrue(result.output_text.strip())
+        self.assertNotIn("north dockside", result.output_text.lower())
+        self.assertNotIn("church records", result.output_text.lower())
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "church_visited")
 
     def test_talk_to_absent_npc_returns_explicit_feedback(self) -> None:
         session = GameSession()

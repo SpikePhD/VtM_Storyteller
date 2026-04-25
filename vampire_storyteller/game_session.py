@@ -1061,6 +1061,12 @@ class GameSession:
                     messages=consequence_summary.messages + fact_progression_summary.messages,
                     applied_effects=consequence_summary.applied_effects + fact_progression_summary.applied_effects,
                 )
+            render_authorized_fact_cards = select_authorized_fact_cards(
+                self._world_state,
+                command,
+                dialogue_adjudication,
+                render_social_outcome,
+            )
             render_input = build_dialogue_render_input(
                 self._world_state,
                 command,
@@ -1069,7 +1075,7 @@ class GameSession:
                 consequence_summary,
                 render_social_outcome,
                 self._conversation_context.recent_dialogue_history,
-                authorized_fact_cards=authorized_fact_cards,
+                authorized_fact_cards=render_authorized_fact_cards,
             )
             if not self._supports_dialogue_rendering(render_input):
                 return result

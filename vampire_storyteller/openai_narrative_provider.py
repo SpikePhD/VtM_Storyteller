@@ -47,6 +47,8 @@ class OpenAISceneNarrativeProvider:
                 "Do not contradict NPC presence or absence.",
                 "Source-of-knowledge constraint: you may mention confirmed plot state, but do not invent where, when, or how Mara learned a fact unless the snapshot explicitly says so.",
                 "A confirmed dock lead may be described as confirmed; do not say it was learned at the docks unless recent_events or the supplied state explicitly says Mara learned it there.",
+                "Treat active_plot_contexts.player_summary as the player-facing plot truth and active_plot_contexts.allowed_specificity as the ceiling for how concrete you may be.",
+                "If an active plot context is premise or rumor only, keep it vague and do not invent a concrete next step, named source, or actionable location.",
                 "If information is absent, omit it.",
                 "Prefer concise grounded prose over embellished prose.",
                 "Do not add bullet points, markdown, or a verification footer.",

@@ -38,6 +38,8 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
         self.assertIn("Source-of-knowledge constraint", prompt)
         self.assertIn("do not invent where, when, or how Mara learned a fact", prompt)
         self.assertIn("do not say it was learned at the docks", prompt)
+        self.assertIn("Treat active_plot_contexts.player_summary as the player-facing plot truth", prompt)
+        self.assertIn("active_plot_contexts.allowed_specificity", prompt)
         self.assertIn('"npcs_present"', prompt)
         self.assertIn('"exits"', prompt)
         self.assertIn('"location_name":"Blackthorn Cafe"', prompt)
@@ -45,6 +47,9 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
         self.assertIn('"location_notable_features":["corner booths","notice board","narrow back room"]', prompt)
         self.assertIn('"location_flavor_tags":["quiet","watchful","public"]', prompt)
         self.assertIn('"name":"Jonas Reed"', prompt)
+        self.assertIn('"active_plot_contexts"', prompt)
+        self.assertIn('"player_summary":"The Missing Ledger is still an unresolved mystery."', prompt)
+        self.assertNotIn('"Missing Ledger [hook]"', prompt)
         self.assertNotIn('"location_type"', prompt)
         self.assertNotIn('"location_danger_level"', prompt)
 
@@ -63,7 +68,7 @@ class OpenAINarrativeProviderTests(unittest.TestCase):
         self.assertIn("Location: Blackthorn Cafe", output)
         self.assertIn("Exits: North Dockside, Saint Judith's Church", output)
         self.assertIn("NPCs Present: Jonas Reed (Informant, trust: 0)", output)
-        self.assertIn("Active Plots: Missing Ledger [hook]", output)
+        self.assertIn("Active Plots: The Missing Ledger is still an unresolved mystery.", output)
         self.assertIn("Recent Events: None", output)
 
     def test_shared_provider_helper_uses_openai_model_from_runtime_config(self) -> None:

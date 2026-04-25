@@ -8,6 +8,7 @@ from typing import Any
 
 from .data_paths import ADVENTURE_ID, get_adventure_root
 from .models import Location, NPC, NPCDialogueProfile, Player, PlotThread
+from .plot_stage_semantics import PlotStageSemantics
 from .command_models import ConversationStance
 from .social_models import NPCSocialState, TopicSensitivity
 from .world_state import WorldState
@@ -107,6 +108,7 @@ class Adv1PlotThreadDefinition:
     active: bool
     triggers: list[str]
     consequences: list[str]
+    stage_semantics: dict[str, PlotStageSemantics]
 
 
 @dataclass(frozen=True, slots=True)
@@ -919,6 +921,7 @@ def _plot_from_dict(data: dict[str, Any]) -> PlotThread:
         active=_require_bool(data, "active"),
         triggers=list(data.get("triggers", [])),
         consequences=list(data.get("consequences", [])),
+        stage_semantics=_plot_stage_semantics_from_dict(data.get("stage_semantics")),
     )
 
 
@@ -930,6 +933,7 @@ def _plot_thread_definition_from_dict(data: dict[str, Any]) -> Adv1PlotThreadDef
         active=_require_bool(data, "active"),
         triggers=_require_string_list(data, "triggers"),
         consequences=_require_string_list(data, "consequences"),
+        stage_semantics=_plot_stage_semantics_from_dict(data.get("stage_semantics")),
     )
 
 
@@ -941,6 +945,7 @@ def _plot_from_definition(definition: Adv1PlotThreadDefinition) -> PlotThread:
         active=definition.active,
         triggers=list(definition.triggers),
         consequences=list(definition.consequences),
+        stage_semantics=dict(definition.stage_semantics),
     )
 
 
@@ -967,6 +972,28 @@ def _dialogue_hook_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueHoo
         required_dialogue_acts=_require_string_list(data, "required_dialogue_acts") if "required_dialogue_acts" in data else [],
         story_flags_to_add=_require_string_list(data, "story_flags_to_add") if "story_flags_to_add" in data else [],
     )
+
+
+def _plot_stage_semantics_from_dict(data: Any) -> dict[str, PlotStageSemantics]:
+    if data is None:
+        return {}
+    if not isinstance(data, dict):
+        raise AdventureContentError("Plot stage semantics must be a JSON object.")
+
+    semantics: dict[str, PlotStageSemantics] = {}
+    for stage_id, semantics_data in data.items():
+        if not isinstance(stage_id, str) or not stage_id:
+            raise AdventureContentError("Plot stage semantics must use non-empty string stage ids.")
+        if not isinstance(semantics_data, dict):
+            raise AdventureContentError(f"Plot stage semantics for '{stage_id}' must be a JSON object.")
+        semantics[stage_id] = PlotStageSemantics(
+            stage_id=_optional_str(semantics_data.get("stage_id"), "stage_id") or stage_id,
+            semantic_category=_require_str(semantics_data, "semantic_category"),
+            player_summary=_require_str(semantics_data, "player_summary"),
+            prompt_guidance=_require_str(semantics_data, "prompt_guidance"),
+            allowed_specificity=_require_str(semantics_data, "allowed_specificity"),
+        )
+    return semantics
 
 
 def _dialogue_fact_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueFactDefinition:

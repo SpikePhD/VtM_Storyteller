@@ -6,6 +6,7 @@ from .command_models import TalkCommand
 from .dialogue_adjudication import DialogueAdjudicationOutcome
 from .dialogue_fact_cards import DialogueFactCard
 from .models import EventLogEntry
+from .social_models import SocialOutcomeKind, TopicResult
 from .social_models import SocialOutcomePacket
 from .world_state import WorldState
 
@@ -56,11 +57,14 @@ def select_authorized_fact_cards(
                 continue
         if fact.required_keywords and not any(keyword in normalized_text for keyword in fact.required_keywords):
             continue
+        render_specificity = _resolve_render_specificity(fact, world_state, social_outcome)
         selected.append(
             DialogueFactCard(
                 fact_id=fact.fact_id,
                 kind=fact.kind,
                 summary=fact.summary,
+                render_specificity=render_specificity,
+                render_summary=_render_summary_for_fact(fact.kind, fact.summary, render_specificity),
                 npc_id=fact.npc_id,
                 plot_id=fact.plot_id,
                 reveal_plot_stage=fact.reveal_plot_stage,
@@ -155,3 +159,43 @@ def _normalize_text(metadata) -> str:
         for piece in (metadata.utterance_text, metadata.speech_text, metadata.topic or "")
         if piece
     )
+
+
+_SPECIFICITY_ORDER = {
+    "premise": 0,
+    "vague_rumor": 1,
+    "non_actionable_hint": 2,
+    "actionable_lead": 3,
+    "confirmed_lead": 4,
+    "resolution": 5,
+}
+
+
+def _resolve_render_specificity(
+    fact,
+    world_state: WorldState,
+    social_outcome: SocialOutcomePacket | None,
+) -> str:
+    if fact.reveal_plot_stage is not None and fact.plot_id is not None:
+        plot = world_state.plots.get(fact.plot_id)
+        if plot is not None and plot.stage == fact.reveal_plot_stage:
+            return "confirmed_lead"
+        return "vague_rumor"
+
+    if fact.kind == "background":
+        return "premise"
+    if fact.kind in {"boundary", "refusal_basis", "redirect"}:
+        return "non_actionable_hint"
+    return "vague_rumor"
+
+
+def _render_summary_for_fact(kind: str, summary: str, render_specificity: str) -> str:
+    if _SPECIFICITY_ORDER.get(render_specificity, 0) >= _SPECIFICITY_ORDER["actionable_lead"]:
+        return summary
+    if kind == "lead":
+        return "There is a rumor here, but nothing concrete is being given away yet."
+    if kind in {"redirect", "refusal_basis"}:
+        return "The answer stays narrow and does not become a concrete lead."
+    if kind == "background":
+        return summary
+    return summary

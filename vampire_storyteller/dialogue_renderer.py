@@ -139,7 +139,9 @@ class DeterministicDialogueRenderer:
             return "Keep this professional."
 
         if _is_short_lead_follow_up(render_input) and packet.topic_result in {TopicResult.OPENED, TopicResult.UNCHANGED, TopicResult.PARTIAL}:
-            return "Because that's where the trail starts."
+            if _has_authorized_lead(render_input):
+                return "Because that's where the trail starts."
+            return "Because I'm not giving you a concrete route yet."
         if _is_emptyish_follow_up(render_input):
             return "If you've got a question, ask it plainly."
         if _is_background_prompt(render_input):
@@ -226,7 +228,7 @@ def _render_statement_continue(render_input: DialogueRenderInput, packet: Social
     if packet.outcome_kind is SocialOutcomeKind.DISENGAGE:
         return "That's enough. We're done here."
     if render_input.dialogue_domain == "lead_topic" and packet.topic_result in {TopicResult.OPENED, TopicResult.UNCHANGED, TopicResult.PARTIAL}:
-        if _has_fact(render_input, "lead"):
+        if _has_authorized_lead(render_input):
             return "Start with the dock."
         return "All right. Start from the part that matters."
     if packet.outcome_kind is SocialOutcomeKind.COOPERATE:
@@ -316,9 +318,9 @@ def _render_off_topic_boundary(render_input: DialogueRenderInput) -> str:
 
 
 def _render_check_success(render_input: DialogueRenderInput) -> str:
-    if _has_fact(render_input, "lead"):
+    if _has_authorized_lead(render_input):
         return "All right. The paper trail starts at North Dockside. That's the piece you get from me tonight."
-    return "Fine. You've got enough to move on. Start with the dock and don't waste it."
+    return "Fine. You've got enough to move on, but I am not naming a concrete route yet."
 
 
 def _render_check_failure(render_input: DialogueRenderInput) -> str:
@@ -329,24 +331,26 @@ def _render_check_failure(render_input: DialogueRenderInput) -> str:
 
 def _render_reveal(render_input: DialogueRenderInput) -> str:
     if _has_fact_id(render_input, "eliza_church_records_lead"):
-        if render_input.plot_stage == "lead_confirmed" or render_input.lead_flag_active:
+        if _has_authorized_lead(render_input):
             return "The records already gave you the line: the ledger trail turns toward North Dockside."
-        return "The records show the ledger trail leaving this church and turning toward North Dockside. That is the direction I can give you."
-    if _has_fact(render_input, "lead"):
+        return "The records stay useful, but I am not standing behind a concrete route yet."
+    if _has_authorized_lead(render_input):
         if render_input.plot_stage == "lead_confirmed" or render_input.lead_flag_active:
             return "I already told you where to start. North Dockside. That's where the paper trail begins."
         return "North Dockside. That's where the paper trail begins, and that's where you should start."
     if _has_fact(render_input, "background"):
         return _render_background_prompt(render_input)
-    return "I've given you what matters. Start with the dock."
+    return "I've given you what matters, but not the route."
 
 
 def _render_cooperate(render_input: DialogueRenderInput) -> str:
     if _has_fact_id(render_input, "eliza_church_records_lead"):
-        return "Stay with the records. They point away from the nave and toward North Dockside."
+        if _has_authorized_lead(render_input):
+            return "Stay with the records. They point away from the nave and toward North Dockside."
+        return "Stay with the records. I am not naming a route yet."
     if render_input.npc_id == "npc_2":
         return "Keep the question precise, and I will answer what I can."
-    if _has_fact(render_input, "lead"):
+    if _has_authorized_lead(render_input):
         return "Start with the dock. That's the cleanest lead I've got for you."
     if _has_fact(render_input, "background"):
         return _render_background_prompt(render_input)
@@ -358,8 +362,10 @@ def _render_deflect(render_input: DialogueRenderInput) -> str:
         return "The records give you a direction, not permission to pull the whole archive apart."
     if _has_fact_id(render_input, "eliza_church_records_refusal"):
         return "The ledger question stays narrow. Push harder, and the records close."
-    if _has_fact(render_input, "redirect") or _has_fact(render_input, "lead"):
-        return "You're asking for too much in public. Start with the dock, and let the rest wait."
+    if _has_fact(render_input, "redirect") or _has_authorized_lead(render_input):
+        if _has_authorized_lead(render_input):
+            return "You're asking for too much in public. Start with the dock, and let the rest wait."
+        return "You're asking for too much in public. I will not make it concrete."
     if _has_fact(render_input, "boundary"):
         return _render_off_topic_boundary(render_input)
     return "That's not the part I'm opening up right now."
@@ -387,3 +393,22 @@ def _has_fact(render_input: DialogueRenderInput, fact_kind: str) -> bool:
 
 def _has_fact_id(render_input: DialogueRenderInput, fact_id: str) -> bool:
     return any(fact.fact_id == fact_id for fact in render_input.authorized_fact_cards)
+
+
+def _has_authorized_lead(render_input: DialogueRenderInput) -> bool:
+    return any(
+        fact.kind == "lead" and _fact_meets_minimum_specificity(fact.render_specificity, "actionable_lead")
+        for fact in render_input.authorized_fact_cards
+    )
+
+
+def _fact_meets_minimum_specificity(render_specificity: str, minimum_specificity: str) -> bool:
+    order = {
+        "premise": 0,
+        "vague_rumor": 1,
+        "non_actionable_hint": 2,
+        "actionable_lead": 3,
+        "confirmed_lead": 4,
+        "resolution": 5,
+    }
+    return order.get(render_specificity, 0) >= order.get(minimum_specificity, 0)

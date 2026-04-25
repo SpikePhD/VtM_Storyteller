@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from .social_models import NPCSocialState
+from .plot_stage_semantics import PlotStageSemantics
 
 
 @dataclass
@@ -79,6 +80,7 @@ class PlotThread:
     resolution_summary: str = ""
     learned_outcome: str = ""
     closing_beat: str = ""
+    stage_semantics: dict[str, PlotStageSemantics] = field(default_factory=dict)
 
 
 @dataclass

@@ -13,6 +13,17 @@ class SceneNPC:
 
 
 @dataclass
+class ScenePlotContext:
+    plot_id: str
+    plot_name: str
+    stage_id: str
+    semantic_category: str
+    player_summary: str
+    prompt_guidance: str
+    allowed_specificity: str
+
+
+@dataclass
 class SceneSnapshot:
     timestamp: str
     player_name: str
@@ -31,6 +42,7 @@ class SceneSnapshot:
     exits: list[str] = field(default_factory=list)
     npcs_present: list[SceneNPC] = field(default_factory=list)
     active_plots: list[str] = field(default_factory=list)
+    active_plot_contexts: list[ScenePlotContext] = field(default_factory=list)
     resolved_plots: list[str] = field(default_factory=list)
     recent_events: list[str] = field(default_factory=list)
 
@@ -47,5 +59,6 @@ class SceneNarrationPayload:
     exits: list[str] = field(default_factory=list)
     npcs_present: list[SceneNPC] = field(default_factory=list)
     active_plots: list[str] = field(default_factory=list)
+    active_plot_contexts: list[ScenePlotContext] = field(default_factory=list)
     resolved_plots: list[str] = field(default_factory=list)
     recent_events: list[str] = field(default_factory=list)
