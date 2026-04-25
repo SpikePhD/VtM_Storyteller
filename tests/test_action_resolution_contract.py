@@ -14,7 +14,7 @@ class ActionResolutionContractTests(unittest.TestCase):
     def test_blocked_investigate_populates_explicit_contract(self) -> None:
         session = GameSession()
 
-        result = session.process_input("investigate")
+        result = session.process_input("/investigate")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)
@@ -33,7 +33,7 @@ class ActionResolutionContractTests(unittest.TestCase):
     def test_automatic_status_uses_the_same_contract_shape(self) -> None:
         session = GameSession()
 
-        result = session.process_input("status")
+        result = session.process_input("/status")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)
@@ -52,9 +52,9 @@ class ActionResolutionContractTests(unittest.TestCase):
     def test_roll_gated_investigate_populates_check_and_consequence_summary(self) -> None:
         session = GameSession()
 
-        session.process_input("move loc_church")
-        session.process_input("wait 60")
-        session.process_input("move loc_dock")
+        session.process_input("/move loc_church")
+        session.process_input("/wait 60")
+        session.process_input("/move loc_dock")
 
         with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
             mock_resolve.return_value = DeterministicCheckResolution(
@@ -66,7 +66,7 @@ class ActionResolutionContractTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            result = session.process_input("investigate")
+            result = session.process_input("/investigate")
 
         turn = session.get_last_action_resolution()
 
@@ -105,7 +105,7 @@ class ActionResolutionContractTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            result = session.process_input("I persuade Jonas to help with the dock.")
+            result = session.process_input("/talk with Jonas, I persuade Jonas to help with the dock.")
 
         turn = session.get_last_action_resolution()
 
@@ -140,7 +140,7 @@ class ActionResolutionContractTests(unittest.TestCase):
     def test_refusal_path_populates_structured_social_outcome_packet(self) -> None:
         session = GameSession()
 
-        result = session.process_input("Jonas, I don't believe you.")
+        result = session.process_input("/talk with Jonas, I don't believe you.")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)

@@ -2,7 +2,7 @@
   "id": "eliza_church_records_path",
   "steps": [
     {
-      "input": "go to the church",
+      "input": "/go to the church",
       "expect": {
         "canonical": "move loc_church",
         "location_id": "loc_church",
@@ -12,7 +12,7 @@
       }
     },
     {
-      "input": "Sister Eliza, what about the church records?",
+      "input": "/talk with Sister Eliza, what about the church records?",
       "expect": {
         "canonical": "talk npc_2",
         "dialogue_domain": "lead_topic",

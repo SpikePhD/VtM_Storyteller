@@ -54,9 +54,11 @@ class GameSession:
         dialogue_intent_adapter: DialogueIntentAdapter | None = None,
         dialogue_renderer: DialogueRenderer | None = None,
         save_path: str | Path | None = None,
+        command_prefix: str | None = None,
     ) -> None:
         self._world_state = world_state if world_state is not None else build_sample_world()
         config = load_config()
+        self._command_prefix = command_prefix if command_prefix is not None else config.command_prefix
         self._scene_provider = (
             scene_provider
             if scene_provider is not None
@@ -83,20 +85,270 @@ class GameSession:
         return self._render_scene_text()
 
     def process_input(self, raw_input: str) -> CommandResult:
-        # Phase 1: interpret freeform input against the current world and session context.
-        interpretation = self._interpret_input(raw_input)
+        self._conversation_context.sync_with_world(self._world_state)
         previous_focus_npc_id = self._conversation_context.focus_npc_id
-        self._last_interpreted_input = interpretation
-        if interpretation.no_active_conversation:
-            self._last_action_resolution = None
-            return CommandResult(output_text="There is no active conversation to continue.")
+        prefixed_command_text = self._strip_command_prefix(raw_input)
+        if prefixed_command_text is not None:
+            return self._process_prefixed_input(raw_input, prefixed_command_text, previous_focus_npc_id)
 
-        # Phase 2: normalize to the canonical structured command.
-        normalized_action = self._normalize_action(raw_input, interpretation)
+        if previous_focus_npc_id is not None:
+            return self._process_forced_dialogue_input(raw_input, previous_focus_npc_id)
+
+        return self._process_reflection_input(raw_input)
+
+    def _strip_command_prefix(self, raw_input: str) -> str | None:
+        normalized_input = raw_input.lstrip()
+        if not normalized_input.startswith(self._command_prefix):
+            return None
+        return normalized_input[len(self._command_prefix) :].strip()
+
+    def _process_prefixed_input(
+        self,
+        raw_input: str,
+        command_text: str,
+        previous_focus_npc_id: str | None,
+    ) -> CommandResult:
+        normalized_command = self._normalize_whitespace(command_text)
+        if not normalized_command:
+            self._last_interpreted_input = None
+            self._last_normalized_action = None
+            self._last_action_resolution = None
+            return CommandResult(output_text="Input after the command prefix cannot be empty.")
+
+        if self._is_stop_talking_command(normalized_command):
+            return self._process_stop_talking_command(raw_input, normalized_command)
+
+        if self._looks_like_shortform_talk_command(normalized_command):
+            shortform_talk_result = self._process_shortform_talk_command(raw_input, normalized_command, previous_focus_npc_id)
+            if shortform_talk_result is not None:
+                return shortform_talk_result
+
+        interpretation = self._interpret_input(command_text)
+        self._last_interpreted_input = interpretation
+        normalized_action = self._normalize_action(command_text, interpretation)
         self._last_normalized_action = normalized_action
         if not normalized_action.is_success:
             self._last_action_resolution = None
             return CommandResult(output_text=normalized_action.failure_reason or "I could not normalize that input into a supported action.")
+
+        return self._resolve_command_turn(normalized_action, previous_focus_npc_id)
+
+    def _process_forced_dialogue_input(self, raw_input: str, previous_focus_npc_id: str | None) -> CommandResult:
+        interpretation = self._interpret_input(raw_input)
+        self._last_interpreted_input = interpretation
+
+        if interpretation.failure_reason is None and interpretation.normalized_intent == "talk" and interpretation.canonical_command is not None:
+            normalized_action = self._normalize_action(raw_input, interpretation)
+            self._last_normalized_action = normalized_action
+            if normalized_action.is_success and isinstance(normalized_action.command, TalkCommand):
+                return self._resolve_command_turn(normalized_action, previous_focus_npc_id)
+
+        return self._force_dialogue_from_current_focus(raw_input, previous_focus_npc_id)
+
+    def _force_dialogue_from_current_focus(self, raw_input: str, previous_focus_npc_id: str | None) -> CommandResult:
+        focus_npc_id = self._conversation_context.focus_npc_id
+        if focus_npc_id is None:
+            return self._process_reflection_input(raw_input)
+
+        focus_npc = self._world_state.npcs.get(focus_npc_id)
+        if focus_npc is None:
+            return self._process_reflection_input(raw_input)
+
+        normalized_text = self._input_interpreter._normalize_text(raw_input)
+        speech_text = raw_input.strip()
+        dialogue_act = self._input_interpreter._classify_dialogue_act(raw_input, normalized_text, speech_text, normalized_text)
+        dialogue_move = self._input_interpreter._classify_dialogue_move(raw_input, normalized_text, speech_text, normalized_text, dialogue_act)
+        topic = self._input_interpreter._infer_dialogue_topic(normalized_text, dialogue_act, self._conversation_context.subtopic)
+        tone = self._input_interpreter._infer_dialogue_tone(normalized_text, dialogue_act, dialogue_move)
+        metadata = DialogueMetadata(
+            utterance_text=speech_text,
+            speech_text=speech_text,
+            dialogue_act=dialogue_act,
+            topic=topic,
+            tone=tone,
+            dialogue_move=dialogue_move,
+        )
+        command = TalkCommand(
+            npc_id=focus_npc_id,
+            dialogue_metadata=metadata,
+            conversation_stance=self._conversation_context.stance,
+            conversation_subtopic=self._conversation_context.subtopic,
+        )
+        interpretation = InterpretedInput(
+            normalized_intent="talk",
+            target_text=focus_npc.name,
+            target_reference=focus_npc_id,
+            canonical_command=f"talk {focus_npc_id}",
+            confidence=1.0,
+            match_reason="unprefixed input was forced into the active conversation path",
+            fallback_to_parser=False,
+            dialogue_metadata=metadata,
+        )
+        normalized_action = NormalizedActionInput(
+            raw_input=raw_input,
+            command_text=f"talk {focus_npc_id}",
+            command=command,
+            source=NormalizationSource.INTERPRETED,
+            interpretation=interpretation,
+        )
+        self._last_interpreted_input = interpretation
+        self._last_normalized_action = normalized_action
+        return self._resolve_command_turn(normalized_action, previous_focus_npc_id)
+
+    def _process_stop_talking_command(self, raw_input: str, command_text: str) -> CommandResult:
+        self._conversation_context.reset()
+        output_text = "Conversation ended."
+        normalized_action = NormalizedActionInput(
+            raw_input=raw_input,
+            command_text=command_text,
+            command=None,
+            source=NormalizationSource.DIRECT_COMMAND,
+            failure_reason=None,
+        )
+        turn = ActionResolutionTurn(
+            normalized_action=normalized_action,
+            adjudication=ActionAdjudicationOutcome.automatic("conversation stopped at the player's request"),
+            check=None,
+            consequence_summary=ActionConsequenceSummary(),
+            turn_kind=TurnOutcomeKind.SESSION_COMMAND,
+            canonical_action_text=command_text,
+            normalization_source=normalized_action.source,
+            block_reason=None,
+            check_kind=None,
+            applied_effects=(),
+            world_state_mutated=False,
+            output_text=output_text,
+            should_quit=False,
+            render_scene=False,
+            conversation_focus_npc_id=None,
+            conversation_stance=ConversationStance.NEUTRAL,
+        )
+        self._last_interpreted_input = None
+        self._last_normalized_action = normalized_action
+        self._last_action_resolution = turn
+        return turn.to_command_result()
+
+    def _looks_like_shortform_talk_command(self, command_text: str) -> bool:
+        normalized = self._normalize_whitespace(command_text).lower()
+        return normalized.startswith("talk ") and not normalized.startswith("talk with ") and not normalized.startswith("talk to ")
+
+    def _process_shortform_talk_command(
+        self,
+        raw_input: str,
+        command_text: str,
+        previous_focus_npc_id: str | None,
+    ) -> CommandResult | None:
+        target_text = self._normalize_whitespace(command_text)[len("talk") :].strip()
+        if not target_text:
+            return None
+
+        npc_matches = self._resolve_shortform_talk_candidates(target_text)
+        if len(npc_matches) != 1:
+            return None
+
+        npc = npc_matches[0]
+        if npc.location_id != self._world_state.player.location_id:
+            return None
+
+        interpretation = InterpretedInput(
+            normalized_intent="talk",
+            target_text=self._input_interpreter._normalize_text(npc.name),
+            target_reference=npc.id,
+            canonical_command=f"talk {npc.id}",
+            confidence=0.95,
+            match_reason=f"prefixed talk target matched NPC '{npc.name}'",
+            fallback_to_parser=False,
+            dialogue_metadata=None,
+        )
+        command = TalkCommand(
+            npc_id=npc.id,
+            conversation_stance=self._conversation_context.stance,
+            conversation_subtopic=self._conversation_context.subtopic,
+        )
+        normalized_action = NormalizedActionInput(
+            raw_input=raw_input,
+            command_text=command_text,
+            command=command,
+            source=NormalizationSource.DIRECT_COMMAND,
+            interpretation=interpretation,
+        )
+        self._last_interpreted_input = interpretation
+        self._last_normalized_action = normalized_action
+        return self._resolve_command_turn(normalized_action, previous_focus_npc_id)
+
+    def _resolve_shortform_talk_candidates(self, target_text: str) -> list:
+        normalized_target = self._input_interpreter._normalize_text(target_text)
+        if not normalized_target:
+            return []
+
+        matches = []
+        for npc in self._world_state.npcs.values():
+            if npc.location_id != self._world_state.player.location_id:
+                continue
+            normalized_name = self._input_interpreter._normalize_text(npc.name)
+            name_parts = normalized_name.split()
+            if normalized_target == normalized_name or normalized_target == npc.id:
+                matches.append(npc)
+                continue
+            if normalized_target in name_parts:
+                matches.append(npc)
+        return matches
+
+    def _process_reflection_input(self, raw_input: str) -> CommandResult:
+        reflection_text = self._build_reflection_text(raw_input)
+        normalized_action = NormalizedActionInput(
+            raw_input=raw_input,
+            command_text=None,
+            command=None,
+            source=NormalizationSource.REFLECTION,
+        )
+        turn = self._build_reflection_resolution_turn(normalized_action, reflection_text)
+        self._last_interpreted_input = None
+        self._last_normalized_action = normalized_action
+        self._last_action_resolution = turn
+        return turn.to_command_result()
+
+    def _build_reflection_resolution_turn(
+        self,
+        normalized_action: NormalizedActionInput,
+        reflection_text: str,
+    ) -> ActionResolutionTurn:
+        return ActionResolutionTurn(
+            normalized_action=normalized_action,
+            adjudication=ActionAdjudicationOutcome.automatic("unprefixed reflection"),
+            check=None,
+            consequence_summary=ActionConsequenceSummary(),
+            turn_kind=TurnOutcomeKind.NON_STATEFUL_ACTION,
+            canonical_action_text=None,
+            normalization_source=normalized_action.source,
+            block_reason=None,
+            check_kind=None,
+            applied_effects=(),
+            world_state_mutated=False,
+            output_text=reflection_text,
+            should_quit=False,
+            render_scene=False,
+            conversation_focus_npc_id=None,
+            conversation_stance=ConversationStance.NEUTRAL,
+        )
+
+    def _build_reflection_text(self, raw_input: str) -> str:
+        player_name = self._world_state.player.name or "The player"
+        thought = self._normalize_whitespace(raw_input)
+        if not thought:
+            return f"{player_name} keeps the thought to themselves."
+        return f"{player_name} turns the thought over quietly: {thought}"
+
+    def _is_stop_talking_command(self, command_text: str) -> bool:
+        normalized = self._normalize_whitespace(command_text).lower()
+        if not normalized.startswith("stop talking"):
+            return False
+        suffix = normalized.removeprefix("stop talking").strip()
+        if not suffix:
+            return True
+        return suffix.startswith("with ") or suffix.startswith("to ")
+
+    def _resolve_command_turn(self, normalized_action: NormalizedActionInput, previous_focus_npc_id: str | None) -> CommandResult:
         command = normalized_action.command
         assert command is not None
 
@@ -134,20 +386,17 @@ class GameSession:
                 self._last_action_resolution = turn
                 return result
 
-        # Phase 3: handle session-level commands that do not enter the world pipeline.
         session_result = self._handle_session_command(command)
         if session_result is not None:
             self._last_action_resolution = None
             return session_result
 
-        # Phase 4: adjudicate the command against the current world state.
         adjudication = self._adjudicate_command(command)
         if adjudication.is_blocked:
             turn = self._build_blocked_resolution_turn(normalized_action, adjudication)
             self._last_action_resolution = turn
             return turn.to_command_result()
 
-        # Phase 5: execute the canonical command.
         if isinstance(command, TalkCommand) and dialogue_adjudication is not None:
             result = self._execute_talk_command(command, dialogue_adjudication.dialogue_domain, dialogue_adjudication.social_outcome)
         else:
@@ -184,19 +433,10 @@ class GameSession:
             self._last_action_resolution = turn
             return result
 
-        # Phase 6: update session-local dialogue state and fold in any talk-side plot progress.
         result = self._apply_talk_after_effects(command, result, dialogue_adjudication)
-
-        # Phase 7: apply deterministic post-resolution consequences.
         result, check_outcome, consequence_summary = self._apply_post_resolution_consequences_phase(command, result, adjudication)
-
-        # Phase 8: advance NPC schedules after world time has settled.
         result = self._apply_npc_updates_phase(command, result)
-
-        # Phase 9: advance authored plot state using the final post-action world state.
         result = self._apply_plot_progression_phase(command, result)
-
-        # Phase 10: render the final response for the player.
         final_result = self._render_response(command, result)
         if isinstance(command, InvestigateCommand) and consequence_summary.messages:
             investigation_rules = load_adv1_plot_investigation_rules()

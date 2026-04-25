@@ -35,7 +35,7 @@ class DialogueEndToEndTests(unittest.TestCase):
     def test_jonas_greeting_remains_allowed_without_revealing_the_lead(self) -> None:
         session = GameSession()
 
-        result, interpreted, turn = self._run_dialogue_turn(session, "Jonas, hello")
+        result, interpreted, turn = self._run_dialogue_turn(session, "/talk with Jonas, hello")
 
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(turn.dialogue_adjudication.resolution_kind, DialogueAdjudicationResolutionKind.ALLOWED)
@@ -51,7 +51,7 @@ class DialogueEndToEndTests(unittest.TestCase):
     def test_jonas_small_talk_stays_polite_without_opening_the_lead(self) -> None:
         session = GameSession()
 
-        session.process_input("Jonas, hello")
+        session.process_input("/talk with Jonas, hello")
         result, interpreted, turn = self._run_dialogue_turn(session, "How are you?")
 
         self.assertEqual(interpreted.target_reference, "npc_1")
@@ -62,7 +62,7 @@ class DialogueEndToEndTests(unittest.TestCase):
     def test_jonas_dock_question_emits_productive_packet_from_backend_truth(self) -> None:
         session = GameSession()
 
-        result, interpreted, turn = self._run_dialogue_turn(session, "Jonas, what happened at the dock?")
+        result, interpreted, turn = self._run_dialogue_turn(session, "/talk with Jonas, what happened at the dock?")
 
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
@@ -90,7 +90,7 @@ class DialogueEndToEndTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            result, interpreted, turn = self._run_dialogue_turn(session, "I persuade Jonas to help with the dock.")
+            result, interpreted, turn = self._run_dialogue_turn(session, "/talk with Jonas, I persuade Jonas to help with the dock.")
 
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(turn.check.kind, DeterministicCheckKind.DIALOGUE_SOCIAL)
@@ -119,7 +119,7 @@ class DialogueEndToEndTests(unittest.TestCase):
                 successes=0,
                 is_success=False,
             )
-            result, interpreted, turn = self._run_dialogue_turn(session, "I persuade Jonas to help with the dock.")
+            result, interpreted, turn = self._run_dialogue_turn(session, "/talk with Jonas, I persuade Jonas to help with the dock.")
 
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertTrue(turn.check is not None and not turn.check.is_success)
@@ -137,7 +137,7 @@ class DialogueEndToEndTests(unittest.TestCase):
     def test_aggressive_follow_up_stays_guarded_and_not_productive(self) -> None:
         session = GameSession()
 
-        session.process_input("Jonas, what happened at the dock?")
+        session.process_input("/talk with Jonas, what happened at the dock?")
         result, interpreted, turn = self._run_dialogue_turn(session, "I don't believe you.")
 
         self.assertEqual(interpreted.target_reference, "npc_1")
@@ -154,7 +154,7 @@ class DialogueEndToEndTests(unittest.TestCase):
     def test_renderer_failure_returns_explicit_safe_error_when_main_renderer_raises(self) -> None:
         session = GameSession(dialogue_renderer=FailingDialogueRenderer())
 
-        result, _, turn = self._run_dialogue_turn(session, "Jonas, what happened at the dock?")
+        result, _, turn = self._run_dialogue_turn(session, "/talk with Jonas, what happened at the dock?")
 
         self.assertIn("dialogue rendering failed", result.output_text.lower())
         self.assertEqual(turn.social_outcome.outcome_kind, SocialOutcomeKind.REVEAL)
@@ -183,7 +183,7 @@ class DialogueEndToEndTests(unittest.TestCase):
         )
 
         with patch.object(session._input_interpreter, "interpret", return_value=malformed_interpretation):
-            result = session.process_input("Jonas, hello")
+            result = session.process_input("/talk with Jonas, hello")
 
         after = (
             session.get_world_state().player.location_id,

@@ -86,6 +86,7 @@ def run_cli() -> None:
         scene_provider=runtime.scene_provider,
         dialogue_intent_adapter=runtime.dialogue_intent_adapter,
         dialogue_renderer=runtime.dialogue_renderer,
+        command_prefix=config.command_prefix,
     )
     print("Vampire: The Masquerade storyteller prototype")
     print("Type help for commands.")
@@ -147,6 +148,7 @@ def _build_runtime_banner(
         f"Model: {config.openai_model}",
         f"Dialogue model: {config.openai_model}",
         f"Dialogue render model: {config.openai_model}",
+        f"Command prefix: {config.command_prefix}",
         "Preset: openai_storyteller only",
     ]
     lines.append(f"Save: {get_default_save_path().as_posix()}")

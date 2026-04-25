@@ -8,6 +8,7 @@ from typing import Any
 
 
 DEFAULT_OPENAI_MODEL = "gpt-4.1-mini"
+DEFAULT_COMMAND_PREFIX = "/"
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_CONFIG_PATH = PROJECT_ROOT / "config" / "app_config.json"
 DEFAULT_LOCAL_CONFIG_PATH = PROJECT_ROOT / "config" / "app_config.local.json"
@@ -18,6 +19,7 @@ DEFAULT_ENV_PATH = PROJECT_ROOT / ".env"
 class AppConfig:
     openai_api_key: str | None
     openai_model: str
+    command_prefix: str = DEFAULT_COMMAND_PREFIX
 
 
 def load_config(
@@ -31,10 +33,12 @@ def load_config(
 
     merged_runtime_config = {**runtime_config, **local_runtime_config}
     openai_model = _coerce_str(merged_runtime_config.get("openai_model"), DEFAULT_OPENAI_MODEL)
+    command_prefix = _coerce_command_prefix(merged_runtime_config.get("command_prefix"))
     openai_api_key = os.getenv("OPENAI_API_KEY") or secret_values.get("OPENAI_API_KEY") or None
     return AppConfig(
         openai_api_key=openai_api_key,
         openai_model=openai_model,
+        command_prefix=command_prefix,
     )
 
 
@@ -96,3 +100,11 @@ def _coerce_str(value: Any, default: str) -> str:
         if normalized:
             return normalized
     return default
+
+
+def _coerce_command_prefix(value: Any) -> str:
+    if isinstance(value, str):
+        normalized = value.strip()
+        if len(normalized) == 1 and normalized.isprintable() and not normalized.isspace():
+            return normalized
+    return DEFAULT_COMMAND_PREFIX

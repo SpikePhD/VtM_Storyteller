@@ -140,9 +140,9 @@ class ConsequenceEngineTests(unittest.TestCase):
     def test_session_flow_resolves_hook_and_renders_resolution_state(self) -> None:
         session = GameSession()
 
-        session.process_input("move loc_church")
-        session.process_input("wait 60")
-        session.process_input("move loc_dock")
+        session.process_input("/move loc_church")
+        session.process_input("/wait 60")
+        session.process_input("/move loc_dock")
         with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
             mock_resolve.return_value = DeterministicCheckResolution(
                 kind=DeterministicCheckKind.INVESTIGATION,
@@ -153,7 +153,7 @@ class ConsequenceEngineTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            result = session.process_input("investigate")
+            result = session.process_input("/investigate")
             mock_resolve.assert_called_once()
 
         world = session.get_world_state()
@@ -173,9 +173,9 @@ class ConsequenceEngineTests(unittest.TestCase):
     def test_session_flow_failure_keeps_plot_active_and_logs_roll(self) -> None:
         session = GameSession()
 
-        session.process_input("move loc_church")
-        session.process_input("wait 60")
-        session.process_input("move loc_dock")
+        session.process_input("/move loc_church")
+        session.process_input("/wait 60")
+        session.process_input("/move loc_dock")
         with patch("vampire_storyteller.game_session.resolve_deterministic_check") as mock_resolve:
             mock_resolve.return_value = DeterministicCheckResolution(
                 kind=DeterministicCheckKind.INVESTIGATION,
@@ -186,7 +186,7 @@ class ConsequenceEngineTests(unittest.TestCase):
                 successes=0,
                 is_success=False,
             )
-            result = session.process_input("investigate")
+            result = session.process_input("/investigate")
             mock_resolve.assert_called_once()
 
         world = session.get_world_state()

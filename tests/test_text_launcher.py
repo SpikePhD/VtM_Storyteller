@@ -31,7 +31,7 @@ class TextLauncherTests(unittest.TestCase):
         launcher = repo_root / "run_text_adventure.py"
         proc = subprocess.run(
             [sys.executable, str(launcher)],
-            input="quit\n",
+            input="/quit\n",
             text=True,
             capture_output=True,
             cwd=repo_root,

@@ -340,7 +340,7 @@ class InputInterpreterTests(unittest.TestCase):
     def test_game_session_accepts_freeform_input(self) -> None:
         session = GameSession()
 
-        result = session.process_input("I head to the church.")
+        result = session.process_input("/go to the church")
         normalized = session.get_last_normalized_action()
 
         self.assertTrue(result.render_scene)
@@ -353,7 +353,7 @@ class InputInterpreterTests(unittest.TestCase):
     def test_game_session_preserves_dialogue_metadata(self) -> None:
         session = GameSession()
 
-        session.process_input("Jonas, I need you to trust me.")
+        session.process_input("/talk with Jonas, I need you to trust me.")
         interpreted = session.get_last_interpreted_input()
         normalized = session.get_last_normalized_action()
 
@@ -361,7 +361,7 @@ class InputInterpreterTests(unittest.TestCase):
         self.assertIsNotNone(interpreted.dialogue_metadata)
         self.assertEqual(interpreted.target_reference, "npc_1")
         self.assertEqual(interpreted.dialogue_metadata.dialogue_act, DialogueAct.PERSUADE)
-        self.assertEqual(interpreted.dialogue_metadata.utterance_text, "Jonas, I need you to trust me.")
+        self.assertIn("i need you to trust me", interpreted.dialogue_metadata.utterance_text.lower())
         self.assertIsNotNone(normalized)
         assert normalized is not None
         self.assertEqual(normalized.source, NormalizationSource.INTERPRETED)

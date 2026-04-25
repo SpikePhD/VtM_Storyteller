@@ -13,15 +13,15 @@ from vampire_storyteller.game_session import GameSession
 class RulesResolutionMatrixTests(unittest.TestCase):
     def _ready_investigate_session(self) -> GameSession:
         session = GameSession()
-        session.process_input("move loc_church")
-        session.process_input("wait 60")
-        session.process_input("move loc_dock")
+        session.process_input("/move loc_church")
+        session.process_input("/wait 60")
+        session.process_input("/move loc_dock")
         return session
 
     def test_direct_command_status_exposes_structured_turn_outcome(self) -> None:
         session = GameSession()
 
-        result = session.process_input("status")
+        result = session.process_input("/status")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)
@@ -37,7 +37,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
     def test_automatic_look_path_stays_structured_and_non_mutating(self) -> None:
         session = GameSession()
 
-        result = session.process_input("look")
+        result = session.process_input("/look")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)
@@ -53,7 +53,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
     def test_interpreted_freeform_speech_round_trips_through_turn_contract(self) -> None:
         session = GameSession()
 
-        result = session.process_input("I speak to Jonas.")
+        result = session.process_input("/talk with Jonas, I speak to Jonas.")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)
@@ -73,7 +73,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
     def test_blocked_investigate_path_preserves_state_and_block_reason(self) -> None:
         session = GameSession()
 
-        result = session.process_input("investigate")
+        result = session.process_input("/investigate")
         turn = session.get_last_action_resolution()
 
         self.assertIsNotNone(turn)
@@ -101,7 +101,7 @@ class RulesResolutionMatrixTests(unittest.TestCase):
                 successes=2,
                 is_success=True,
             )
-            result = session.process_input("investigate")
+            result = session.process_input("/investigate")
 
         turn = session.get_last_action_resolution()
 
@@ -124,11 +124,11 @@ class RulesResolutionMatrixTests(unittest.TestCase):
             save_path = Path(temp_dir) / "save.json"
             session = GameSession(save_path=save_path)
 
-            session.process_input("talk npc_1")
-            session.process_input("save")
+            session.process_input("/talk npc_1")
+            session.process_input("/save")
 
             reloaded_session = GameSession(save_path=save_path)
-            reloaded_session.process_input("load")
+            reloaded_session.process_input("/load")
 
             self.assertEqual(reloaded_session.get_world_state().npcs["npc_1"].trust_level, 1)
             self.assertIn("trust: 1", reloaded_session.get_startup_text())

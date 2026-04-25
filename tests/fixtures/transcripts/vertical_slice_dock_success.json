@@ -2,7 +2,7 @@
   "id": "vertical_slice_dock_success",
   "steps": [
     {
-      "input": "I persuade Jonas to help with the dock.",
+      "input": "/talk with Jonas, I persuade Jonas to help with the dock.",
       "check_result": {
         "kind": "dialogue_social",
         "seed": "fixture-dialogue-success",
@@ -24,7 +24,7 @@
       }
     },
     {
-      "input": "go to the docks",
+      "input": "/go to the docks",
       "expect": {
         "canonical": "move loc_dock",
         "location_id": "loc_dock",
@@ -33,7 +33,7 @@
       }
     },
     {
-      "input": "search the cargo stacks for ledger clues",
+      "input": "/search the cargo stacks for ledger clues",
       "check_result": {
         "kind": "investigation",
         "seed": "fixture-investigation-success",

@@ -26,6 +26,7 @@ class ConfigTests(unittest.TestCase):
         self.assertIsInstance(config, AppConfig)
         self.assertIsNone(config.openai_api_key)
         self.assertEqual(config.openai_model, "gpt-4.1-mini")
+        self.assertEqual(config.command_prefix, "/")
 
     def test_load_config_reads_openai_model_and_dotenv_secret(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -59,6 +60,23 @@ class ConfigTests(unittest.TestCase):
 
         self.assertEqual(config.openai_api_key, "env-key")
         self.assertEqual(config.openai_model, "gpt-4.1-mini")
+
+    def test_local_config_can_override_command_prefix(self) -> None:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            config_path = temp_path / "app_config.json"
+            local_config_path = temp_path / "app_config.local.json"
+            config_path.write_text(json.dumps({"command_prefix": "/"}), encoding="utf-8")
+            local_config_path.write_text(json.dumps({"command_prefix": "\\"}), encoding="utf-8")
+
+            with patch.dict(os.environ, {}, clear=True):
+                config = load_config(
+                    config_path=config_path,
+                    local_config_path=local_config_path,
+                    dotenv_path=temp_path / ".env",
+                )
+
+        self.assertEqual(config.command_prefix, "\\")
 
 
 if __name__ == "__main__":

@@ -20,7 +20,7 @@ class CliTranscriptTests(unittest.TestCase):
     def test_prompt_uses_player_prompt_during_active_conversation(self) -> None:
         session = GameSession()
 
-        session.process_input("Jonas, hello")
+        session.process_input("/talk with Jonas, hello")
 
         self.assertEqual(_build_cli_prompt(session), "Player > ")
 
@@ -82,6 +82,7 @@ class CliTranscriptTests(unittest.TestCase):
                         AppConfig(
                             openai_api_key="test-key",
                             openai_model="gpt-4.1-mini",
+                            command_prefix="/",
                         )
                     )
 
@@ -98,6 +99,7 @@ class CliTranscriptTests(unittest.TestCase):
             AppConfig(
                 openai_api_key="test-key",
                 openai_model="gpt-4.1-mini",
+                command_prefix="/",
             ),
             runtime,
         )
@@ -106,9 +108,42 @@ class CliTranscriptTests(unittest.TestCase):
         self.assertIn("Scene narration: OpenAI", banner)
         self.assertIn("Dialogue intent: OpenAI", banner)
         self.assertIn("Dialogue rendering: OpenAI", banner)
+        self.assertIn("Command prefix: /", banner)
         self.assertIn("Preset: openai_storyteller only", banner)
         self.assertNotIn("mixed", banner.lower())
         self.assertNotIn("deterministic", banner.lower())
+
+    def test_run_cli_passes_command_prefix_to_game_session(self) -> None:
+        runtime = Mock(
+            scene_provider=Mock(),
+            dialogue_intent_adapter=Mock(),
+            dialogue_renderer=Mock(),
+            mode_label="OpenAI storyteller",
+            scene_label="OpenAI",
+            dialogue_intent_label="OpenAI",
+            dialogue_render_label="OpenAI",
+            notices=(),
+            full_openai_storyteller_mode=True,
+        )
+        session = Mock()
+        session.get_conversation_focus_npc_id.return_value = None
+        session.get_startup_text.return_value = "startup"
+
+        with patch("vampire_storyteller.cli.load_config", return_value=AppConfig(openai_api_key=None, openai_model="gpt-4.1-mini", command_prefix="\\")):
+            with patch("vampire_storyteller.cli.build_runtime_composition", return_value=runtime):
+                with patch("vampire_storyteller.cli.GameSession", return_value=session) as mock_session_ctor:
+                    with patch("vampire_storyteller.cli.input", side_effect=EOFError):
+                        with patch("vampire_storyteller.cli.print"):
+                            from vampire_storyteller.cli import run_cli
+
+                            run_cli()
+
+        mock_session_ctor.assert_called_once_with(
+            scene_provider=runtime.scene_provider,
+            dialogue_intent_adapter=runtime.dialogue_intent_adapter,
+            dialogue_renderer=runtime.dialogue_renderer,
+            command_prefix="\\",
+        )
 
     def test_load_config_reads_openai_model(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

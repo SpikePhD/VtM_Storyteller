@@ -69,11 +69,11 @@ class PlotEngineTests(unittest.TestCase):
     def test_game_session_process_input_advances_plot(self) -> None:
         session = GameSession()
 
-        move_result = session.process_input("move loc_church")
+        move_result = session.process_input("/move loc_church")
         self.assertIn("church_visited", move_result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "church_visited")
 
-        wait_result = session.process_input("wait 60")
+        wait_result = session.process_input("/wait 60")
         self.assertIn("lead_confirmed", wait_result.output_text)
         self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
 

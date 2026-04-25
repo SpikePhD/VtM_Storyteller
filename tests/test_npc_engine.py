@@ -91,7 +91,7 @@ class NpcEngineTests(unittest.TestCase):
     def test_game_session_wait_triggers_npc_movement(self) -> None:
         session = GameSession()
 
-        result = session.process_input("wait 60")
+        result = session.process_input("/wait 60")
         world = session.get_world_state()
 
         self.assertEqual(world.current_time, "2026-04-09T23:00:00+02:00")
@@ -105,7 +105,7 @@ class NpcEngineTests(unittest.TestCase):
         startup_text = session.get_startup_text()
         self.assertIn("NPCs Present: Jonas Reed (Informant, trust: 0)", startup_text)
 
-        result = session.process_input("wait 60")
+        result = session.process_input("/wait 60")
 
         self.assertIn("NPCs Present: None", result.output_text)
         self.assertNotIn("Jonas Reed (Informant, attitude: wary)", result.output_text)

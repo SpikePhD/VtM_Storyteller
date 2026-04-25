@@ -25,6 +25,7 @@ class NormalizationSource(str, Enum):
     INTERPRETED = "interpreted"
     DIRECT_COMMAND = "direct_command"
     FAILED = "failed"
+    REFLECTION = "reflection"
 
 
 class ActionBlockReason(str, Enum):
