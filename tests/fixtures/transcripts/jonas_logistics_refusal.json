@@ -16,7 +16,7 @@
         "dialogue_domain": "lead_topic",
         "outcome_kind": "reveal",
         "topic_result": "opened",
-        "plot_stage": "hook",
+        "plot_stage": "lead_confirmed",
         "contains": ["dock"],
         "not_contains": ["Rolled", "Dialogue check"]
       }

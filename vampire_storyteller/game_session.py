@@ -26,6 +26,7 @@ from .conversation_context import ConversationContext, DialogueHistoryEntry
 from .data_paths import ensure_adventure_directories, get_default_save_path
 from .dialogue_adjudication import DialogueAdjudicationOutcome, DialogueTopicStatus, adjudicate_dialogue_talk
 from .dialogue_domain import DialogueDomain
+from .dialogue_fact_authorization import apply_authorized_fact_progression, select_authorized_fact_cards
 from .dialogue_renderer import DialogueRenderInput, DialogueRenderer, build_dialogue_render_input
 from .dialogue_intent_adapter import DialogueIntentAdapter
 from .dialogue_subtopic import DialogueSubtopic, detect_dialogue_subtopic
@@ -1044,6 +1045,22 @@ class GameSession:
                 check,
                 consequence_summary,
             )
+            authorized_fact_cards = select_authorized_fact_cards(
+                self._world_state,
+                command,
+                dialogue_adjudication,
+                render_social_outcome,
+            )
+            fact_progression_summary = apply_authorized_fact_progression(
+                self._world_state,
+                authorized_fact_cards,
+                render_social_outcome,
+            )
+            if fact_progression_summary.has_messages or fact_progression_summary.has_applied_effects:
+                consequence_summary = ActionConsequenceSummary(
+                    messages=consequence_summary.messages + fact_progression_summary.messages,
+                    applied_effects=consequence_summary.applied_effects + fact_progression_summary.applied_effects,
+                )
             render_input = build_dialogue_render_input(
                 self._world_state,
                 command,
@@ -1052,6 +1069,7 @@ class GameSession:
                 consequence_summary,
                 render_social_outcome,
                 self._conversation_context.recent_dialogue_history,
+                authorized_fact_cards=authorized_fact_cards,
             )
             if not self._supports_dialogue_rendering(render_input):
                 return result

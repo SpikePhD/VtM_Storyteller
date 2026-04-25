@@ -11,6 +11,7 @@ from .adventure_loader import (
 from .command_models import TalkCommand
 from .conversation_context import DialogueHistoryEntry, DialogueMemoryContext
 from .dialogue_adjudication import DialogueAdjudicationOutcome
+from .dialogue_fact_cards import DialogueFactCard
 from .models import NPCDialogueProfile
 from .social_models import SocialOutcomePacket
 from .world_state import WorldState
@@ -34,7 +35,7 @@ class DialogueTurnContext:
     conversation_subtopic: str | None
     conversation_memory: DialogueMemoryContext
     social_outcome: SocialOutcomePacket | None
-    authorized_fact_cards: tuple[object, ...]
+    authorized_fact_cards: tuple[DialogueFactCard, ...]
 
 
 def assemble_dialogue_context(

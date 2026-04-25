@@ -3,10 +3,15 @@ from __future__ import annotations
 import unittest
 
 from vampire_storyteller.command_models import MoveCommand, TalkCommand, WaitCommand
+from vampire_storyteller.dialogue_fact_authorization import apply_authorized_fact_progression
+from vampire_storyteller.dialogue_fact_cards import DialogueFactCard
 from vampire_storyteller.game_session import GameSession
 from vampire_storyteller.map_engine import move_player
 from vampire_storyteller.plot_engine import advance_plots
 from vampire_storyteller.sample_world import build_sample_world
+from vampire_storyteller.models import PlotThread
+from vampire_storyteller.social_models import SocialOutcomeKind, SocialOutcomePacket, SocialStanceShift, TopicResult
+from vampire_storyteller.command_models import ConversationStance
 from vampire_storyteller.text_renderers import render_scene_text
 from vampire_storyteller.actions import wait_action
 
@@ -104,6 +109,37 @@ class PlotEngineTests(unittest.TestCase):
 
         scene_text = render_scene_text(world)
         self.assertIn("Missing Ledger [church_visited]", scene_text)
+
+    def test_authorized_fact_progression_applies_reusable_backend_effects(self) -> None:
+        world = build_sample_world()
+        world.plots["plot_dummy"] = PlotThread(id="plot_dummy", name="Dummy Lead", stage="intro", active=True)
+        fact_card = DialogueFactCard(
+            fact_id="dummy_actionable_fact",
+            kind="lead",
+            summary="A reusable dummy lead reveal advances a custom plot stage.",
+            plot_id="plot_dummy",
+            reveal_plot_stage="resolved",
+            reveal_story_flags=("dummy_lead_revealed",),
+        )
+        social_outcome = SocialOutcomePacket(
+            outcome_kind=SocialOutcomeKind.REVEAL,
+            stance_shift=SocialStanceShift(
+                from_stance=ConversationStance.NEUTRAL,
+                to_stance=ConversationStance.NEUTRAL,
+            ),
+            check_required=False,
+            check_result=None,
+            topic_result=TopicResult.OPENED,
+            state_effects=(),
+            plot_effects=(),
+            reason_code="dummy_lead_reveal",
+        )
+
+        summary = apply_authorized_fact_progression(world, (fact_card,), social_outcome)
+
+        self.assertEqual(world.plots["plot_dummy"].stage, "resolved")
+        self.assertIn("dummy_lead_revealed", world.story_flags)
+        self.assertIn("dummy_actionable_fact_plot_stage_revealed", summary.applied_effects)
 
 
 if __name__ == "__main__":

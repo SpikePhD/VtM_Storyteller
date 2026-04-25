@@ -152,6 +152,8 @@ class AdventureLoaderTests(unittest.TestCase):
         self.assertEqual(first_fact.subtopic, "missing_ledger")
         self.assertIn("dockside", first_fact.summary.lower())
         self.assertIn("reveal", first_fact.allowed_outcome_kinds)
+        self.assertEqual(first_fact.reveal_plot_stage, "lead_confirmed")
+        self.assertIn("jonas_shared_dock_lead", first_fact.reveal_story_flags)
         fact_ids = {fact.fact_id for fact in fact_state.fact_definitions}
         self.assertIn("eliza_church_records_lead", fact_ids)
         self.assertIn("eliza_church_records_refusal", fact_ids)

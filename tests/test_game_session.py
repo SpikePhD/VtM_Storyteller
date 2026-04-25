@@ -1156,8 +1156,8 @@ class GameSessionTests(unittest.TestCase):
                 LogisticsCommitment.ABSOLUTE_REFUSAL,
             },
         )
-        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
-        self.assertEqual(session.get_world_state().story_flags, [])
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+        self.assertIn("jonas_shared_dock_lead", session.get_world_state().story_flags)
 
     def test_named_backup_variant_still_works(self) -> None:
         session = GameSession()
@@ -1358,7 +1358,7 @@ class GameSessionTests(unittest.TestCase):
         self.assertIsNotNone(interpreted.dialogue_metadata)
         self.assertIn("what happened here", interpreted.dialogue_metadata.utterance_text.lower())
         self.assertIn("paper trail", result.output_text.lower())
-        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 0)
+        self.assertEqual(session.get_world_state().npcs["npc_1"].trust_level, 1)
 
     def test_aggressive_talk_is_guarded(self) -> None:
         session = GameSession()
@@ -1497,7 +1497,8 @@ class GameSessionTests(unittest.TestCase):
         self.assertIsNotNone(turn.dialogue_adjudication)
         assert turn.dialogue_adjudication is not None
         self.assertEqual(turn.dialogue_adjudication.dialogue_domain, DialogueDomain.LEAD_TOPIC)
-        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "hook")
+        self.assertEqual(session.get_world_state().plots["plot_1"].stage, "lead_confirmed")
+        self.assertIn("jonas_shared_dock_lead", session.get_world_state().story_flags)
 
     def test_jonas_sex_request_does_not_reuse_dock_lead_or_advance_plot(self) -> None:
         session = GameSession()

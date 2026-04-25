@@ -148,6 +148,9 @@ class Adv1DialogueFactDefinition:
     required_dialogue_domains: tuple[str, ...]
     required_dialogue_acts: tuple[str, ...]
     required_keywords: tuple[str, ...]
+    reveal_plot_stage: str | None
+    reveal_story_flags: tuple[str, ...]
+    reveal_trust_level: int | None
 
 
 @dataclass(frozen=True, slots=True)
@@ -990,6 +993,9 @@ def _dialogue_fact_definition_from_dict(data: dict[str, Any]) -> Adv1DialogueFac
         required_dialogue_domains=tuple(_require_optional_string_list(data, "required_dialogue_domains")),
         required_dialogue_acts=tuple(_require_optional_string_list(data, "required_dialogue_acts")),
         required_keywords=tuple(_require_optional_string_list(data, "required_keywords")),
+        reveal_plot_stage=_optional_str(data.get("reveal_plot_stage"), "reveal_plot_stage"),
+        reveal_story_flags=tuple(_require_optional_string_list(data, "reveal_story_flags")),
+        reveal_trust_level=_optional_int(data.get("reveal_trust_level"), "reveal_trust_level"),
     )
 
 
@@ -1038,3 +1044,11 @@ def _optional_str(value: Any, field_name: str) -> str | None:
         raise AdventureContentError(f"Adventure field '{field_name}' must be a string when present.")
     normalized = value.strip()
     return normalized or None
+
+
+def _optional_int(value: Any, field_name: str) -> int | None:
+    if value is None:
+        return None
+    if not isinstance(value, int):
+        raise AdventureContentError(f"Adventure field '{field_name}' must be an integer when present.")
+    return value

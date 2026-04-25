@@ -149,8 +149,8 @@ class DialogueRendererTests(unittest.TestCase):
             session.process_input("/talk with Jonas")
             result = session.process_input("I persuade Jonas to help with the dock.")
 
-        self.assertIn("dock", result.output_text.lower())
-        self.assertIn("begin", result.output_text.lower())
+        self.assertIn("north dockside", result.output_text.lower())
+        self.assertIn("trail starts", result.output_text.lower())
         self.assertNotIn("Dialogue check success", result.output_text)
 
     def test_social_check_failure_renders_from_structured_failure_data(self) -> None:

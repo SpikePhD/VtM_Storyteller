@@ -4,9 +4,10 @@ from dataclasses import dataclass
 from typing import Protocol
 
 from .action_resolution import ActionCheckOutcome, ActionConsequenceSummary
-from .adventure_loader import load_adv1_dialogue_fact_definitions, load_adv1_plot_progression_rules
 from .command_models import TalkCommand
 from .conversation_context import DialogueHistoryEntry, DialogueMemoryContext
+from .dialogue_fact_authorization import select_authorized_fact_cards
+from .dialogue_fact_cards import DialogueFactCard
 from .dialogue_adjudication import DialogueAdjudicationOutcome
 from .dialogue_context_assembler import assemble_dialogue_context
 from .adventure_loader import Adv1DialogueDossierDefinition
@@ -18,15 +19,6 @@ from .world_state import WorldState
 class DialogueRenderer(Protocol):
     def render_dialogue(self, render_input: "DialogueRenderInput") -> str:
         """Render talk output from deterministic dialogue state."""
-
-
-@dataclass(frozen=True, slots=True)
-class DialogueFactCard:
-    fact_id: str
-    kind: str
-    summary: str
-
-
 @dataclass(frozen=True, slots=True)
 class DialogueRenderInput:
     npc_id: str
@@ -70,13 +62,15 @@ def build_dialogue_render_input(
     consequence_summary: ActionConsequenceSummary,
     social_outcome: SocialOutcomePacket | None = None,
     recent_dialogue_history: tuple[DialogueHistoryEntry, ...] = (),
+    authorized_fact_cards: tuple[DialogueFactCard, ...] | None = None,
 ) -> DialogueRenderInput:
-    authorized_fact_cards = _select_authorized_fact_cards(
-        world_state,
-        command,
-        dialogue_adjudication,
-        social_outcome,
-    )
+    if authorized_fact_cards is None:
+        authorized_fact_cards = select_authorized_fact_cards(
+            world_state,
+            command,
+            dialogue_adjudication,
+            social_outcome,
+        )
     context = assemble_dialogue_context(
         world_state,
         command,
@@ -125,82 +119,6 @@ def _build_continuity_cue(command: TalkCommand) -> str | None:
     if command.conversation_subtopic is None:
         return None
     return f"follow_up_on_{command.conversation_subtopic.value}"
-
-
-def _select_authorized_fact_cards(
-    world_state: WorldState,
-    command: TalkCommand,
-    dialogue_adjudication: DialogueAdjudicationOutcome,
-    social_outcome: SocialOutcomePacket | None,
-) -> tuple[DialogueFactCard, ...]:
-    fact_state = load_adv1_dialogue_fact_definitions()
-    plot_rules = load_adv1_plot_progression_rules()
-    plot = world_state.plots.get(plot_rules.plot_id)
-    plot_stage = plot.stage if plot is not None else ""
-    story_flags = set(world_state.story_flags)
-    normalized_text = _normalize_text(command.dialogue_metadata)
-    selected: list[DialogueFactCard] = []
-
-    for fact in fact_state.fact_definitions:
-        if fact.npc_id != command.npc_id:
-            continue
-        if fact.plot_id is not None and fact.plot_id != plot_rules.plot_id:
-            continue
-        if fact.subtopic is not None:
-            active_subtopic = command.conversation_subtopic.value if command.conversation_subtopic is not None else None
-            if not _subtopic_requirement_matches(fact.subtopic, active_subtopic, dialogue_adjudication.dialogue_domain.value, normalized_text):
-                continue
-        if fact.required_plot_stages and plot_stage not in fact.required_plot_stages:
-            continue
-        if fact.required_story_flags and not set(fact.required_story_flags).issubset(story_flags):
-            continue
-        if fact.allowed_outcome_kinds:
-            if social_outcome is None or social_outcome.outcome_kind.value not in fact.allowed_outcome_kinds:
-                continue
-        if fact.allowed_topic_results:
-            if social_outcome is None or social_outcome.topic_result.value not in fact.allowed_topic_results:
-                continue
-        if fact.requires_check_success is not None:
-            if social_outcome is None or social_outcome.check_result is None:
-                continue
-            if social_outcome.check_result.is_success is not fact.requires_check_success:
-                continue
-        if fact.required_dialogue_domains and dialogue_adjudication.dialogue_domain.value not in fact.required_dialogue_domains:
-            continue
-        if fact.required_dialogue_acts:
-            dialogue_act = command.dialogue_metadata.dialogue_act.value if command.dialogue_metadata is not None else "unknown"
-            if dialogue_act not in fact.required_dialogue_acts:
-                continue
-        if fact.required_keywords and not any(keyword in normalized_text for keyword in fact.required_keywords):
-            continue
-        selected.append(DialogueFactCard(fact_id=fact.fact_id, kind=fact.kind, summary=fact.summary))
-
-    return tuple(selected)
-
-
-def _normalize_text(metadata) -> str:
-    if metadata is None:
-        return ""
-    return " ".join(
-        piece.lower().replace("-", " ")
-        for piece in (metadata.utterance_text, metadata.speech_text, metadata.topic or "")
-        if piece
-    )
-
-
-def _subtopic_requirement_matches(
-    required_subtopic: str,
-    active_subtopic: str | None,
-    dialogue_domain: str,
-    normalized_text: str,
-) -> bool:
-    if required_subtopic == active_subtopic:
-        return True
-    if required_subtopic == "missing_ledger" and dialogue_domain in {"lead_topic", "lead_pressure"}:
-        if not normalized_text:
-            return True
-        return any(keyword in normalized_text for keyword in ("dock", "docks", "ledger", "paper trail", "waterline"))
-    return False
 
 
 class DeterministicDialogueRenderer:
